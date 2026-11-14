@@ -722,6 +722,147 @@ def jogo():
     return resp
 
 
+def canais_publicos():
+    """Canais que @everyone vê (mesma lista do /api/servidor), por ID."""
+    if not _srv_cache["data"] and pode_tentar("servidor"):
+        try:
+            dados = buscar_servidor()
+            if dados:
+                _srv_cache.update(t=time.time(), data=dados)
+        except (urllib.error.URLError, ValueError, KeyError, TypeError):
+            falhou("servidor")
+    return {c["id"]: c for c in (_srv_cache["data"] or {}).get("canais", [])}
+
+
+# ---------------------------------------------------------------------------
+# Eventos agendados do Discord (aba "Eventos" do servidor)
+# ---------------------------------------------------------------------------
+_eventos_cache = {"t": 0, "data": None}
+
+
+def buscar_eventos():
+    token = os.environ.get("DISCORD_BOT_TOKEN", "").strip()
+    guild_id = os.environ.get("DISCORD_GUILD_ID", "").strip()
+    if not token or not guild_id:
+        return None
+    evs = discord_get(f"/guilds/{guild_id}/scheduled-events?with_user_count=true", token)
+    pub = canais_publicos()
+    lista = []
+    for e in evs:
+        if e.get("status") not in (1, 2):  # 1 = agendado, 2 = acontecendo
+            continue
+        canal = pub.get(str(e.get("channel_id") or ""))
+        if e.get("channel_id") and not canal:
+            continue  # evento num canal privado (ex.: da staff): não aparece no site
+        local = canal["nome"] if canal else cortar(limpar((e.get("entity_metadata") or {}).get("location") or ""), 60)
+        img = f"https://cdn.discordapp.com/guild-events/{e['id']}/{e['image']}.png?size=600" if re.fullmatch(r"[a-f0-9_]{1,64}", str(e.get("image") or "")) else ""
+        lista.append({
+            "id": str(e["id"]), "nome": cortar(limpar(e.get("name", "")), 90),
+            "desc": cortar(limpar(e.get("description") or ""), 220),
+            "inicio": e.get("scheduled_start_time"), "fim": e.get("scheduled_end_time"),
+            "ao_vivo": e.get("status") == 2, "local": local,
+            "tipo": {1: "palco", 2: "voz", 3: "externo"}.get(e.get("entity_type"), ""),
+            "interessados": int(e.get("user_count") or 0), "img": img,
+            "link": f"https://discord.com/events/{guild_id}/{e['id']}",
+        })
+    lista.sort(key=lambda x: (not x["ao_vivo"], x["inicio"] or ""))
+    return lista[:6]
+
+
+@app.route("/api/eventos")
+def eventos():
+    agora = time.time()
+    if (agora - _eventos_cache["t"] > 120 or _eventos_cache["data"] is None) and pode_tentar("eventos"):
+        try:
+            dados = buscar_eventos()
+        except (urllib.error.URLError, ValueError, KeyError, TypeError) as e:
+            dados = None
+            app.logger.error("eventos: %s", str(e)[:120])
+        if dados is not None:
+            _eventos_cache.update(t=agora, data=dados)
+        else:
+            falhou("eventos")
+    resp = jsonify({"ok": _eventos_cache["data"] is not None, "eventos": _eventos_cache["data"] or []})
+    resp.headers["Cache-Control"] = "public, s-maxage=120, stale-while-revalidate=300"
+    return resp
+
+
+# ---------------------------------------------------------------------------
+# Calls ao vivo: quantas pessoas em cada canal de voz público (só números, sem nomes).
+# O Discord só entrega isso pelo gateway, então o site conecta por ~1 s, lê e desconecta.
+# O Discord limita as conexões por dia (normalmente 1000); se sobrarem poucas, o site pula.
+# ---------------------------------------------------------------------------
+_voz_cache = {"t": 0, "data": None}
+VOZ_SEGUNDOS = 180
+VOZ_RESERVA = 400  # nunca gasta as últimas conexões do dia
+
+
+def buscar_voz():
+    token = os.environ.get("DISCORD_BOT_TOKEN", "").strip()
+    guild_id = os.environ.get("DISCORD_GUILD_ID", "").strip()
+    if not token or not guild_id:
+        return None
+    limite = discord_get("/gateway/bot", token).get("session_start_limit") or {}
+    if int(limite.get("remaining", 0)) < VOZ_RESERVA:
+        app.logger.warning("voz: poucas conexões restantes hoje (%s), pulando", limite.get("remaining"))
+        return None
+    import websocket  # websocket-client
+    ws = websocket.create_connection("wss://gateway.discord.gg/?v=10&encoding=json", timeout=6)
+    estados = None
+    try:
+        fim = time.time() + 7
+        json.loads(ws.recv())  # HELLO
+        ws.send(json.dumps({"op": 2, "d": {
+            "token": token, "intents": (1 << 0) | (1 << 7),  # GUILDS + GUILD_VOICE_STATES
+            "properties": {"os": "linux", "browser": "kyzensa-site", "device": "kyzensa-site"},
+            "presence": {"status": "invisible", "since": None, "activities": [], "afk": False},
+            "large_threshold": 50}}))
+        while time.time() < fim:
+            ev = json.loads(ws.recv())
+            if ev.get("op") == 9:  # sessão inválida
+                break
+            if ev.get("t") == "GUILD_CREATE" and str((ev.get("d") or {}).get("id")) == guild_id:
+                estados = ev["d"].get("voice_states") or []
+                break
+    finally:
+        try:
+            ws.close()
+        except Exception:  # noqa: BLE001
+            pass
+    if estados is None:
+        return None
+    pub = canais_publicos()
+    contagem = {}
+    for s in estados:
+        cid = str(s.get("channel_id") or "")
+        if cid in pub:
+            contagem[cid] = contagem.get(cid, 0) + 1
+    calls = [{"id": cid, "nome": pub[cid]["nome"], "pessoas": n} for cid, n in contagem.items()]
+    calls.sort(key=lambda c: -c["pessoas"])
+    return {"total": sum(contagem.values()), "calls": calls, "em": int(time.time())}
+
+
+@app.route("/api/voz")
+def voz():
+    agora = time.time()
+    if (agora - _voz_cache["t"] > VOZ_SEGUNDOS or _voz_cache["data"] is None) and pode_tentar("voz", 120):
+        _voz_cache["t"] = agora  # marca antes, para duas visitas juntas não conectarem duas vezes
+        try:
+            dados = buscar_voz()
+        except Exception as e:  # noqa: BLE001  (gateway pode falhar de vários jeitos)
+            dados = None
+            app.logger.error("voz: %s", str(e)[:120])
+        if dados is not None:
+            _voz_cache["data"] = dados
+        else:
+            falhou("voz")
+    if not _voz_cache["data"]:
+        return jsonify({"ok": False}), 503
+    resp = jsonify({"ok": True, **_voz_cache["data"]})
+    resp.headers["Cache-Control"] = f"public, s-maxage={VOZ_SEGUNDOS}, stale-while-revalidate=300"
+    return resp
+
+
 # ---------------------------------------------------------------------------
 # Placar das wars (# wars-results). Cada linha no formato:
 #   CrewA 3 x 1 CrewB      (também aceita "3-1", "3×1")
@@ -741,7 +882,7 @@ def buscar_wars():
     if not canal:
         return None
     msgs = discord_get(f"/channels/{canal}/messages?limit=100", token)
-    tabela, partidas = {}, []
+    tabela, partidas, ultima = {}, [], None
 
     def crew(n):
         return tabela.setdefault(n.lower(), {"crew": n, "v": 0, "d": 0, "e": 0, "pts": 0, "h": []})
@@ -773,19 +914,21 @@ def buscar_wars():
             ca["h"].append("V" if ga > gb else "D" if gb > ga else "E")
             cb["h"].append("V" if gb > ga else "D" if ga > gb else "E")
             d = datetime.fromisoformat(m["timestamp"].replace("Z", "+00:00"))
+            ultima = d
             partidas.append({"a": ca["crew"], "b": cb["crew"], "ga": ga, "gb": gb,
                              "data": f"{d.day} {MESES[d.month - 1]} {d.year}",
                              "link": f"https://discord.com/channels/{guild_id}/{canal}/{m['id']}"})
     for c in tabela.values():
         c["h"] = c["h"][-5:][::-1]  # últimas 5, da mais recente para a mais antiga
     ranking = sorted(tabela.values(), key=lambda c: (-c["pts"], -c["v"], c["d"], c["crew"].lower()))
-    return {"ranking": ranking[:20], "partidas": partidas[::-1][:10]}
+    return {"ranking": ranking[:20], "partidas": partidas[::-1][:10],
+            "ultima": int(ultima.timestamp()) if ultima else None}
 
 
 @app.route("/api/wars")
 def wars():
     agora = time.time()
-    if (agora - _wars_cache["t"] > CACHE_SECONDS or _wars_cache["data"] is None) and pode_tentar("wars"):
+    if (agora - _wars_cache["t"] > 15 or _wars_cache["data"] is None) and pode_tentar("wars"):
         try:
             dados = buscar_wars()
         except (urllib.error.URLError, ValueError, KeyError, TypeError):
@@ -795,8 +938,8 @@ def wars():
         else:
             falhou("wars")
     resp = jsonify({"configured": _wars_cache["data"] is not None,
-                    **(_wars_cache["data"] or {"ranking": [], "partidas": []})})
-    resp.headers["Cache-Control"] = "public, s-maxage=60, stale-while-revalidate=300"
+                    **(_wars_cache["data"] or {"ranking": [], "partidas": [], "ultima": None})})
+    resp.headers["Cache-Control"] = "public, s-maxage=15, stale-while-revalidate=60"
     return resp
 
 

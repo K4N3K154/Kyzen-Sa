@@ -240,6 +240,27 @@ main{background-image:linear-gradient(color-mix(in srgb,var(--accent) 6%,transpa
 .log b{font-family:"Cinzel",serif}.log b.w{color:#3ba55d}.log b.l{opacity:.7}.log i{font-style:normal;font-weight:700;padding:2px 10px;border-radius:99px;background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--accent)}
 .log a:hover b{text-decoration:underline}
 @media (max-width:520px){.log a{gap:4px}.log .ld{flex:1 1 100%;min-width:0}}
+.aov{display:inline-flex;align-items:center;font-size:.8rem;color:var(--accent);margin-left:6px}
+/* Eventos */
+.evs{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:16px}
+.evt{position:relative;isolation:isolate;overflow:hidden;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:18px;transition:transform .3s cubic-bezier(.2,.7,.2,1),border-color .3s,box-shadow .3s}
+.evt:hover{transform:translateY(-5px);border-color:var(--accent);box-shadow:0 22px 44px -26px color-mix(in srgb,var(--accent) 80%,transparent)}
+.evt.on{border-color:#e0574b;box-shadow:0 0 0 1px #e0574b inset}.evt.on .tag{color:#e0574b}
+.evt .th{display:block;width:calc(100% + 36px);margin:-18px -18px 14px;aspect-ratio:2.4;object-fit:cover;background:#0a1112}
+.evt-d{width:62px;border-radius:12px;overflow:hidden;text-align:center;margin-bottom:12px;border:1px solid var(--accent)}.evt-d b{display:block;font:700 1.6rem/1.3 "Cinzel",serif}.evt-d span{display:block;background:var(--accent);color:#1a1208;font-size:.7rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase}
+.evt .tag{font-size:.7rem;letter-spacing:.12em;color:var(--accent);font-weight:700}.evt h3{margin:6px 0 4px;font-size:1.08rem}
+.evt p{margin:0 0 6px;color:var(--muted);font-size:.9rem}.evt .evt-q{color:var(--text);font-size:.85rem;text-transform:capitalize}
+.evt-c{margin:6px 0 10px;font-size:.85rem;color:var(--muted)}.evt-c b{font:700 1.05rem "Cinzel",serif;color:var(--accent);font-variant-numeric:tabular-nums}
+.evt-f{margin-top:auto;display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:.85rem;color:var(--muted);padding-top:8px}
+.evt-f .vj{padding:8px 14px;border-radius:99px;font-weight:700;color:#1a1208;background:linear-gradient(#d9a862,#b0793a);white-space:nowrap}
+/* Calls ao vivo */
+.calls{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
+.call{display:flex;align-items:center;gap:12px;background:var(--surface);border:1px solid color-mix(in srgb,#3ba55d 45%,var(--border));border-radius:14px;padding:12px 14px;transition:transform .25s,border-color .25s}
+.call:hover{transform:translateY(-3px);border-color:#3ba55d}.call b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}.call em{font-style:normal;font-size:.82rem;color:#3ba55d;font-weight:700;white-space:nowrap}
+.eq{display:flex;align-items:flex-end;gap:2px;height:16px;flex:none}.eq i{width:3px;height:100%;border-radius:2px;background:#3ba55d;animation:eq 1s ease-in-out infinite;transform-origin:bottom}
+.eq i:nth-child(2){animation-delay:-.35s}.eq i:nth-child(3){animation-delay:-.7s}@keyframes eq{0%,100%{transform:scaleY(.3)}50%{transform:scaleY(1)}}
+.calls-t{grid-column:1/-1;margin:2px 0 0;font-size:.78rem;color:var(--muted)}
+@media (prefers-reduced-motion:reduce){html:not(.anim) .eq i{animation:none;transform:scaleY(.7)}}
 @media (prefers-reduced-motion:reduce){html:not(.anim) :is(.rosa,.barco,.barco svg,.cloth,.dot.pu,.porto svg .mar){animation:none!important}html:not(.anim) .barco{display:none}}
 @media (prefers-reduced-motion:reduce){html:not(.anim) :is(.hero .wrap>.logo,.hero h1,.hero .wrap>*,.ph .wrap>*,.kick::after,.waves>svg,.hero::before,.cta::before,.btn,.view){animation:none!important}html:not(.anim) .fx{display:none}html:not(.anim) .rv{opacity:1;transform:none}}
 @media (max-width:640px){.hd .wrap{flex-wrap:wrap;gap:6px 12px;padding-top:8px;padding-bottom:6px;min-height:0}.hd .brand{flex:1}.hd nav{order:3;flex:1 1 100%;margin:0 -6px}}
@@ -256,9 +277,9 @@ main{background-image:linear-gradient(color-mix(in srgb,var(--accent) 6%,transpa
   <span class="kick">影 KYZEN SA</span><h1>KyzenSA</h1>
   <p>Monte sua crew, entre em wars e faça alianças nos mares de Vox Seas.</p>
   <a class="btn" href="#crews">Ver a frota</a><a class="btn ghost" href="https://discord.gg/DNZrYHRXU5" target="_blank" rel="noopener">Entrar no Discord</a>
-  <div class="vs" data-jogo><span class="vt"><small>VOX SEAS · AO VIVO</small><b>Carregando…</b></span></div><div class="stats"><div class="stat"><b data-n="1288" data-live="membros">0</b><small>Membros</small></div><div class="stat"><b data-n="158" data-live="online">0</b><small><i class="dot"></i>Online agora</small></div><div class="stat"><b data-n="8" data-live="boosts">0</b><small>Boosts</small></div><div class="stat"><b data-n="10">0</b><small>Canais de crew</small></div><div class="stat"><b data-n="2">0</b><small>Calls de crew</small></div><div class="stat"><b data-n="4">0</b><small>Canais de diversão</small></div></div>
+  <div class="vs" data-jogo><span class="vt"><small>VOX SEAS · AO VIVO</small><b>Carregando…</b></span></div><div class="stats"><div class="stat"><b data-n="1288" data-live="membros">0</b><small>Membros</small></div><div class="stat"><b data-n="158" data-live="online">0</b><small><i class="dot"></i>Online agora</small></div><div class="stat"><b data-n="8" data-live="boosts">0</b><small>Boosts</small></div><div class="stat"><b data-n="10">0</b><small>Canais de crew</small></div><div class="stat"><b data-n="2" data-voz>0</b><small data-voz-l>Calls de crew</small></div><div class="stat"><b data-n="4">0</b><small>Canais de diversão</small></div></div>
  </div></div>
- <section class="blk"><div class="wrap"><h2 class="ttl">Por que fazer parte?</h2><p class="sub">Tudo que a sua tripulação precisa em um só lugar.</p><div class="grid" data-cards="why"></div></div></section>
+ <section class="blk"><div class="wrap"><div id="ev-home" hidden style="margin-bottom:44px"><h2 class="ttl">Próximos eventos</h2><p class="sub">Direto da aba Eventos do Discord. <a class="more" style="display:inline" href="#novidades">Ver todos →</a></p><div class="evs" data-eventos="3"></div></div><h2 class="ttl">Por que fazer parte?</h2><p class="sub">Tudo que a sua tripulação precisa em um só lugar.</p><div class="grid" data-cards="why"></div></div></section>
  <section class="cta"><div class="wrap"><h2>Quer entrar para a equipe?</h2><p>Fale com a staff e faça o apply direto no Discord.</p><a class="btn" href="https://discord.gg/DNZrYHRXU5" target="_blank" rel="noopener">Entrar no Discord</a></div></section>
  <section class="blk"><div class="wrap">
   <h2 class="ttl">Explore o servidor</h2><p class="sub">Conheça as áreas do Discord.</p>
@@ -278,7 +299,7 @@ main{background-image:linear-gradient(color-mix(in srgb,var(--accent) 6%,transpa
  <section class="blk"><div class="wrap"><div class="grid" data-cards="info"></div></div></section></section>
 
 <section class="view" id="v-novidades" hidden><div class="ph"><div class="wrap"><i class="jp">知らせ</i><h1>Novidades</h1><p>Anúncios, eventos e vídeos novos da comunidade.</p></div></div>
- <section class="blk"><div class="wrap"><div class="grid" data-cards="news"></div><h2 class="ttl" style="margin-top:40px">Últimas novidades</h2><p class="sub"></p><div class="list" data-list="news"></div></div></section></section>
+ <section class="blk"><div class="wrap"><h2 class="ttl">Eventos agendados</h2><p class="sub">Direto da aba Eventos do Discord, com contagem até o início.</p><div class="evs" data-eventos="6" style="margin-bottom:44px"><div class="empty">Carregando os eventos…</div></div><div class="grid" data-cards="news"></div><h2 class="ttl" style="margin-top:40px">Últimas novidades</h2><p class="sub"></p><div class="list" data-list="news"></div></div></section></section>
 
 <section class="view" id="v-crews" hidden><div class="ph" style="--bgi:var(--imgred)"><div class="wrap"><i class="jp">仲間</i><h1>Crews</h1><p>Anúncios, chats, builds, calls, wars e alianças.</p></div></div>
  <section class="blk"><div class="wrap">
@@ -293,13 +314,13 @@ main{background-image:linear-gradient(color-mix(in srgb,var(--accent) 6%,transpa
    <div class="acts"><a class="btn" data-ch="apply" href="https://discord.gg/DNZrYHRXU5" target="_blank" rel="noopener">Abrir #kyzen-apply</a><a class="btn alt" href="#canal-requisitos">Quer ser Content Creator?</a></div>
   </div>
   <h2 class="ttl" style="margin-top:44px">A Frota</h2><p class="sub">Cada crew é um navio. Bandeira, posição, placar e últimas batalhas se atualizam sozinhos a partir de # crew-post e # wars-results. Vitória vale 3 pontos e empate vale 1.</p><div class="frota" data-frota="0"></div>
-  <h2 class="ttl" style="margin-top:44px">Diário de bordo</h2><p class="sub">As últimas wars registradas.</p><div id="diario"><div class="empty">Abrindo o diário…</div></div>
+  <h2 class="ttl" style="margin-top:44px">Diário de bordo</h2><p class="sub">As últimas wars registradas. <span class="aov"><i class="dot pu"></i><span id="w-ult">Atualiza sozinho a cada 20 segundos</span></span></p><div id="diario"><div class="empty">Abrindo o diário…</div></div>
   <h2 class="ttl" style="margin-top:44px">Canais da crew</h2><p class="sub"></p><div class="grid" data-cards="crews"></div>
   <h2 class="ttl" style="margin-top:44px">Wars e relações</h2><p class="sub"></p><div class="grid" data-cards="wars"></div></div></section></section>
 
 <section class="view" id="v-comunidade" hidden><div class="ph" style="--bgi:var(--imgwater)"><div class="wrap"><i class="jp">祭</i><h1>Comunidade</h1><p>Chat, diversão e o universo de Vox Seas.</p></div></div>
  <section class="blk"><div class="wrap"><h2 class="ttl">Chat geral</h2><p class="sub"></p><div class="grid" data-cards="chat"></div>
-  <h2 class="ttl" style="margin-top:44px">Canais de voz</h2><p class="sub"></p><div class="grid" data-cards="voz"></div>
+  <h2 class="ttl" style="margin-top:44px">Canais de voz</h2><p class="sub">Quem está em call agora (só a contagem, sem nomes). Atualiza a cada 3 minutos.</p><div id="calls" class="calls"><div class="empty">Verificando as calls…</div></div><div class="grid" data-cards="voz" style="margin-top:18px"></div>
   <h2 class="ttl" style="margin-top:44px">Diversão</h2><p class="sub"></p><div class="grid" data-cards="fun"></div>
   <h2 class="ttl" style="margin-top:44px">O jogo: Vox Seas</h2><p class="sub">Resumo feito pela comunidade, não oficial. Os números ao vivo vêm direto do Roblox.</p><div class="vs lt" data-jogo><span class="vt"><small>VOX SEAS · AO VIVO</small><b>Carregando…</b></span></div><div class="grid" data-cards="jogo" style="margin-top:22px"></div>
   <figure class="map"><svg viewBox="0 0 640 260" role="img" aria-label="Mapa ilustrativo com ilhas e rota de navegação"><rect width="640" height="260" rx="10" fill="none"/><path d="M40 200Q130 120 230 150T390 90T590 60" fill="none" stroke="var(--accent2)" stroke-width="2.5" stroke-dasharray="7 7"/><ellipse cx="70" cy="205" rx="42" ry="22" fill="var(--accent)" opacity=".8"/><ellipse cx="235" cy="150" rx="36" ry="20" fill="var(--accent)" opacity=".65"/><ellipse cx="395" cy="92" rx="44" ry="22" fill="var(--accent)" opacity=".5"/><ellipse cx="575" cy="62" rx="38" ry="20" fill="var(--accent)" opacity=".35"/><g fill="var(--text)" font-size="13" font-family="system-ui,sans-serif" text-anchor="middle"><text x="70" y="242">Ilha inicial</text><text x="235" y="185">Ilhas intermediárias</text><text x="395" y="128">Mar aberto</text><text x="575" y="98">Ilhas avançadas</text><text x="470" y="215">🐉 Sea Beast</text></g><g transform="translate(580 200)" stroke="var(--muted)" fill="none" stroke-width="1.5"><circle r="22"/><path d="M0 -28V28M-28 0H28"/><path d="M0 -22L5 0L0 22L-5 0Z" fill="var(--accent)" stroke="none"/></g></svg><figcaption>Ilustração decorativa, não é o mapa oficial do jogo.</figcaption></figure>
@@ -431,7 +452,33 @@ function renderFrota(){const N=navios(),post=CH["crew-post"]||DL,apl=CH.apply||D
 function renderDiario(){const P=WARS&&WARS.partidas||[],el=$("diario");if(!el)return;
  el.innerHTML=P.length?`<ol class="log">${P.map(p=>{const va=p.ga>p.gb,vb=p.gb>p.ga;return `<li><a href="${x(p.link)}" target="_blank" rel="noopener"><span class="ld">${x(p.data)}</span><span class="lw"><b class="${va?"w":vb?"l":""}">${x(p.a)}</b><i>${p.ga} ⚔ ${p.gb}</i><b class="${vb?"w":va?"l":""}">${x(p.b)}</b></span></a></li>`}).join("")}</ol>`
  :`<div class="empty">Nenhuma war registrada ainda. Quando os resultados forem postados em # wars-results, elas aparecem aqui.<br><small>Formato de cada linha: <code>Crew A 3 x 1 Crew B</code> ou <code>Crew A venceu Crew B</code></small></div>`}
-fetch("/api/wars").then(r=>r.json()).then(j=>{WARS=j}).catch(()=>{}).finally(()=>{renderFrota();renderDiario()});
+const rel=ts=>{const s=Math.max(0,Date.now()/1e3-ts);return s<60?"agora mesmo":s<3600?`há ${Math.floor(s/60)} min`:s<86400?`há ${Math.floor(s/3600)} h`:`há ${Math.floor(s/86400)} dia${s<172800?"":"s"}`};
+let warsTxt="";
+const pegarWars=()=>fetch("/api/wars").then(r=>r.text()).then(t=>{if(t===warsTxt)return;warsTxt=t;WARS=JSON.parse(t);renderFrota();renderDiario()}).catch(()=>{if(!WARS){renderFrota();renderDiario()}}).finally(()=>{const u=$("w-ult");if(u)u.textContent=WARS&&WARS.ultima?`Última war ${rel(WARS.ultima)} · atualiza sozinho`:"Atualiza sozinho a cada 20 segundos"});
+pegarWars();setInterval(()=>{const h=location.hash.slice(1)||"inicio";if(!document.hidden&&(h==="crews"||h==="inicio"))pegarWars()},20000);
+/* ===================== Eventos agendados do Discord -> /api/eventos ===================== */
+let EVS=null;
+const quando=iso=>new Date(iso).toLocaleString("pt-BR",{weekday:"short",day:"numeric",month:"short",hour:"2-digit",minute:"2-digit",timeZone:"America/Sao_Paulo"});
+const evento=e=>{const d=new Date(e.inicio),dia=d.toLocaleString("pt-BR",{day:"numeric",timeZone:"America/Sao_Paulo"}),mes=d.toLocaleString("pt-BR",{month:"short",timeZone:"America/Sao_Paulo"}).replace(".","");
+ return `<a class="evt${e.ao_vivo?" on":""}" href="${x(e.link)}" target="_blank" rel="noopener">${e.img?`<img class="th" src="${x(e.img)}" alt="" loading="lazy" referrerpolicy="no-referrer">`:`<div class="evt-d"><b>${x(dia)}</b><span>${x(mes)}</span></div>`}
+ <span class="tag">${e.ao_vivo?"🔴 ACONTECENDO AGORA":"EVENTO"}</span><h3>${x(e.nome)}</h3>
+ <p class="evt-q">${x(quando(e.inicio))}${e.local?` · ${e.tipo==="externo"?"📍":"🔊"} ${x(e.local)}`:""}</p>${e.desc?`<p>${x(e.desc)}</p>`:""}
+ ${e.ao_vivo?"":`<div class="evt-c" data-ini="${d.getTime()}"></div>`}
+ <div class="evt-f"><span>⭐ ${e.interessados} interessado${e.interessados===1?"":"s"}</span><span class="vj">${e.ao_vivo?"Entrar agora":"Tenho interesse"}</span></div></a>`};
+function renderEventos(){const L=EVS||[];document.querySelectorAll("[data-eventos]").forEach(el=>{const n=+el.dataset.eventos;
+ el.innerHTML=L.length?L.slice(0,n).map(evento).join(""):`<div class="empty">Nenhum evento agendado agora. Fique de olho na aba <b>Eventos</b> do Discord e em # eventos.</div>`});
+ const h=$("ev-home");if(h)h.hidden=!L.length;tickEventos()}
+function tickEventos(){document.querySelectorAll("[data-ini]").forEach(e=>{const s=Math.floor((+e.dataset.ini-Date.now())/1e3);if(s<=0){e.textContent="⚓ Começando…";return}const d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60),c=s%60,p=n=>String(n).padStart(2,"0");e.innerHTML=`Começa em ${d?`<b>${d}</b>d `:""}<b>${p(h)}</b>h <b>${p(m)}</b>m <b>${p(c)}</b>s`})}
+const pegarEventos=()=>fetch("/api/eventos").then(r=>r.json()).then(j=>{EVS=j.eventos||[]}).catch(()=>{EVS=EVS||[]}).finally(renderEventos);
+pegarEventos();setInterval(()=>{if(!document.hidden)pegarEventos()},120000);setInterval(tickEventos,1000);
+/* ===================== Calls ao vivo -> /api/voz (só a contagem de pessoas por canal) ===================== */
+function renderVoz(j){const el=$("calls"),st=document.querySelector("[data-voz]");
+ if(!j){if(el)el.innerHTML='<div class="empty">Não foi possível ver as calls agora. Tente de novo em alguns minutos.</div>';return}
+ if(st){st.dataset.n=j.total;if(counted)st.textContent=j.total.toLocaleString("pt-BR");const l=document.querySelector("[data-voz-l]");if(l)l.innerHTML=`<i class="dot${j.total?" pu":""}"></i>Em call agora`}
+ if(el)el.innerHTML=(j.calls.length?j.calls.map(c=>`<a class="call" href="https://discord.com/channels/${x(SRV||"")}/${x(c.id)}" target="_blank" rel="noopener"><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span><b>${x(c.nome)}</b><em>${c.pessoas} ${c.pessoas===1?"pessoa":"pessoas"}</em></a>`).join(""):`<div class="empty">Ninguém em call agora. Que tal abrir uma em <b>➕ Criar Call</b>?</div>`)+`<p class="calls-t">Atualizado ${rel(j.em)}</p>`}
+let SRV="";
+const pegarVoz=()=>fetch("/api/voz").then(r=>r.json()).then(j=>renderVoz(j.ok?j:null)).catch(()=>renderVoz(null));
+pegarVoz();setInterval(()=>{if(!document.hidden)pegarVoz()},180000);
 /* ===================== Vox Seas ao vivo -> /api/jogo (APIs públicas do Roblox) ===================== */
 const cmp=n=>new Intl.NumberFormat("pt-BR",{notation:"compact",maximumFractionDigits:1}).format(n);
 function renderJogo(j){document.querySelectorAll("[data-jogo]").forEach(e=>{
@@ -446,7 +493,7 @@ fetch("/api/staff").then(r=>r.json()).then(j=>{const G=j.grupos||[];
  $("staff").innerHTML=G.length?G.map(g=>`<h3 class="sg"${g.cor?` style="--rc:${x(g.cor)}"`:""}>${x(g.cargo)} <small>${g.membros.length}</small></h3><div class="stm">${g.membros.map(m=>`<div class="mb"><img src="${x(m.avatar)}" alt="" loading="lazy" referrerpolicy="no-referrer"><span>${x(m.nome)}</span></div>`).join("")}</div>`).join(""):'<div class="empty">A lista da staff aparece aqui em breve.</div>'}).catch(()=>{$("staff").innerHTML='<div class="empty">Não foi possível carregar a staff agora.</div>'});
 /* Servidor (bot) -> /api/servidor: contadores ao vivo e link direto de cada canal */
 const norm=s=>s.normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase().replace(/[^a-z0-9]/g,"");
-fetch("/api/servidor").then(r=>r.json()).then(j=>{if(!j.configured)return;
+fetch("/api/servidor").then(r=>r.json()).then(j=>{if(!j.configured)return;SRV=j.guild_id;document.querySelectorAll('.call[href*="/channels//"]').forEach(a=>a.href=a.href.replace("/channels//",`/channels/${SRV}/`));
  document.querySelectorAll("[data-live]").forEach(e=>{const v=j[e.dataset.live];if(typeof v==="number"){e.dataset.n=v;if(counted)e.textContent=v.toLocaleString("pt-BR")}});
  Object.entries(D).forEach(([s,m])=>{const n=norm((m.ch.match(/#\s*([^·]+)/)||[])[1]||"");const c=n&&j.canais.find(c=>norm(c.nome).endsWith(n));if(c)CH[s]=`https://discord.com/channels/${j.guild_id}/${c.id}`});
  const cp=j.canais.find(c=>norm(c.nome).endsWith("crewpost"));if(cp)CH["crew-post"]=`https://discord.com/channels/${j.guild_id}/${cp.id}`;renderFrota();
@@ -522,7 +569,7 @@ document.addEventListener("click",e=>{const a=e.target.closest('a[href^="https:/
    g.globalAlpha=1};
   passo()}
  /* elementos aparecem ao rolar, em sequência */
- const SEL=".card,.ev,.ttl,.panel,.gal .shot,.map,.ip,.mb,.steps li,.cta .wrap>*,.list>.empty,#staff>.empty,#diario>.empty,.ship,.porto,.log li";
+ const SEL=".card,.ev,.ttl,.panel,.gal .shot,.map,.ip,.mb,.steps li,.cta .wrap>*,.list>.empty,#staff>.empty,#diario>.empty,.ship,.porto,.log li,.evt,.evs>.empty,.call";
  const io=new IntersectionObserver(es=>{let i=0;es.forEach(en=>{if(!en.isIntersecting)return;const el=en.target;io.unobserve(el);
    el.style.setProperty("--d",Math.min(i++,8)*75+"ms");el.classList.add("in");
    const fim=ev=>{if(ev.target!==el||ev.propertyName!=="opacity")return;el.removeEventListener("transitionend",fim);el.classList.remove("rv","in");el.style.removeProperty("--d")};
