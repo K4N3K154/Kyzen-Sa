@@ -299,7 +299,7 @@ fun:[["🎨","Gartic","Desenhe e adivinhe com a galera.","# gartic"],["🃏","Mu
 jogo:[["⚓","Piratas ou Marines","Escolha seu lado e siga a jornada por quests e batalhas."],["🍎","Vox Fruits","Frutas com habilidades em cinco raridades: comum, rara, épica, lendária e mítica."],["⚔️","Espadas, armas e estilos","Espadas, armas de fogo, luta corpo a corpo ou frutas."],["⛵","Navios e Sea Beasts","Cruze o oceano e enfrente chefes de raid no mar."],["👁️","Haki e mobilidade","Geppo e Haki ajudam na exploração e no combate."],["🗺️","Ilhas e chefes","Novas ilhas se abrem conforme você avança."]],
 sup:[["🎫","Abrir ticket","Dúvidas, denúncias e parcerias com a staff.","# abrir-ticket"],["📝","Apply","Candidate-se para uma crew ou para a staff.","# kyzen-apply"],["🎥","Content Creator","Veja os requisitos para ser criador de conteúdo da Kyzen SA.","# req-cc","requisitos"]]};
 const E={news:"As novidades aparecerão aqui.",crews:"As crews aparecem aqui assim que forem divulgadas em # crew-post."};
-const x=s=>String(s??"").replace(/[&<>"]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));
+const x=s=>String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
 const T={
  news:n=>`<a class="ev" href="${x(n.link||DL)}" target="_blank" rel="noopener">${n.img?`<img class="th" src="${x(n.img)}" alt="" loading="lazy" referrerpolicy="no-referrer">`:""}<span class="tag">${x(n.tag||"NOVIDADE")}</span><h3>${x(n.titulo)}</h3><p>${x(n.data)}</p></a>`,
  crews:c=>`<a class="ev" href="${x(c.link||DL)}" target="_blank" rel="noopener">${c.img?`<img class="th" src="${x(c.img)}" alt="" loading="lazy" referrerpolicy="no-referrer">`:""}<span class="tag">CREW</span><h3>${x(c.nome)}</h3><p>${x(c.lider||"")}</p></a>`};
@@ -360,7 +360,7 @@ fetch("/api/servidor").then(r=>r.json()).then(j=>{if(!j.configured)return;
  document.querySelectorAll("[data-live]").forEach(e=>{const v=j[e.dataset.live];if(typeof v==="number"){e.dataset.n=v;if(counted)e.textContent=v.toLocaleString("pt-BR")}});
  Object.entries(D).forEach(([s,m])=>{const n=norm((m.ch.match(/#\s*([^·]+)/)||[])[1]||"");const c=n&&j.canais.find(c=>norm(c.nome).endsWith(n));if(c)CH[s]=`https://discord.com/channels/${j.guild_id}/${c.id}`});
  document.querySelectorAll("[data-ch]").forEach(a=>{if(CH[a.dataset.ch])a.href=CH[a.dataset.ch]});
- if(j.roblox){RBX=j.roblox;document.querySelectorAll("[data-rbx]").forEach(a=>a.href=RBX)}
+ if(/^https:\/\/(www\.)?roblox\.com\//.test(j.roblox||"")){RBX=j.roblox;document.querySelectorAll("[data-rbx]").forEach(a=>a.href=RBX)}
  const h=location.hash.slice(1);if(h.startsWith("canal-")&&D[h.slice(6)]&&!$("cb").querySelector(".dc"))detail(h.slice(6),D[h.slice(6)])}).catch(()=>{});const loadCanal=s=>CAN[s]??=fetch("/api/canal/"+s).then(r=>r.json()).catch(()=>null);
 function renderLists(){document.querySelectorAll("[data-list]").forEach(l=>{const k=l.dataset.list,d=DATA[k];l.innerHTML=d.length?d.slice(0,6).map(T[k]).join(""):`<div class="empty">${E[k]}</div>`})}
 renderLists();

@@ -1,3 +1,6 @@
+import base64
+import hashlib
+import hmac
 import json
 import os
 import re
@@ -17,6 +20,59 @@ app = Flask(
     static_folder=str(BASE_DIR / "public"),
     static_url_path="",
 )
+app.config["MAX_CONTENT_LENGTH"] = 16 * 1024  # nenhum envio do site passa de 16 KB
+
+
+# ---------------------------------------------------------------------------
+# Segurança
+# ---------------------------------------------------------------------------
+def debug_ok():
+    """Diagnóstico só com ?debug=<DEBUG_KEY>. Sem a variável DEBUG_KEY, fica desligado."""
+    chave = os.environ.get("DEBUG_KEY", "")
+    return len(chave) >= 16 and hmac.compare_digest(request.args.get("debug", ""), chave)
+
+
+_falhas = {}
+
+
+def pode_tentar(nome, espera=30):
+    """Depois de uma falha do Discord, espera alguns segundos antes de tentar de novo."""
+    return time.time() - _falhas.get(nome, 0) > espera
+
+
+def falhou(nome):
+    _falhas[nome] = time.time()
+
+
+def url_segura(u):
+    return u if isinstance(u, str) and re.match(r"^https?://[^\s\"'<>]+$", u) else ""
+
+
+def csp_da_pagina(html):
+    """CSP com o hash exato do script da página: só esse script pode rodar."""
+    hashes = []
+    for s in re.findall(r"<script>(.*?)</script>", html, re.S):
+        h = base64.b64encode(hashlib.sha256(s.encode("utf-8")).digest()).decode()
+        hashes.append(f"'sha256-{h}'")
+    return ("default-src 'self'; "
+            f"script-src 'self' {' '.join(hashes)}; "
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+            "font-src https://fonts.gstatic.com; "
+            "img-src 'self' data: https:; "
+            "connect-src 'self'; "
+            "frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'; "
+            "upgrade-insecure-requests")
+
+
+@app.after_request
+def cabecalhos(resp):
+    resp.headers.setdefault("X-Content-Type-Options", "nosniff")
+    resp.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    resp.headers.setdefault("X-Frame-Options", "DENY")
+    resp.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()")
+    resp.headers.setdefault("Cross-Origin-Opener-Policy", "same-origin")
+    resp.headers.setdefault("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
+    return resp
 
 # ---------------------------------------------------------------------------
 # Configuração (variáveis de ambiente na Vercel)
@@ -126,9 +182,9 @@ def montar(msg, tag, guild_id, canal_id):
         "titulo": cortar(titulo, 90),
         "data": data,
         "tag": tag,
-        "link": link,
-        "img": imagem_da(msg),
-        "ext": primeiro_link(msg),
+        "link": url_segura(link),
+        "img": url_segura(imagem_da(msg)),
+        "ext": url_segura(primeiro_link(msg)),
         "_ts": msg["timestamp"],
     }
 
@@ -189,7 +245,7 @@ def buscar_anuncios(diag=None):
 
 @app.route("/api/novidades")
 def novidades():
-    if request.args.get("debug") == "1":
+    if debug_ok():
         diag = {}
         dados = buscar_anuncios(diag)
         resp = jsonify({"configured": dados is not None, "total": len(dados or []), "diagnostico": diag})
@@ -518,7 +574,7 @@ def buscar_canal(slug, diag=None):
 def canal_api(slug):
     if slug not in PAGINAS:
         return jsonify({"configured": False, "html": "", "link": ""}), 404
-    if request.args.get("debug") == "1":
+    if debug_ok():
         diag = {}
         dados = buscar_canal(slug, diag)
         resp = jsonify({"configured": dados is not None, "tamanho_html": len((dados or {}).get("html", "")),
@@ -589,15 +645,16 @@ def buscar_servidor():
 def servidor():
     """Contagem de membros e lista de canais (nomes e IDs, para os links do site)."""
     agora = time.time()
-    if agora - _srv_cache["t"] > 300 or _srv_cache["data"] is None:
+    if (agora - _srv_cache["t"] > 300 or _srv_cache["data"] is None) and pode_tentar("servidor"):
         try:
             dados = buscar_servidor()
         except (urllib.error.URLError, ValueError, KeyError, TypeError) as e:
             dados = None
-            if request.args.get("debug") == "1":
-                return jsonify({"erro": str(e)[:120]}), 502
+            app.logger.error("servidor: %s", str(e)[:120])
         if dados:
             _srv_cache.update(t=agora, data=dados)
+        else:
+            falhou("servidor")
     if not _srv_cache["data"]:
         return jsonify({"configured": False}), 503
     resp = jsonify({"configured": True, **_srv_cache["data"],
@@ -665,13 +722,15 @@ def buscar_wars():
 @app.route("/api/wars")
 def wars():
     agora = time.time()
-    if agora - _wars_cache["t"] > CACHE_SECONDS or _wars_cache["data"] is None:
+    if (agora - _wars_cache["t"] > CACHE_SECONDS or _wars_cache["data"] is None) and pode_tentar("wars"):
         try:
             dados = buscar_wars()
         except (urllib.error.URLError, ValueError, KeyError, TypeError):
             dados = None
         if dados is not None:
             _wars_cache.update(t=agora, data=dados)
+        else:
+            falhou("wars")
     resp = jsonify({"configured": _wars_cache["data"] is not None,
                     **(_wars_cache["data"] or {"ranking": [], "partidas": []})})
     resp.headers["Cache-Control"] = "public, s-maxage=60, stale-while-revalidate=300"
@@ -744,13 +803,15 @@ def buscar_staff():
 @app.route("/api/staff")
 def staff():
     agora = time.time()
-    if agora - _staff_cache["t"] > 600 or _staff_cache["data"] is None:
+    if (agora - _staff_cache["t"] > 600 or _staff_cache["data"] is None) and pode_tentar("staff", 60):
         try:
             dados = buscar_staff()
         except (urllib.error.URLError, ValueError, KeyError, TypeError):
             dados = None
         if dados is not None:
             _staff_cache.update(t=agora, data=dados)
+        else:
+            falhou("staff")
     resp = jsonify({"configured": _staff_cache["data"] is not None, "grupos": _staff_cache["data"] or []})
     resp.headers["Cache-Control"] = "public, s-maxage=600, stale-while-revalidate=1200"
     return resp
@@ -765,8 +826,18 @@ _envios_global = []    # horários de todos os envios (por instância)
 
 
 def _ip():
-    return (request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
+    # na Vercel, x-real-ip / x-vercel-forwarded-for são preenchidos pela própria Vercel (não pelo visitante)
+    return (request.headers.get("X-Real-Ip", "").strip()
+            or request.headers.get("X-Vercel-Forwarded-For", "").split(",")[0].strip()
             or request.remote_addr or "?")
+
+
+def sem_markdown(s):
+    """Texto do visitante vai como texto puro: sem links disfarçados, negrito, menções etc."""
+    s = re.sub(r"([\\*_~`|>\[\]()#-])", r"\\\1", s)
+    s = re.sub(r"@(everyone|here)", "@\u200b\\1", s)
+    s = re.sub(r"<(@[!&]?|#|a?:)", "<\u200b\\1", s)
+    return re.sub(r"(https?)://", "\\1\u200b://", s)  # link não fica clicável no Discord
 
 
 @app.route("/api/avaliacao", methods=["POST"])
@@ -775,7 +846,12 @@ def avaliacao():
     dono = os.environ.get("OWNER_DISCORD_ID", "").strip()
     if not token or not dono.isdigit():
         return jsonify({"ok": False, "erro": "As avaliações ainda não estão ativas."}), 503
+    origem = request.headers.get("Origin", "")
+    if origem and origem not in (f"https://{request.host}", f"http://{request.host}"):
+        return jsonify({"ok": False, "erro": "Origem não permitida."}), 403  # envio vindo de outro site
     d = request.get_json(silent=True) or {}
+    if not isinstance(d, dict):
+        d = {}
     if d.get("site"):  # campo invisível: só robô preenche
         return jsonify({"ok": True})
     try:
@@ -791,14 +867,12 @@ def avaliacao():
         return jsonify({"ok": False, "erro": "Calma! Tente de novo em alguns segundos."}), 429
     agora = time.time()
     ip = _ip()
+    for k in [k for k, v in _envios.items() if not v or agora - v[-1] > 600]:
+        del _envios[k]  # não deixa a lista de IPs crescer sem fim
     meus = [t for t in _envios.get(ip, []) if agora - t < 600]
     _envios_global[:] = [t for t in _envios_global if agora - t < 3600]
     if len(meus) >= 3 or len(_envios_global) >= 40:
         return jsonify({"ok": False, "erro": "Você já enviou avaliações recentemente. Tente mais tarde."}), 429
-
-    def sem_mencao(s):
-        s = re.sub(r"@(everyone|here)", "@​\\1", s)
-        return re.sub(r"<(@[!&]?|#)(\d+)>", "<\\1​\\2>", s)
 
     estrelas = "★" * nota + "☆" * (5 - nota)
     embed = {
@@ -806,8 +880,8 @@ def avaliacao():
         "color": [0xE0574B, 0xE67E22, 0xF1C40F, 0x9ACD32, 0x3BA55D][nota - 1],
         "fields": [
             {"name": "Nota", "value": f"{estrelas}  ({nota}/5)", "inline": True},
-            {"name": "Quem enviou", "value": sem_mencao(nome) or "Anônimo", "inline": True},
-            {"name": "Sugestão", "value": sem_mencao(texto) or "—"},
+            {"name": "Quem enviou", "value": sem_markdown(nome)[:200] or "Anônimo", "inline": True},
+            {"name": "Sugestão", "value": sem_markdown(texto)[:1024] or "—"},
         ],
         "footer": {"text": "kyzensaofc.vercel.app"},
         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -831,15 +905,29 @@ def requisitos():  # endereço antigo, mantido por compatibilidade
     return canal_api("requisitos")
 
 
+def resposta_pagina(status=200):
+    html = pagina()
+    if isinstance(html, tuple):
+        return Response(html[0], mimetype="text/plain"), html[1]
+    resp = Response(html, mimetype="text/html")
+    resp.headers["Content-Security-Policy"] = csp_da_pagina(html)
+    return resp, status
+
+
 @app.route("/")
 def index():
-    return Response(pagina(), mimetype="text/html")
+    return resposta_pagina()
 
 
 @app.errorhandler(404)
 def not_found(_):
-    return Response(pagina(), mimetype="text/html"), 404
+    return resposta_pagina(404)
+
+
+@app.errorhandler(413)
+def grande_demais(_):
+    return jsonify({"ok": False, "erro": "Envio grande demais."}), 413
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run()
