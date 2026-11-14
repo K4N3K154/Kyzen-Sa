@@ -67,6 +67,7 @@ def csp_da_pagina(html):
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
             "font-src https://fonts.gstatic.com; "
             "img-src 'self' data: https:; "
+            "media-src https://cdn.discordapp.com https://media.discordapp.net; "
             "connect-src 'self'; "
             "frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'; "
             "upgrade-insecure-requests")
@@ -269,6 +270,11 @@ def novidades():
             return resp
         if dados or not _cache["data"]:
             _cache.update(t=agora, data=dados)
+        if dados:
+            try:
+                avisar_anuncios(dados)
+            except Exception as e:  # noqa: BLE001  (notificação nunca pode derrubar a página)
+                app.logger.error("push anuncios: %s", str(e)[:120])
     publicas = [n for n in _cache["data"] or [] if n.get("tag") not in CREW_TAGS]
     resp = jsonify({"news": publicas, "configured": True})
     resp.headers["Cache-Control"] = "public, s-maxage=60, stale-while-revalidate=300"
@@ -800,6 +806,10 @@ def eventos():
             app.logger.error("eventos: %s", str(e)[:120])
         if dados is not None:
             _eventos_cache.update(t=agora, data=dados)
+            try:
+                avisar_eventos(dados)
+            except Exception as e:  # noqa: BLE001
+                app.logger.error("push eventos: %s", str(e)[:120])
         else:
             falhou("eventos")
     resp = jsonify({"ok": _eventos_cache["data"] is not None, "eventos": _eventos_cache["data"] or []})
@@ -1282,6 +1292,147 @@ def mapa():
 
 
 # ---------------------------------------------------------------------------
+# Guia do jogo: "Onde dropa?" (chefes e drops) e tier list (frutas e espadas), tudo do Trello
+# ---------------------------------------------------------------------------
+_guia_cache = {"t": 0, "data": None}
+CATS = {"materials": "Materiais", "resources": "Materiais", "keys": "Chaves", "equipment": "Equipamentos",
+        "weapons": "Equipamentos", "accessor": "Equipamentos", "fruit": "Frutas", "sword": "Equipamentos"}
+
+
+def item_limpo(s):
+    s = re.sub(r"\*\*|__|`", "", s).strip(" -•*‌​")
+    s = re.sub(r"\s*\((?:direct drop|recipe|drop)[^)]*\)\s*$", "", s, flags=re.I)
+    return cortar(re.sub(r"\s+", " ", s), 70)
+
+
+def drops_do_chefe(desc):
+    """Lê as seções de drops (Materials and Resources / Keys / Equipment...) da descrição do chefe."""
+    cats, atual = {}, None
+    for ln in (desc or "").splitlines():
+        t = ln.strip()
+        if not t or t.startswith("[") or "smartCard" in t:
+            continue
+        if re.match(r"^#{1,6}\s", t) and not re.search(r"drops", t, re.I):
+            atual = None  # "Boss Set", "Location"... acabaram os drops
+            continue
+        m_item = re.match(r"^[-*•]\s+(.+)$", t)
+        if m_item and atual:
+            nome = item_limpo(m_item.group(1))
+            if nome and "trello.com" not in nome:
+                cats.setdefault(atual, []).append(nome)
+            continue
+        titulo = item_limpo(re.sub(r"^#{1,6}\s*", "", t)).lower()
+        achou = next((v for k, v in CATS.items() if k in titulo), None)
+        if achou:
+            atual = achou
+    return {k: list(dict.fromkeys(v)) for k, v in cats.items()}
+
+
+def buscar_guia():
+    trello_cache()
+    det = _trello_cache["cards"]
+    curto = {}  # shortLink -> nome da ilha
+    for c in lista_trello("Islands"):
+        u = (det.get(c["id"]) or {}).get("url", "")
+        if "/c/" in u:
+            curto[u.rsplit("/", 1)[-1]] = (_ILHA.match(c["nome"]).group(1) if _ILHA.match(c["nome"]) else c["nome"].split("|")[0].strip())
+    chefes, itens = [], {}
+    for lista, raid in (("Bosses", False), ("Raid Bosses", True)):
+        for c in lista_trello(lista):
+            desc = (det.get(c["id"]) or {}).get("desc", "")
+            drops = drops_do_chefe(desc)
+            ilha = ""
+            loc = re.search(r"location[\s\S]{0,40}?trello\.com/c/([A-Za-z0-9]{6,12})", desc, re.I)
+            if loc:
+                ilha = curto.get(loc.group(1), "")
+            if not ilha and len(desc) < 150:  # descrição curta do tipo "Chefe X (Prison)"
+                par = re.search(r"\(([^)]{3,30})\)\s*$", desc.strip())
+                ilha = par.group(1) if par else ""
+            if not drops and not ilha:
+                continue
+            chefe = {"id": c["id"], "nome": c["nome"], "img": c["img"], "ilha": ilha, "raid": raid, "drops": drops}
+            chefes.append(chefe)
+            for cat, lst in drops.items():
+                for it in lst:
+                    itens.setdefault(it, {"cat": cat, "chefes": []})["chefes"].append(len(chefes) - 1)
+    tiers = []
+    for lista in ("Vox Fruits", "Swords"):
+        grupos, atual = [], None
+        for c in lista_trello(lista):
+            if not c.get("tem") and not c.get("img") or (not c.get("tem") and len(c["nome"]) < 16 and c["nome"].istitle()):
+                atual = {"tier": c["nome"], "itens": []}
+                grupos.append(atual)
+                continue
+            if atual is None:
+                atual = {"tier": "Outros", "itens": []}
+                grupos.append(atual)
+            atual["itens"].append({"id": c["id"], "nome": c["nome"], "img": c["img"], "tags": c["tags"], "desc": c["desc"]})
+        tiers.append({"lista": "Frutas" if lista == "Vox Fruits" else "Espadas", "grupos": [g for g in grupos if g["itens"]]})
+    itens_lista = sorted(({"nome": k, **v} for k, v in itens.items()), key=lambda i: i["nome"].lower())
+    return {"chefes": chefes, "itens": itens_lista, "tiers": tiers}
+
+
+def guia_cache():
+    if time.time() - _guia_cache["t"] > 600 or _guia_cache["data"] is None:
+        try:
+            _guia_cache.update(t=time.time(), data=buscar_guia())
+        except Exception as e:  # noqa: BLE001  (conteúdo de terceiros)
+            app.logger.error("guia: %s", str(e)[:120])
+    return _guia_cache["data"]
+
+
+# ---------------------------------------------------------------------------
+# Galeria do # mídias (só imagens e vídeos; sem nome de quem postou; pula spoilers)
+# ---------------------------------------------------------------------------
+_galeria_cache = {"t": 0, "data": None}
+CDN_OK = ("https://cdn.discordapp.com/", "https://media.discordapp.net/")
+
+
+def buscar_galeria():
+    token = os.environ.get("DISCORD_BOT_TOKEN", "").strip()
+    gid = os.environ.get("DISCORD_GUILD_ID", "").strip()
+    canal = os.environ.get("MIDIAS_CHANNEL", "").strip() or achar_canal(token, gid, "midias")
+    if not canal or canal not in canais_publicos():  # só canal que todo mundo do servidor vê
+        return []
+    msgs = discord_get(f"/channels/{canal}/messages?limit=100", token)
+    itens = []
+    for m in msgs:
+        for a in m.get("attachments") or []:
+            tipo = (a.get("content_type") or "").split("/")[0]
+            u = str(a.get("url") or "")
+            if tipo not in ("image", "video") or not u.startswith(CDN_OK) or a.get("filename", "").startswith("SPOILER_") \
+                    or (int(a.get("flags") or 0) & 8):
+                continue
+            itens.append({"tipo": tipo, "url": u, "w": a.get("width") or 0, "h": a.get("height") or 0,
+                          "prev": str(a.get("proxy_url") or u), "link": f"https://discord.com/channels/{gid}/{canal}/{m['id']}"})
+    return itens[:60]
+
+
+@app.route("/api/galeria")
+def galeria():
+    agora = time.time()
+    if (agora - _galeria_cache["t"] > 600 or _galeria_cache["data"] is None) and pode_tentar("galeria", 60):
+        try:
+            _galeria_cache.update(t=agora, data=buscar_galeria())
+        except (urllib.error.URLError, ValueError, KeyError, TypeError) as e:
+            falhou("galeria")
+            app.logger.error("galeria: %s", str(e)[:120])
+    resp = jsonify({"ok": _galeria_cache["data"] is not None, "itens": _galeria_cache["data"] or []})
+    resp.headers["Cache-Control"] = "public, s-maxage=600, stale-while-revalidate=1200"
+    return resp
+
+
+@app.route("/api/guia")
+def guia():
+    g = guia_cache()
+    if not g:
+        return jsonify({"ok": False}), 503
+    resp = jsonify({"ok": True, **g, "url": TRELLO_URL})
+    resp.headers["Cache-Control"] = "public, s-maxage=600, stale-while-revalidate=1800"
+    return resp
+
+
+# ---------------------------------------------------------------------------
 # Login com Discord + Área da Crew
 #   O site só pede o escopo "identify" (nome e avatar). Quem pode ver o quê é calculado com as
 #   permissões reais do servidor: quem vê os canais da categoria Crew no Discord, vê no site.
@@ -1663,6 +1814,8 @@ COMANDOS = [
     {"name": "ilha", "description": "Para qual ilha ir no seu nível",
      "options": [{"type": 4, "name": "nivel", "description": "Seu nível no Vox Seas", "required": True,
                   "min_value": 0, "max_value": 5000}]},
+    {"name": "drop", "description": "Onde dropa um item, ou o que um chefe dropa",
+     "options": [{"type": 3, "name": "busca", "description": "Item ou chefe", "required": True, "autocomplete": True}]},
     {"name": "evento", "description": "Próximo evento do servidor"},
     {"name": "frota", "description": "Top 3 da Frota (só para quem é da crew)"},
     {"name": "site", "description": "Site da Kyzen SA com Trello, Frota e eventos"},
@@ -1775,6 +1928,30 @@ def cmd_ilha(nivel):
     return resposta(e, componentes=botoes({"type": 2, "style": 5, "label": "Ver o mapa", "url": SITE + "/#comunidade"}))
 
 
+def cmd_drop(busca):
+    g = guia_cache() or {"chefes": [], "itens": []}
+    alvo = slug_py(busca)
+    chefe = next((c for c in g["chefes"] if slug_py(c["nome"]) == alvo), None) or \
+        next((c for c in g["chefes"] if alvo and alvo in slug_py(c["nome"])), None)
+    item = next((i for i in g["itens"] if slug_py(i["nome"]) == alvo), None) or \
+        next((i for i in g["itens"] if alvo and alvo in slug_py(i["nome"])), None)
+    if item and (not chefe or slug_py(item["nome"]) == alvo):
+        linhas = [f"• **{g['chefes'][i]['nome']}**" + (f" — {g['chefes'][i]['ilha']}" if g["chefes"][i]["ilha"] else "")
+                  for i in item["chefes"]]
+        return resposta({"title": f"🔎 Onde dropa: {item['nome']}", "description": "\n".join(linhas)[:3500],
+                         "fields": [{"name": "Tipo", "value": item["cat"], "inline": True}], "url": SITE + "/#guia"},
+                        componentes=botoes({"type": 2, "style": 5, "label": "Abrir o guia", "url": SITE + "/#guia"}))
+    if chefe:
+        e = {"title": ("🐉 " if chefe["raid"] else "💀 ") + chefe["nome"], "url": SITE + "/#guia",
+             "description": (f"📍 **{chefe['ilha']}**\n" if chefe["ilha"] else "") + ("Raid boss" if chefe["raid"] else ""),
+             "fields": [{"name": cat, "value": cortar("\n".join(f"• {x}" for x in lst), 1000), "inline": True}
+                        for cat, lst in chefe["drops"].items()][:6]}
+        if chefe.get("img"):
+            e["thumbnail"] = {"url": chefe["img"]}
+        return resposta(e, componentes=botoes({"type": 2, "style": 5, "label": "Abrir o guia", "url": SITE + "/#guia"}))
+    return resposta(texto=f"Não achei **{sem_markdown(busca)[:40]}**. Use as sugestões da lista ao digitar.", privada=True)
+
+
 def cmd_evento():
     if _eventos_cache["data"] is None or time.time() - _eventos_cache["t"] > 120:
         try:
@@ -1832,8 +2009,15 @@ def interacoes():
     opcoes = {o.get("name"): o.get("value") for o in dados.get("options") or []}
     uid = str(((d.get("member") or {}).get("user") or d.get("user") or {}).get("id") or "")
     if tipo == 4:  # sugestões enquanto a pessoa digita
-        q = slug_py(str(opcoes.get("nome") or ""))
-        lista = [c["nome"] for c in frutas() if q in slug_py(c["nome"])][:25] if nome == "fruta" else []
+        q = slug_py(str(opcoes.get("nome") or opcoes.get("busca") or ""))
+        if nome == "fruta":
+            lista = [c["nome"] for c in frutas() if q in slug_py(c["nome"])][:25]
+        elif nome == "drop":
+            g = guia_cache() or {"chefes": [], "itens": []}
+            lista = ([c["nome"] for c in g["chefes"] if q in slug_py(c["nome"])] +
+                     [i["nome"] for i in g["itens"] if q in slug_py(i["nome"])])[:25]
+        else:
+            lista = []
         return jsonify({"type": 8, "data": {"choices": [{"name": n[:100], "value": n[:100]} for n in lista]}})
     try:
         if nome == "codigos":
@@ -1844,6 +2028,8 @@ def interacoes():
             return cmd_ilha(int(opcoes.get("nivel") or 0))
         if nome == "evento":
             return cmd_evento()
+        if nome == "drop":
+            return cmd_drop(str(opcoes.get("busca") or ""))
         if nome == "frota":
             return cmd_frota(uid)
         if nome == "site":
@@ -1885,6 +2071,250 @@ def registrar_comandos():
     except urllib.error.HTTPError as e:
         return privado(jsonify({"ok": False, "erro": e.code, "discord": e.read().decode("utf-8", "replace")[:300]}), 502)
     return privado(jsonify({"ok": True, "comandos": [c.get("name") for c in feitos]}))
+
+
+# ---------------------------------------------------------------------------
+# Notificações no celular (Web Push)
+#   DATABASE_URL  -> banco Postgres da Neon (Vercel > Storage). Guarda só as inscrições (endereço do
+#                    navegador e chaves), nunca nome nem conta de ninguém.
+#   VAPID_PUBLIC / VAPID_PRIVATE -> chaves das notificações
+#   Disparo: quando o site percebe um anúncio novo (público) ou um evento começando em até 30 min.
+# ---------------------------------------------------------------------------
+_db_pronto = {"ok": False}
+
+
+def sql(query, params=None):
+    """Consulta na Neon pelo endpoint HTTP (sem driver)."""
+    url = os.environ.get("DATABASE_URL", "").strip()
+    if not url:
+        raise ValueError("sem banco")
+    host = urllib.parse.urlparse(url).hostname
+    req = urllib.request.Request(f"https://{host}/sql", method="POST",
+                                 data=json.dumps({"query": query, "params": params or []}).encode(),
+                                 headers={"Neon-Connection-String": url, "Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=6) as r:
+        return json.loads(r.read().decode("utf-8")).get("rows") or []
+
+
+def db_ok():
+    if _db_pronto["ok"]:
+        return True
+    if not os.environ.get("DATABASE_URL"):
+        return False
+    try:
+        sql("CREATE TABLE IF NOT EXISTS push_subs (endpoint text PRIMARY KEY, p256dh text NOT NULL, "
+            "auth text NOT NULL, criado timestamptz DEFAULT now())")
+        sql("CREATE TABLE IF NOT EXISTS push_feitos (chave text PRIMARY KEY, em timestamptz DEFAULT now())")
+        _db_pronto["ok"] = True
+    except (urllib.error.URLError, ValueError, KeyError, TypeError) as e:
+        app.logger.error("db: %s", str(e)[:120])
+    return _db_pronto["ok"]
+
+
+def push_ok():
+    return bool(os.environ.get("VAPID_PRIVATE") and os.environ.get("VAPID_PUBLIC")) and db_ok()
+
+
+def enviar_push(titulo, corpo, url="/", chave=None):
+    """Manda para todo mundo inscrito. `chave` evita mandar a mesma notificação duas vezes."""
+    if not push_ok():
+        return 0
+    try:
+        if chave and sql("INSERT INTO push_feitos (chave) VALUES ($1) ON CONFLICT DO NOTHING RETURNING chave", [chave]) == []:
+            return 0  # outra instância do site já mandou
+        subs = sql("SELECT endpoint, p256dh, auth FROM push_subs LIMIT 500")
+    except (urllib.error.URLError, ValueError, KeyError, TypeError):
+        return 0
+    from concurrent.futures import ThreadPoolExecutor
+
+    from pywebpush import WebPushException, webpush
+    dados = json.dumps({"t": titulo[:80], "b": corpo[:160], "u": url})
+
+    def um(s):
+        try:
+            webpush({"endpoint": s["endpoint"], "keys": {"p256dh": s["p256dh"], "auth": s["auth"]}}, dados,
+                     vapid_private_key=os.environ["VAPID_PRIVATE"], vapid_claims={"sub": SITE}, timeout=5, ttl=3600)
+            return 1
+        except WebPushException as e:
+            if e.response is not None and e.response.status_code in (404, 410):
+                try:
+                    sql("DELETE FROM push_subs WHERE endpoint = $1", [s["endpoint"]])
+                except (urllib.error.URLError, ValueError):
+                    pass
+        except Exception:  # noqa: BLE001
+            pass
+        return 0
+
+    with ThreadPoolExecutor(max_workers=16) as ex:
+        return sum(ex.map(um, subs))
+
+
+def avisar_anuncios(itens):
+    """Chamado quando o cache de novidades é atualizado. Só anúncios públicos."""
+    if not push_ok():
+        return
+    pub = [n for n in itens or [] if n.get("tag") not in CREW_TAGS and n.get("link")]
+    try:
+        if not sql("SELECT 1 FROM push_feitos WHERE chave = 'inicio-anuncios'"):
+            for n in pub:  # primeira vez: marca tudo como já visto, sem notificar o passado
+                sql("INSERT INTO push_feitos (chave) VALUES ($1) ON CONFLICT DO NOTHING", ["a:" + n["link"]])
+            sql("INSERT INTO push_feitos (chave) VALUES ('inicio-anuncios') ON CONFLICT DO NOTHING")
+            return
+    except (urllib.error.URLError, ValueError, KeyError, TypeError):
+        return
+    for n in pub[:3]:
+        enviar_push(f"📣 {n.get('tag', 'Novidade').title()}", n.get("titulo", ""), "/#novidades", chave="a:" + n["link"])
+
+
+def avisar_eventos(evs):
+    if not push_ok():
+        return
+    agora = time.time()
+    for e in evs or []:
+        try:
+            ini = datetime.fromisoformat(str(e["inicio"]).replace("Z", "+00:00")).timestamp()
+        except (ValueError, KeyError, TypeError):
+            continue
+        falta = (ini - agora) / 60
+        if e.get("ao_vivo") or 0 < falta <= 30:
+            txt = "Está acontecendo agora!" if e.get("ao_vivo") else f"Começa em {max(1, round(falta))} min."
+            enviar_push(f"📅 {e['nome']}", txt + (f" · {e['local']}" if e.get("local") else ""), "/#novidades",
+                        chave="e:" + e["id"])
+
+
+@app.route("/api/push/chave")
+def push_chave():
+    resp = jsonify({"ok": push_ok(), "chave": os.environ.get("VAPID_PUBLIC", "") if push_ok() else ""})
+    resp.headers["Cache-Control"] = "public, s-maxage=300"
+    return resp
+
+
+def mesma_origem():
+    return request.headers.get("Origin", "") in (f"https://{request.host}", f"http://{request.host}")
+
+
+@app.route("/api/push/inscrever", methods=["POST"])
+def push_inscrever():
+    if not mesma_origem() or not push_ok():
+        return jsonify({"ok": False}), 403
+    s = request.get_json(silent=True) or {}
+    ep, keys = str(s.get("endpoint") or ""), s.get("keys") or {}
+    if not isinstance(keys, dict):
+        return jsonify({"ok": False}), 400
+    p, a = str(keys.get("p256dh") or ""), str(keys.get("auth") or "")
+    hosts = ("fcm.googleapis.com", "updates.push.services.mozilla.com", "web.push.apple.com", "notify.windows.com",
+             "push.services.mozilla.com")
+    h = urllib.parse.urlparse(ep).hostname or ""
+    if not ep.startswith("https://") or len(ep) > 800 or not any(h == x or h.endswith("." + x) for x in hosts) \
+            or not re.fullmatch(r"[A-Za-z0-9_-]{40,200}", p) or not re.fullmatch(r"[A-Za-z0-9_-]{10,60}", a):
+        return jsonify({"ok": False}), 400
+    try:
+        sql("INSERT INTO push_subs (endpoint, p256dh, auth) VALUES ($1, $2, $3) "
+            "ON CONFLICT (endpoint) DO UPDATE SET p256dh = $2, auth = $3", [ep, p, a])
+    except (urllib.error.URLError, ValueError, KeyError, TypeError):
+        return jsonify({"ok": False}), 503
+    return jsonify({"ok": True})
+
+
+@app.route("/api/push/sair", methods=["POST"])
+def push_sair():
+    if not mesma_origem() or not push_ok():
+        return jsonify({"ok": False}), 403
+    ep = str((request.get_json(silent=True) or {}).get("endpoint") or "")[:800]
+    try:
+        sql("DELETE FROM push_subs WHERE endpoint = $1", [ep])
+    except (urllib.error.URLError, ValueError, KeyError, TypeError):
+        return jsonify({"ok": False}), 503
+    return jsonify({"ok": True})
+
+
+# ---------------------------------------------------------------------------
+# Caça ao tesouro: 5 fragmentos escondidos no site. Quem junta os 5 e entra com o Discord ganha
+# o cargo "🗝️ Caçador de Tesouros" (o bot precisa da permissão Gerenciar cargos).
+# ---------------------------------------------------------------------------
+FRAGS = ("barco", "rota", "adeus", "cartas", "perdido")
+CARGO_TESOURO = "🗝️ Caçador de Tesouros"
+_pista_ip = {}
+_cacadores = {"t": 0, "n": None}
+
+
+def codigo_frag(f):
+    return hmac.new(app.secret_key, f"tesouro:{f}".encode(), hashlib.sha256).hexdigest()[:12]
+
+
+@app.route("/api/tesouro/pista/<f>")
+def tesouro_pista(f):
+    if f not in FRAGS:
+        return jsonify({"ok": False}), 404
+    ip, agora = _ip(), time.time()
+    lst = [t for t in _pista_ip.get(ip, []) if agora - t < 3600]
+    if len(lst) >= 30:
+        return jsonify({"ok": False}), 429
+    _pista_ip[ip] = lst + [agora]
+    return privado(jsonify({"ok": True, "f": f, "c": codigo_frag(f), "n": FRAGS.index(f) + 1}))
+
+
+def cargo_tesouro(token, gid, criar=False):
+    for r in discord_get(f"/guilds/{gid}/roles", token):
+        if r.get("name") == CARGO_TESOURO:
+            return str(r["id"])
+    if not criar:
+        return ""
+    return str(discord_post(f"/guilds/{gid}/roles", token, {"name": CARGO_TESOURO, "color": 0xE3B36D,
+                                                            "permissions": "0", "mentionable": False})["id"])
+
+
+@app.route("/api/tesouro/status")
+def tesouro_status():
+    """Quantas pessoas já acharam o tesouro (só o número)."""
+    agora = time.time()
+    if agora - _cacadores["t"] > 600 and pode_tentar("cacadores", 120):
+        token = os.environ.get("DISCORD_BOT_TOKEN", "").strip()
+        gid = os.environ.get("DISCORD_GUILD_ID", "").strip()
+        try:
+            rid, n, depois = cargo_tesouro(token, gid), 0, "0"
+            if rid:
+                for _ in range(10):
+                    lote = discord_get(f"/guilds/{gid}/members?limit=1000&after={depois}", token)
+                    n += sum(1 for m in lote if rid in (m.get("roles") or []))
+                    if len(lote) < 1000:
+                        break
+                    depois = lote[-1]["user"]["id"]
+            _cacadores.update(t=agora, n=n)
+        except (urllib.error.URLError, ValueError, KeyError, TypeError):
+            falhou("cacadores")
+    resp = jsonify({"ok": True, "cacadores": _cacadores["n"]})
+    resp.headers["Cache-Control"] = "public, s-maxage=300"
+    return resp
+
+
+@app.route("/api/tesouro/resgatar", methods=["POST"])
+def tesouro_resgatar():
+    if not mesma_origem():
+        return jsonify({"ok": False}), 403
+    uid = usuario()
+    if not uid:
+        return privado(jsonify({"ok": False, "motivo": "login"}), 401)
+    if not e_membro(uid):
+        return privado(jsonify({"ok": False, "motivo": "membro"}), 403)
+    codigos = (request.get_json(silent=True) or {}).get("codigos") or {}
+    if not isinstance(codigos, dict) or not all(hmac.compare_digest(str(codigos.get(f, "")), codigo_frag(f)) for f in FRAGS):
+        return privado(jsonify({"ok": False, "motivo": "incompleto"}), 400)
+    token = os.environ.get("DISCORD_BOT_TOKEN", "").strip()
+    gid = os.environ.get("DISCORD_GUILD_ID", "").strip()
+    try:
+        rid = cargo_tesouro(token, gid, criar=True)
+        req = urllib.request.Request(f"{API}/guilds/{gid}/members/{uid}/roles/{rid}", method="PUT",
+                                     headers={"Authorization": f"Bot {token}", "User-Agent": "KyzenSA-Site (1.0)",
+                                              "X-Audit-Log-Reason": "Caca ao tesouro do site"})
+        urllib.request.urlopen(req, timeout=8).close()
+    except urllib.error.HTTPError as e:
+        app.logger.error("tesouro: HTTP %s", e.code)
+        return privado(jsonify({"ok": False, "motivo": "permissao" if e.code == 403 else "erro"}), 502)
+    except (urllib.error.URLError, ValueError, KeyError, TypeError):
+        return privado(jsonify({"ok": False, "motivo": "erro"}), 502)
+    _cacadores["t"] = 0
+    return privado(jsonify({"ok": True}))
 
 
 # ---------------------------------------------------------------------------

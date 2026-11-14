@@ -328,6 +328,52 @@ main{background-image:linear-gradient(color-mix(in srgb,var(--accent) 6%,transpa
 .hall-lk p{color:var(--muted);margin:6px 0 14px}.hall .hall-lk:only-child{margin-top:0}
 .hall-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;margin-top:22px}.hall-cards .flag{width:70px;height:50px}
 @media (prefers-reduced-motion:reduce){html:not(.anim) .mp-glow{animation:none}}
+/* Botões do topo (busca e tema) */
+.hb{flex:none;width:36px;height:36px;border-radius:50%;border:1px solid var(--border);background:transparent;color:var(--text);cursor:pointer;font-size:.95rem;display:grid;place-items:center;transition:.2s}.hb:hover{border-color:var(--accent)}
+@media (max-width:640px){.hd .hb{width:32px;height:32px;font-size:.85rem}}
+.inst.on{background:var(--accent);color:#1a1208}
+/* Busca rápida */
+.busca{width:min(620px,calc(100% - 24px));margin-top:10vh}.bs-in{padding:14px}
+.bs-in input{width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:12px;background:var(--bg);color:var(--text);padding:14px 16px;font:inherit;font-size:1.05rem}.bs-in input:focus{outline:2px solid var(--accent);border-color:transparent}
+.bs-res{max-height:52vh;overflow:auto;margin-top:10px;display:flex;flex-direction:column;gap:2px}
+.bs-r{display:grid;grid-template-columns:28px 1fr;grid-template-rows:auto auto;column-gap:10px;text-align:left;padding:9px 10px;border:0;border-radius:10px;background:transparent;color:var(--text);cursor:pointer;font:inherit}
+.bs-r span{grid-row:1/3;align-self:center;font-size:1.1rem;text-align:center}.bs-r b{font-size:.95rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.bs-r small{color:var(--muted);font-size:.76rem}
+.bs-r.on,.bs-r:hover{background:color-mix(in srgb,var(--accent) 16%,transparent)}.bs-v{color:var(--muted);padding:10px;margin:0}
+.bs-dica{margin:10px 2px 0;font-size:.75rem;color:var(--muted)}.bs-dica kbd{border:1px solid var(--border);border-radius:4px;padding:0 5px;font:.72rem ui-monospace,Consolas,monospace}
+/* Guia */
+.gd-tabs{margin-bottom:16px}.gd-filtros{display:flex;gap:6px;flex-wrap:wrap;margin:4px 0 14px}
+.gd-filtros button{border:1px solid var(--border);background:var(--surface);color:var(--muted);border-radius:99px;padding:6px 14px;font:600 .82rem system-ui,sans-serif;cursor:pointer}.gd-filtros button.on{background:var(--accent);color:#1a1208;border-color:var(--accent)}
+.gd-h{margin:22px 0 10px;font-size:1rem}
+.gd-chefes{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+.gd-chefe{display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden}
+.gd-chefe>img{width:100%;aspect-ratio:16/9;object-fit:contain;background:radial-gradient(circle,#2a1d1d,#0a1112 75%)}.gd-cb{padding:14px 16px}.gd-cb h3{margin:4px 0 8px;font-size:1.05rem}.gd-cb .tag{font-size:.7rem;letter-spacing:.1em;color:var(--accent);font-weight:700}
+.gd-cat{margin-top:8px}.gd-cat small{display:block;font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
+.gd-chip{border:1px solid var(--border);background:color-mix(in srgb,var(--accent) 7%,transparent);color:var(--text);border-radius:8px;padding:3px 8px;margin:0 4px 4px 0;font:.78rem system-ui,sans-serif;cursor:pointer;text-align:left}.gd-chip:hover{border-color:var(--accent)}
+.gd-itens{display:flex;flex-direction:column;gap:8px}.gd-item{display:grid;grid-template-columns:minmax(180px,1fr) 2fr;gap:12px;align-items:center;padding:10px 14px;border:1px solid var(--border);border-radius:12px;background:var(--surface)}
+.gd-item b{display:block}.gd-item small{color:var(--muted);font-size:.75rem}.gd-item>span{font-size:.82rem;color:var(--muted)}
+@media (max-width:640px){.gd-item{grid-template-columns:1fr}}
+.tier{display:grid;grid-template-columns:110px 1fr;border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:10px;background:var(--surface)}
+.tier-n{display:grid;place-items:center;font:400 1.3rem "Pirata One","Cinzel",serif;color:#10100c;background:var(--rc);padding:8px;text-align:center}
+.tier-i{display:flex;flex-wrap:wrap;gap:8px;padding:10px}
+.tier-c{width:92px;display:flex;flex-direction:column;align-items:center;gap:4px;padding:6px;border:2px solid transparent;border-radius:12px;background:color-mix(in srgb,var(--rc) 10%,transparent);color:var(--text);cursor:pointer;font:inherit}
+.tier-c img,.tier-x{width:64px;height:64px;object-fit:contain;border-radius:10px}.tier-x{display:grid;place-items:center;font:700 1.4rem "Cinzel",serif;background:var(--bar)}
+.tier-c b{font-size:.74rem;line-height:1.2;text-align:center}.tier-c.sel{border-color:var(--rc);box-shadow:0 0 0 3px color-mix(in srgb,var(--rc) 35%,transparent)}.tier-c:hover{border-color:color-mix(in srgb,var(--rc) 60%,transparent)}
+@media (max-width:560px){.tier{grid-template-columns:1fr}.tier-n{padding:6px}}
+.cmp{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-top:10px}.cmp-c h3{margin:4px 0 10px}.cmp-c .tag{font-size:.72rem;font-weight:700;letter-spacing:.1em}
+/* Galeria */
+.mos{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));grid-auto-rows:160px;grid-auto-flow:dense;gap:10px}
+.mo{position:relative;padding:0;border:1px solid var(--border);border-radius:14px;overflow:hidden;background:var(--bar);cursor:zoom-in}
+.mo.alto{grid-row:span 2}.mo.largo{grid-column:span 2}.mo img,.mo video{width:100%;height:100%;object-fit:cover;display:block;transition:transform .4s}.mo:hover img,.mo:hover video{transform:scale(1.05)}
+.mo-play{position:absolute;inset:auto auto 10px 10px;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:rgba(0,0,0,.6);color:#fff;font-size:.8rem}
+@media (max-width:560px){.mos{grid-template-columns:repeat(2,1fr);grid-auto-rows:130px}.mo.largo{grid-column:span 2}}
+/* Caça ao tesouro */
+.tes{margin:0 0 44px;padding:22px}.tes-h{display:flex;gap:14px;align-items:flex-start}.tes-ic{font-size:2.4rem;line-height:1;filter:drop-shadow(0 6px 14px rgba(227,179,109,.45))}
+.tes-fr{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:18px 0 10px}
+.tes-p{position:relative;width:52px;height:52px;border-radius:12px;display:grid;place-items:center;font-size:1.5rem;border:1px dashed var(--border);background:var(--bg)}
+.tes-p.ok{border:1px solid #e3b36d;background:color-mix(in srgb,#e3b36d 14%,var(--surface));box-shadow:0 0 18px -6px rgba(227,179,109,.8)}
+.tes-p small{position:absolute;right:4px;bottom:2px;font:700 .62rem system-ui;color:var(--muted)}.tes-n{font:400 1.5rem "Pirata One","Cinzel",serif;color:var(--accent);margin-left:6px}
+.tes-pistas{margin:6px 0 14px;padding-left:20px;color:var(--muted);font-size:.9rem}.tes-pistas li{margin:5px 0}.tes-pistas li.ok{color:var(--text);text-decoration:line-through;text-decoration-color:color-mix(in srgb,var(--accent) 60%,transparent)}
+.tes-acao{display:flex;align-items:center;gap:14px;flex-wrap:wrap}.tes-c{color:var(--muted)}.tes-ok{margin:0;color:#3ba55d;font-weight:600}
 /* Mini anúncio de login */
 .lgn{position:fixed;left:18px;bottom:calc(18px + env(safe-area-inset-bottom,0px));z-index:90;width:min(380px,calc(100% - 36px));display:flex;gap:14px;padding:16px 16px 16px 14px;border-radius:18px;border:1px solid color-mix(in srgb,#5865f2 60%,var(--border));background:color-mix(in srgb,var(--surface) 94%,transparent);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);box-shadow:0 24px 60px -20px rgba(0,0,0,.85),0 0 0 1px rgba(88,101,242,.15);opacity:0;transform:translateY(24px) scale(.97);pointer-events:none;transition:opacity .45s,transform .45s cubic-bezier(.2,.9,.3,1.2)}
 .lgn.on{opacity:1;transform:none;pointer-events:auto}
@@ -343,16 +389,17 @@ main{background-image:linear-gradient(color-mix(in srgb,var(--accent) 6%,transpa
 .splash{position:fixed;inset:0;z-index:200;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;background:radial-gradient(circle at 50% 42%,#1a2a2c,#0a1112 62%);color:#e3b36d;transition:opacity .6s}
 .splash .sp-l{width:132px;height:132px;border-radius:50%;background:var(--logo) center/cover;box-shadow:0 0 0 3px #c9954f,0 0 60px rgba(227,179,109,.35);animation:rise .8s cubic-bezier(.2,.7,.2,1) both}
 .splash b{font:400 2.4rem "Pirata One","Cinzel",serif;margin-top:10px}.splash small{letter-spacing:.3em;font-size:.7rem;opacity:.8}.splash.fora{opacity:0}
-@media (prefers-reduced-motion:reduce){html:not(.anim) :is(.rosa,.barco,.barco svg,.cloth,.dot.pu,.porto svg .mar){animation:none!important}html:not(.anim) .barco{display:none}}
+@media (prefers-reduced-motion:reduce){html:not(.anim) :is(.rosa,.barco,.barco svg,.cloth,.dot.pu,.porto svg .mar){animation:none!important}html:not(.anim) .barco{left:12%}}
+.hero .barco{pointer-events:auto;cursor:pointer}.mp-barco{cursor:pointer}.ft .fim{cursor:default;user-select:none}
 @media (prefers-reduced-motion:reduce){html:not(.anim) :is(.hero .wrap>.logo,.hero h1,.hero .wrap>*,.ph .wrap>*,.kick::after,.waves>svg,.hero::before,.cta::before,.btn,.view){animation:none!important}html:not(.anim) .fx{display:none}html:not(.anim) .rv{opacity:1;transform:none}}
 @media (max-width:640px){.hd .wrap{flex-wrap:wrap;gap:6px 12px;padding-top:8px;padding-bottom:6px;min-height:0}.hd .brand{flex:1}.hd nav{order:3;flex:1 1 100%;margin:0 -6px}}
 @media (max-width:700px){.fg{grid-template-columns:1fr}.top .tl a:nth-child(n+3){display:none}.chip{display:none}}
 @media (prefers-reduced-motion:reduce){html:not(.anim) *{transition:none!important;scroll-behavior:auto}}
 </style></head><body>
-<div class="top"><div class="wrap"><span>影 Comunidade de Vox Seas · Roblox</span><span class="tl"><button class="inst" id="inst" type="button" hidden>📲 Instalar app</button><a href="https://discord.gg/DNZrYHRXU5" target="_blank" rel="noopener">Discord</a><a href="#suporte">Suporte</a><a href="https://discord.gg/DNZrYHRXU5" target="_blank" rel="noopener">Apply</a></span></div></div>
+<div class="top"><div class="wrap"><span>影 Comunidade de Vox Seas · Roblox</span><span class="tl"><button class="inst" id="sino" type="button" hidden>🔔 Notificações</button><button class="inst" id="inst" type="button" hidden>📲 Instalar app</button><a href="https://discord.gg/DNZrYHRXU5" target="_blank" rel="noopener">Discord</a><a href="#suporte">Suporte</a><a href="https://discord.gg/DNZrYHRXU5" target="_blank" rel="noopener">Apply</a></span></div></div>
 <header class="hd"><div class="wrap"><a class="brand" href="#inicio"><span class="mark"></span><b>KYZEN SA</b><i class="chip">VOX SEAS</i></a>
-<nav><a href="#inicio" data-nav="inicio">Início</a><a href="#informacoes" data-nav="informacoes">Informações</a><a href="#novidades" data-nav="novidades">Novidades</a><a href="#crews" data-nav="crews">Crews</a><a href="#comunidade" data-nav="comunidade">Comunidade</a><a href="#trello" data-nav="trello">Trello</a><a href="#area-crew" data-nav="area-crew" id="nav-crew" hidden>⚔️ Área da Crew</a><a href="#suporte" data-nav="suporte">Suporte</a></nav>
-<a class="eu" id="eu" href="/auth/entrar?volta=inicio" title="Entrar com Discord"><span>🔒 Login</span></a><a class="btn sm" href="https://discord.gg/DNZrYHRXU5" target="_blank" rel="noopener">Entrar</a></div></header>
+<nav><a href="#inicio" data-nav="inicio">Início</a><a href="#informacoes" data-nav="informacoes">Informações</a><a href="#novidades" data-nav="novidades">Novidades</a><a href="#crews" data-nav="crews">Crews</a><a href="#comunidade" data-nav="comunidade">Comunidade</a><a href="#trello" data-nav="trello">Trello</a><a href="#guia" data-nav="guia">Guia</a><a href="#area-crew" data-nav="area-crew" id="nav-crew" hidden>⚔️ Área da Crew</a><a href="#suporte" data-nav="suporte">Suporte</a></nav>
+<button class="hb" id="busca-btn" type="button" aria-label="Buscar no site (atalho: /)" title="Buscar (/)">🔍</button><button class="hb" id="tema-btn" type="button" aria-label="Mudar entre tema claro e escuro" title="Tema claro/escuro">🌙</button><a class="eu" id="eu" href="/auth/entrar?volta=inicio" title="Entrar com Discord"><span>🔒 Login</span></a><a class="btn sm" href="https://discord.gg/DNZrYHRXU5" target="_blank" rel="noopener">Entrar</a></div></header>
 <main>
 <section class="view" id="v-inicio">
  <div class="hero"><div class="wrap"><div class="logo" role="img" aria-label="Logo da Kyzen SA"></div>
@@ -361,7 +408,9 @@ main{background-image:linear-gradient(color-mix(in srgb,var(--accent) 6%,transpa
   <a class="btn" href="#crews">Ver a frota</a><a class="btn ghost" href="https://discord.gg/DNZrYHRXU5" target="_blank" rel="noopener">Entrar no Discord</a>
   <div class="vs" data-jogo><span class="vt"><small>VOX SEAS · AO VIVO</small><b>Carregando…</b></span></div><div class="stats"><div class="stat"><b data-n="1288" data-live="membros">0</b><small>Membros</small></div><div class="stat"><b data-n="158" data-live="online">0</b><small><i class="dot"></i>Online agora</small></div><div class="stat"><b data-n="8" data-live="boosts">0</b><small>Boosts</small></div><div class="stat"><b data-n="10">0</b><small>Canais de crew</small></div><div class="stat"><b data-n="2" data-voz>0</b><small data-voz-l>Calls de crew</small></div><div class="stat"><b data-n="4">0</b><small>Canais de diversão</small></div></div>
  </div></div>
- <section class="blk"><div class="wrap"><div id="ev-home" hidden style="margin-bottom:44px"><h2 class="ttl">Próximos eventos</h2><p class="sub">Direto da aba Eventos do Discord. <a class="more" style="display:inline" href="#novidades">Ver todos →</a></p><div class="evs" data-eventos="3"></div></div><h2 class="ttl">🏆 Hall da Fama</h2><p class="sub">Os destaques da Kyzen nos últimos 7 dias. Atualiza sozinho.</p><div id="hall" class="hall" style="margin-bottom:44px"><div class="empty">Abrindo o Hall da Fama…</div></div><h2 class="ttl">Por que fazer parte?</h2><p class="sub">Tudo que a sua tripulação precisa em um só lugar.</p><div class="grid" data-cards="why"></div></div></section>
+ <section class="blk"><div class="wrap"><div id="ev-home" hidden style="margin-bottom:44px"><h2 class="ttl">Próximos eventos</h2><p class="sub">Direto da aba Eventos do Discord. <a class="more" style="display:inline" href="#novidades">Ver todos →</a></p><div class="evs" data-eventos="3"></div></div><h2 class="ttl">🏆 Hall da Fama</h2><p class="sub">Os destaques da Kyzen nos últimos 7 dias. Atualiza sozinho.</p><div id="hall" class="hall" style="margin-bottom:44px"><div class="empty">Abrindo o Hall da Fama…</div></div>
+  <div class="panel tes" id="tesouro"><div class="tes-h"><span class="tes-ic" aria-hidden="true">🗝️</span><div><h2 class="ttl" style="margin:0">Caça ao Tesouro</h2><p class="sub" style="margin:6px 0 0">Cinco fragmentos de um mapa estão escondidos por este site. Junte todos, entre com o Discord e ganhe o cargo <b>🗝️ Caçador de Tesouros</b> no servidor.</p></div></div>
+   <div class="tes-fr" id="tes-fr"></div><ol class="tes-pistas" id="tes-pistas"></ol><div class="tes-acao" id="tes-acao"></div></div><h2 class="ttl">Por que fazer parte?</h2><p class="sub">Tudo que a sua tripulação precisa em um só lugar.</p><div class="grid" data-cards="why"></div></div></section>
  <section class="cta"><div class="wrap"><h2>Quer entrar para a equipe?</h2><p>Fale com a staff e faça o apply direto no Discord.</p><a class="btn" href="https://discord.gg/DNZrYHRXU5" target="_blank" rel="noopener">Entrar no Discord</a></div></section>
  <section class="blk"><div class="wrap">
   <h2 class="ttl">Explore o servidor</h2><p class="sub">Conheça as áreas do Discord.</p>
@@ -407,7 +456,8 @@ main{background-image:linear-gradient(color-mix(in srgb,var(--accent) 6%,transpa
   <h2 class="ttl" style="margin-top:44px">Diversão</h2><p class="sub"></p><div class="grid" data-cards="fun"></div>
   <h2 class="ttl" style="margin-top:44px">O jogo: Vox Seas</h2><p class="sub">Resumo feito pela comunidade, não oficial. Os números ao vivo vêm direto do Roblox.</p><div class="vs lt" data-jogo><span class="vt"><small>VOX SEAS · AO VIVO</small><b>Carregando…</b></span></div><div class="grid" data-cards="jogo" style="margin-top:22px"></div>
   <h2 class="ttl" style="margin-top:44px">Mapa das ilhas</h2><p class="sub">As ilhas do Vox Seas em ordem de nível, direto do Trello oficial. Digite o seu nível e descubra para onde navegar. Toque numa ilha para ver os detalhes.</p><div class="mp-bar"><label for="mp-nv">⚓ Seu nível</label><input id="mp-nv" type="number" min="0" max="5000" inputmode="numeric" placeholder="Ex.: 120"><button class="btn alt sm" type="button" id="mp-mundo" hidden>Ver o mapa oficial</button></div><p class="mp-dica" id="mp-dica"></p><div id="mapa" class="mapa"><div class="empty">Abrindo as cartas náuticas…</div></div><div class="mp-extra" id="mp-extra"></div>
-  <div class="gal"><div class="shot s1" role="img" aria-label="Membros da crew reunidos"><span>A tripulação reunida</span></div><div class="shot s2" role="img" aria-label="Frota de navios ao anoitecer"><span>Frota ao anoitecer</span></div></div>
+  <h2 class="ttl" style="margin-top:44px">📸 Galeria da tripulação</h2><p class="sub">As últimas prints e clipes postados no # mídias. Toque para ampliar.</p>
+  <div class="mos" id="galeria"><div class="gal" style="grid-column:1/-1;margin:0"><div class="shot s1" role="img" aria-label="Membros da crew reunidos"><span>A tripulação reunida</span></div><div class="shot s2" role="img" aria-label="Frota de navios ao anoitecer"><span>Frota ao anoitecer</span></div></div></div>
  </div></section></section>
 
 <section class="view" id="v-suporte" hidden><div class="ph"><div class="wrap"><i class="jp">助</i><h1>Suporte</h1><p>Ajuda, recrutamento da staff e Content Creator.</p></div></div>
@@ -424,6 +474,15 @@ main{background-image:linear-gradient(color-mix(in srgb,var(--accent) 6%,transpa
   <div class="tr-grid" id="tr-grid"><div class="empty">Abrindo o Trello…</div></div>
   <p class="sub" style="font-size:.82rem;margin-top:26px">Conteúdo do Trello oficial do Vox Seas, em inglês, mostrado aqui como está no quadro. A Kyzen SA não é dona desse conteúdo.</p>
  </div></section></section>
+<section class="view" id="v-guia" hidden><div class="ph" style="--bgi:var(--imgink)"><div class="wrap"><i class="jp">指南</i><h1>Guia do Vox Seas</h1><p>Onde dropa cada item, o que cada chefe solta e a tier list de frutas e espadas. Direto do Trello oficial.</p></div></div>
+ <section class="blk"><div class="wrap">
+  <div class="tr-tabs gd-tabs" role="tablist"><button type="button" class="on" data-gaba="drops">🔎 Onde dropa?</button><button type="button" data-gaba="tier">🏆 Tier list</button></div>
+  <div id="gd-drops"><div class="tr-bar"><input id="gd-q" type="search" placeholder="Digite um item ou chefe (ex.: Frost Crystal, Legendary Chest Key, Kael)" aria-label="Buscar item ou chefe" autocomplete="off"></div>
+   <div class="gd-filtros" id="gd-filtros"></div><div id="gd-res"><div class="empty">Abrindo o guia…</div></div></div>
+  <div id="gd-tier" hidden><div class="gd-filtros" id="gd-listas"></div><p class="sub" id="gd-cmp-txt">Toque em dois itens para comparar lado a lado.</p><div id="gd-tiers"></div><div id="gd-cmp"></div></div>
+  <p class="sub" style="font-size:.82rem;margin-top:26px">Dados do Trello oficial do Vox Seas, em inglês. No Discord, use <b>/drop</b> para buscar sem sair do servidor.</p>
+ </div></section></section>
+<dialog class="av busca" id="busca" aria-label="Buscar no site"><div class="bs-in"><input id="bs-q" type="search" placeholder="Buscar ilha, fruta, chefe, item, canal ou página…" autocomplete="off" aria-label="Buscar"><div class="bs-res" id="bs-res"></div><p class="bs-dica">Atalho: aperte <kbd>/</kbd> em qualquer página · <kbd>Esc</kbd> fecha</p></div></dialog>
 <section class="view" id="v-area-crew" hidden><div class="ph" style="--bgi:var(--imgred)"><div class="wrap"><i class="jp">船員</i><h1>Área da Crew</h1><p>Os canais e os anúncios das crews, só para quem tem acesso a eles no Discord.</p></div></div>
  <section class="blk"><div class="wrap" id="ac"><div class="empty">Verificando a sua conta…</div></div></section></section>
 <section class="view" id="v-crew" hidden><div class="ph" style="--bgi:var(--imgred)"><div class="wrap" id="cw-top"></div></div>
@@ -589,7 +648,7 @@ function renderCrew(s){const top=$("cw-top"),cw=$("cw");if(!top)return;
 let TR=null,trAba=0,trPedido=null;
 const trCard=(c,lista)=>`<button class="trc" type="button" data-id="${x(c.id)}">${c.img?`<img src="${x(c.img)}" alt="" loading="lazy" referrerpolicy="no-referrer">`:""}<span class="trb">${lista?`<small>${x(lista)}</small>`:""}<b>${x(c.nome)}</b>${c.tags.length?`<span class="trt">${c.tags.map(t=>`<i style="--tc:${x(t.c||"var(--muted)")}">${x(t.n)}</i>`).join("")}</span>`:""}${c.desc?`<em>${x(c.desc)}</em>`:""}</span></button>`;
 function renderTrello(){const g=$("tr-grid"),tb=$("tr-tabs"),inf=$("tr-info");if(!TR){return}
- const q=$("tr-q").value.trim().toLowerCase();
+ const q=$("tr-q").value.trim().toLowerCase();if(slug(q)==="tesouro")achar("cartas");
  tb.innerHTML=TR.map((l,i)=>`<button type="button" class="${i===trAba&&!q?"on":""}" data-aba="${i}">${x(l.nome)} <small>${l.cards.length}</small></button>`).join("");
  if(q){const A=[];TR.forEach(l=>l.cards.forEach(c=>{if((c.nome+" "+c.desc+" "+c.tags.map(t=>t.n).join(" ")).toLowerCase().includes(q))A.push(trCard(c,l.nome))}));
   inf.textContent=`${A.length} resultado${A.length===1?"":"s"} para "${$("tr-q").value.trim()}"`;g.innerHTML=A.length?A.slice(0,120).join(""):'<div class="empty">Nada encontrado. Tente outra palavra (o Trello é em inglês).</div>';return}
@@ -612,7 +671,7 @@ function renderMapa(){const el=$("mapa");if(!el||!MAPA)return;const W=el.clientW
  let d=`M${pos[0].x} ${pos[0].y}`;for(let i=1;i<pos.length;i++){const a=pos[i-1],b=pos[i];d+=a.y===b.y?` L${b.x} ${b.y}`:` C${a.x+(a.x>VW/2?110:-110)} ${a.y} ${b.x+(b.x>VW/2?110:-110)} ${b.y} ${b.x} ${b.y}`}
  const aqui=nv==null?-1:nos.findIndex(n=>!n.porto&&nv>=n.min&&nv<=n.max),calm=matchMedia("(prefers-reduced-motion:reduce)").matches&&!document.documentElement.classList.contains("anim");
  el.innerHTML=`<svg viewBox="0 0 ${VW} ${VH}" role="img" aria-label="Mapa das ilhas do Vox Seas em ordem de nível"><defs>${nos.map((n,i)=>`<clipPath id="mpc${i}"><circle cx="${pos[i].x}" cy="${pos[i].y}" r="${R-5}"/></clipPath>`).join("")}</defs>
-  <path class="mp-rota" d="${d}"/>${calm?"":`<g class="mp-barco"><path d="M-14 4H14L9 12H-9Z"/><path d="M0 4V-16" stroke="currentColor" stroke-width="2"/><path d="M2 -14Q14 -6 2 2Z" opacity=".8"/><animateMotion dur="${nos.length*3}s" repeatCount="indefinite" rotate="0" path="${d}"/></g>`}
+  <path class="mp-rota" d="${d}"/><g class="mp-barco"${calm?` transform="translate(${(pos[0].x+pos[1].x)/2} ${pos[0].y})"`:""}><circle r="22" fill="transparent"/><path d="M-14 4H14L9 12H-9Z"/><path d="M0 4V-16" stroke="currentColor" stroke-width="2"/><path d="M2 -14Q14 -6 2 2Z" opacity=".8"/>${calm?"":`<animateMotion dur="${nos.length*3}s" repeatCount="indefinite" rotate="0" path="${d}"/>`}</g>
   ${nos.map((n,i)=>{const p=pos[i],e=i===aqui;return `<g class="ilha${e?" aqui":""}${n.porto?" porto":""}" data-id="${x(n.id)}" data-nome="${x(n.nome)}" tabindex="0" role="button" aria-label="${x(n.nome)}${n.porto?"":`, nível ${n.min} a ${n.max}`}">
    ${e?`<circle class="mp-glow" cx="${p.x}" cy="${p.y}" r="${R+14}"/>`:""}<circle class="mp-aro" cx="${p.x}" cy="${p.y}" r="${R}"/>
    ${n.img?`<image href="${x(n.img)}" x="${p.x-R}" y="${p.y-R}" width="${R*2}" height="${R*2}" preserveAspectRatio="xMidYMid slice" clip-path="url(#mpc${i})"/>`:`<text class="mp-ic" x="${p.x}" y="${p.y+12}" text-anchor="middle">🏝️</text>`}
@@ -742,10 +801,117 @@ function avisoLogin(){let visto=false;try{visto=sessionStorage.getItem("kzLogin"
  const fechar=()=>{try{sessionStorage.setItem("kzLogin","1")}catch{}d.classList.remove("on");setTimeout(()=>d.remove(),400)};
  d.querySelector(".lgn-x").onclick=fechar;d.querySelector("[data-depois]").onclick=fechar;d.querySelector("a").addEventListener("click",()=>{try{sessionStorage.setItem("kzLogin","1")}catch{}});
  document.body.append(d);setTimeout(()=>d.classList.add("on"),1800)}
-const views=["inicio","informacoes","novidades","crews","comunidade","trello","area-crew","suporte"];let counted=false;
+/* ===================== Guia do jogo: Onde dropa? + Tier list -> /api/guia ===================== */
+let GUIA=null,gdCat="",gdLista=0,gdSel=[],guiaPedido=null;
+const RAR={common:"#9aa3ad",rare:"#579dff",epic:"#9f8fef",legendary:"#e3b36d",mythical:"#f87462"};
+function carregarGuia(){if(GUIA){renderDrops();renderTier();return Promise.resolve()}
+ return guiaPedido??=fetch("/api/guia").then(r=>r.json()).then(j=>{if(!j.ok)throw 0;GUIA=j;renderDrops();renderTier()}).catch(()=>{guiaPedido=null;$("gd-res").innerHTML='<div class="empty">Não foi possível abrir o guia agora.</div>'})}
+const chip=(t,a)=>`<button type="button" class="gd-chip" ${a}>${x(t)}</button>`;
+function chefeCard(c,i){return `<article class="gd-chefe" id="chefe-${i}">${c.img?`<img src="${x(c.img)}" alt="" loading="lazy" referrerpolicy="no-referrer">`:""}<div class="gd-cb"><span class="tag">${c.raid?"🐉 RAID BOSS":"💀 CHEFE"}${c.ilha?` · 📍 ${x(c.ilha)}`:""}</span><h3>${x(c.nome)}</h3>
+ ${Object.keys(c.drops).length?Object.entries(c.drops).sort((a,b)=>["Materiais","Chaves","Equipamentos"].indexOf(a[0])-["Materiais","Chaves","Equipamentos"].indexOf(b[0])).map(([cat,l])=>`<div class="gd-cat"><small>${x(cat)}</small><div>${l.map(it=>chip(it,`data-item="${x(it)}"`)).join("")}</div></div>`).join(""):'<p class="sub" style="margin:6px 0 0">Sem drops listados no Trello.</p>'}
+ <button type="button" class="more" data-card="${x(c.id)}" data-cn="${x(c.nome)}" style="background:none;border:0;padding:0;cursor:pointer">Ver no Trello →</button></div></article>`}
+function renderDrops(){if(!GUIA)return;const q=slug($("gd-q").value.trim()),cats=[...new Set(GUIA.itens.map(i=>i.cat))];
+ $("gd-filtros").innerHTML=["",...cats].map(c=>`<button type="button" data-gcat="${x(c)}" class="${c===gdCat?"on":""}">${c?x(c):"Tudo"}</button>`).join("");
+ const itens=GUIA.itens.filter(i=>(!gdCat||i.cat===gdCat)&&(!q||slug(i.nome).includes(q)));
+ const chefes=GUIA.chefes.map((c,i)=>[c,i]).filter(([c])=>!q||slug(c.nome).includes(q)||slug(c.ilha||"").includes(q));
+ const itemH=it=>`<div class="gd-item"><div><b>${x(it.nome)}</b><small>${x(it.cat)}</small></div><span>Dropa de: ${it.chefes.map(k=>chip(GUIA.chefes[k].nome+(GUIA.chefes[k].ilha?` · ${GUIA.chefes[k].ilha}`:""),`data-chefe="${k}"`)).join("")}</span></div>`;
+ let h="";if(q||gdCat)h+=itens.length?`<h3 class="gd-h">Itens (${itens.length})</h3><div class="gd-itens">${itens.slice(0,80).map(itemH).join("")}</div>`:"";
+ if(!gdCat||q)h+=chefes.length?`<h3 class="gd-h">Chefes (${chefes.length})</h3><div class="gd-chefes">${chefes.map(([c,i])=>chefeCard(c,i)).join("")}</div>`:"";
+ $("gd-res").innerHTML=h||'<div class="empty">Nada encontrado. Tente outra palavra (os nomes estão em inglês, como no jogo).</div>'}
+function renderTier(){if(!GUIA)return;const L=GUIA.tiers[gdLista]||GUIA.tiers[0];
+ $("gd-listas").innerHTML=GUIA.tiers.map((t,i)=>`<button type="button" data-glista="${i}" class="${i===gdLista?"on":""}">${t.lista==="Frutas"?"🍎":"🗡️"} ${x(t.lista)}</button>`).join("");
+ $("gd-tiers").innerHTML=L.grupos.map(g=>{const c=RAR[slug(g.tier)]||"var(--accent)";return `<div class="tier" style="--rc:${c}"><div class="tier-n">${x(g.tier)}</div><div class="tier-i">${g.itens.map(it=>`<button type="button" class="tier-c${gdSel.includes(it.id)?" sel":""}" data-tid="${x(it.id)}" title="${x(it.nome)}">${it.img?`<img src="${x(it.img)}" alt="" loading="lazy" referrerpolicy="no-referrer">`:`<span class="tier-x">${x(it.nome[0]||"?")}</span>`}<b>${x(it.nome)}</b></button>`).join("")}</div></div>`}).join("");
+ const cmp=$("gd-cmp");if(!gdSel.length){cmp.innerHTML="";$("gd-cmp-txt").textContent="Toque em dois itens para comparar lado a lado.";return}
+ $("gd-cmp-txt").textContent=gdSel.length===1?"Escolha mais um para comparar.":"Comparando:";
+ const nome=id=>{for(const t of GUIA.tiers)for(const g of t.grupos)for(const it of g.itens)if(it.id===id)return [it,g.tier];return [{nome:"?"},""]};
+ cmp.innerHTML=`<div class="cmp">${gdSel.map(id=>{const [it,t]=nome(id);return `<div class="panel cmp-c"><span class="tag" style="color:${RAR[slug(t)]||"var(--accent)"}">${x(t)}</span><h3>${x(it.nome)}</h3><div class="dc" data-cmp="${x(id)}"><p class="sub">Carregando…</p></div></div>`}).join("")}</div>`;
+ gdSel.forEach(id=>fetch("/api/trello/"+id).then(r=>r.json()).then(j=>{const e=cmp.querySelector(`[data-cmp="${id}"]`);if(e)e.innerHTML=(j.img?`<img class="att" src="${x(j.img)}" alt="" referrerpolicy="no-referrer">`:"")+(j.html||'<p class="sub">Sem descrição.</p>')}).catch(()=>{}))}
+document.addEventListener("click",e=>{const t=e.target.closest("[data-gaba],[data-gcat],[data-glista],[data-tid],[data-item],[data-chefe],[data-card]");if(!t||!t.closest("#v-guia"))return;
+ if(t.dataset.gaba){document.querySelectorAll("[data-gaba]").forEach(b=>b.classList.toggle("on",b===t));$("gd-drops").hidden=t.dataset.gaba!=="drops";$("gd-tier").hidden=t.dataset.gaba!=="tier";return}
+ if(t.dataset.gcat!==undefined){gdCat=t.dataset.gcat;renderDrops();return}
+ if(t.dataset.glista){gdLista=+t.dataset.glista;gdSel=[];renderTier();return}
+ if(t.dataset.tid){const id=t.dataset.tid;gdSel=gdSel.includes(id)?gdSel.filter(v=>v!==id):[...gdSel.slice(-1),id];renderTier();if(gdSel.length===2)$("gd-cmp").scrollIntoView({block:"nearest"});return}
+ if(t.dataset.item){$("gd-q").value=t.dataset.item;gdCat="";renderDrops();$("gd-q").scrollIntoView({block:"center"});return}
+ if(t.dataset.chefe){$("gd-q").value=GUIA.chefes[+t.dataset.chefe].nome;gdCat="";renderDrops();return}
+ if(t.dataset.card)abrirCard({id:t.dataset.card,nome:t.dataset.cn},"Bosses")});
+$("gd-q").addEventListener("input",()=>{clearTimeout(renderDrops.t);renderDrops.t=setTimeout(renderDrops,150)});
+/* ===================== Galeria do # mídias -> /api/galeria ===================== */
+let GAL=[];
+const larg=(u,w)=>u.includes("media.discordapp.net")?u+(u.includes("?")?"&":"?")+"width="+w:u;
+fetch("/api/galeria").then(r=>r.json()).then(j=>{GAL=j.itens||[];if(!GAL.length)return;
+ $("galeria").innerHTML=GAL.slice(0,24).map((g,i)=>`<button type="button" class="mo${g.h>g.w*1.2?" alto":g.w>g.h*1.6?" largo":""}" data-gi="${i}" aria-label="Abrir ${g.tipo==="video"?"vídeo":"imagem"} ${i+1}">${g.tipo==="video"?`<video src="${x(g.url)}" muted preload="metadata" playsinline></video><span class="mo-play">▶</span>`:`<img src="${x(larg(g.prev,480))}" alt="" loading="lazy" referrerpolicy="no-referrer">`}</button>`).join("")}).catch(()=>{});
+$("galeria").addEventListener("click",e=>{const b=e.target.closest("[data-gi]");if(!b)return;const g=GAL[+b.dataset.gi],d=$("tr-dlg");
+ $("tr-c").innerHTML=`<small class="trl">Galeria da tripulação</small><h2 id="tr-t">Do # mídias</h2><div class="dc">${g.tipo==="video"?`<video class="att" src="${x(g.url)}" controls autoplay playsinline style="width:100%"></video>`:`<img class="att" src="${x(larg(g.prev,1280))}" alt="" referrerpolicy="no-referrer">`}<div class="acts"><a class="btn alt" href="${x(g.link)}" target="_blank" rel="noopener">Ver no Discord</a></div></div>`;
+ d.showModal?d.showModal():d.setAttribute("open","")});
+$("tr-dlg").addEventListener("close",()=>{const v=$("tr-c").querySelector("video");if(v)v.pause()});
+/* ===================== Tema claro / escuro ===================== */
+(()=>{const h=document.documentElement,b=$("tema-btn"),escuro=()=>(h.dataset.theme||(matchMedia("(prefers-color-scheme:dark)").matches?"dark":"light"))==="dark";
+ const pinta=()=>{b.textContent=escuro()?"☀️":"🌙";b.title=escuro()?"Mudar para o tema claro":"Mudar para o tema escuro";const m=document.querySelector('meta[name="theme-color"]');if(m)m.content=escuro()?"#0a1112":"#efe8da"};
+ try{const t=localStorage.getItem("kzTema");if(t==="light"||t==="dark")h.dataset.theme=t}catch{}
+ pinta();matchMedia("(prefers-color-scheme:dark)").addEventListener("change",pinta);
+ b.addEventListener("click",()=>{h.dataset.theme=escuro()?"light":"dark";try{localStorage.setItem("kzTema",h.dataset.theme)}catch{}pinta()})})();
+/* ===================== Busca rápida ( / ou Ctrl+K ) ===================== */
+(()=>{const dlg=$("busca"),inp=$("bs-q"),res=$("bs-res");let IDX=null,sel=0,achados=[];
+ const PG=[["inicio","Início","🏠"],["informacoes","Informações","📋"],["novidades","Novidades e eventos","📣"],["crews","Crews e Frota","⚔️"],["comunidade","Comunidade, mapa e galeria","🎉"],["trello","Trello do Vox Seas","🗂️"],["guia","Guia: onde dropa e tier list","🔎"],["suporte","Suporte e staff","🎫"]];
+ async function indice(){if(IDX)return IDX;await Promise.all([TR?0:(loadTrello(),trPedido),MAPA?0:fetch("/api/mapa").then(r=>r.json()).then(j=>{if(j.ok)MAPA=j}).catch(()=>{}),carregarGuia()].map(p=>Promise.resolve(p).catch(()=>{})));
+  const L=PG.map(([h,n,i])=>({i,n,t:"Página",go:()=>location.hash=h}));
+  Object.entries(D).forEach(([s,m])=>L.push({i:"#",n:m.t,t:"Canal "+m.ch,go:()=>location.hash="canal-"+s}));
+  (MAPA?MAPA.ilhas:[]).forEach(il=>L.push({i:"🏝️",n:il.nome,t:`Ilha · Lvl ${il.min}–${il.max}`,go:()=>{location.hash="comunidade";setTimeout(()=>abrirCard({id:il.id,nome:il.nome},"Islands"),300)}}));
+  (GUIA?GUIA.chefes:[]).forEach(c=>L.push({i:c.raid?"🐉":"💀",n:c.nome,t:"Chefe"+(c.ilha?" · "+c.ilha:""),go:()=>{location.hash="guia";setTimeout(()=>{$("gd-q").value=c.nome;renderDrops()},200)}}));
+  (GUIA?GUIA.itens:[]).forEach(it=>L.push({i:"🎒",n:it.nome,t:"Item · "+it.cat,go:()=>{location.hash="guia";setTimeout(()=>{$("gd-q").value=it.nome;renderDrops()},200)}}));
+  (TR||[]).forEach(l=>l.cards.forEach(c=>L.push({i:"🗂️",n:c.nome,t:"Trello · "+l.nome,go:()=>{location.hash="trello";setTimeout(()=>abrirCard(c,l.nome),300)}})));
+  return IDX=L}
+ const pinta=()=>{res.innerHTML=achados.length?achados.map((a,i)=>`<button type="button" class="bs-r${i===sel?" on":""}" data-bi="${i}"><span>${a.i}</span><b>${x(a.n)}</b><small>${x(a.t)}</small></button>`).join(""):`<p class="bs-v">${inp.value.trim()?"Nada encontrado.":"Comece a digitar…"}</p>`};
+ async function buscar(){const q=slug(inp.value.trim());const L=await indice();sel=0;
+  achados=q?L.map(a=>{const s=slug(a.n);return [a,s===q?0:s.startsWith(q)?1:s.includes(q)?2:slug(a.t).includes(q)?3:9]}).filter(v=>v[1]<9).sort((a,b)=>a[1]-b[1]).slice(0,12).map(v=>v[0]):PG.map(([h,n,i])=>({i,n,t:"Página",go:()=>location.hash=h}));pinta()}
+ const abrir=()=>{inp.value="";dlg.showModal?dlg.showModal():dlg.setAttribute("open","");inp.focus();buscar()},fechar=()=>dlg.close?dlg.close():dlg.removeAttribute("open");
+ const ir=i=>{const a=achados[i];if(!a)return;fechar();a.go()};
+ $("busca-btn").addEventListener("click",abrir);
+ document.addEventListener("keydown",e=>{const t=e.target,digitando=t&&(t.isContentEditable||/^(input|textarea|select)$/i.test(t.tagName));
+  if(!dlg.open&&((e.key==="/"&&!digitando)||((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="k"))){e.preventDefault();abrir()}});
+ inp.addEventListener("input",()=>{clearTimeout(buscar.t);buscar.t=setTimeout(buscar,120)});
+ inp.addEventListener("keydown",e=>{if(e.key==="ArrowDown"||e.key==="ArrowUp"){e.preventDefault();sel=(sel+(e.key==="ArrowDown"?1:-1)+achados.length)%Math.max(1,achados.length);pinta()}else if(e.key==="Enter"){e.preventDefault();ir(sel)}});
+ res.addEventListener("click",e=>{const b=e.target.closest("[data-bi]");if(b)ir(+b.dataset.bi)});
+ dlg.addEventListener("click",e=>{if(e.target===dlg)fechar()})})();
+/* ===================== Notificações no celular (Web Push) ===================== */
+(()=>{const b=$("sino");if(!("serviceWorker" in navigator)||!("PushManager" in window)||!("Notification" in window))return;
+ const app=matchMedia("(display-mode: standalone)").matches||navigator.standalone===true,IOS=/iPhone|iPad|iPod/i.test(navigator.userAgent);let chave="";
+ const u8=s=>{const p="=".repeat((4-s.length%4)%4),r=atob((s+p).replace(/-/g,"+").replace(/_/g,"/"));return Uint8Array.from([...r].map(c=>c.charCodeAt(0)))};
+ const estado=async()=>{const r=await navigator.serviceWorker.ready;const s=await r.pushManager.getSubscription();b.textContent=s?"🔔 Notificações ligadas":"🔔 Ativar notificações";b.classList.toggle("on",!!s);return s};
+ fetch("/api/push/chave").then(r=>r.json()).then(j=>{if(!j.ok||!j.chave)return;chave=j.chave;b.hidden=false;estado().catch(()=>{})}).catch(()=>{});
+ b.addEventListener("click",async()=>{if(IOS&&!app){toast("No iPhone, instale o app primeiro (Compartilhar → Adicionar à Tela de Início) e ative as notificações por lá.");return}
+  try{const r=await navigator.serviceWorker.ready,s=await r.pushManager.getSubscription();
+   if(s){await fetch("/api/push/sair",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({endpoint:s.endpoint})}).catch(()=>{});await s.unsubscribe();toast("Notificações desligadas.");estado();return}
+   if(await Notification.requestPermission()!=="granted"){toast("Sem permissão para notificações. Libere nas configurações do navegador.");return}
+   const n=await r.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:u8(chave)});
+   const ok=await fetch("/api/push/inscrever",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(n.toJSON())}).then(r=>r.ok);
+   if(!ok){await n.unsubscribe();throw 0}toast("Pronto! Você vai receber os anúncios novos e o aviso de eventos começando. 🔔");estado()}
+  catch{toast("Não foi possível ativar as notificações neste navegador.")}})})();
+/* ===================== Caça ao tesouro ===================== */
+const FRAG=["barco","rota","adeus","cartas","perdido"];
+const PISTA={barco:"Logo na entrada, um navio cruza as ondas. Aborde-o.",rota:"No mapa das ilhas, um barquinho segue a rota. Alcance-o.",adeus:"No fim de toda página, o marujo se despede. Responda três vezes.",cartas:"Nas cartas do Trello, procure exatamente aquilo que você está caçando.",perdido:"Até quem se perde no mar acha algo. Navegue para um lugar que não existe."};
+const tesouro=()=>{try{return JSON.parse(localStorage.getItem("kzTesouro")||"{}")||{}}catch{return {}}};
+function achar(f){const t=tesouro();if(t[f]){toast("Você já tem esse fragmento. 🧩");return}
+ fetch("/api/tesouro/pista/"+f).then(r=>r.json()).then(j=>{if(!j.ok)throw 0;const t=tesouro();t[f]=j.c;try{localStorage.setItem("kzTesouro",JSON.stringify(t))}catch{}
+  const n=FRAG.filter(k=>t[k]).length;toast(n===5?"🗝️ Você juntou os 5 fragmentos! Vá até a Caça ao Tesouro na página inicial.":`🧩 Fragmento do mapa encontrado! (${n}/5)`);renderTesouro()}).catch(()=>{})}
+let cacadores=null;
+function renderTesouro(){const t=tesouro(),n=FRAG.filter(k=>t[k]).length,fr=$("tes-fr");if(!fr)return;
+ fr.innerHTML=FRAG.map((k,i)=>`<span class="tes-p${t[k]?" ok":""}" title="Fragmento ${i+1}">${t[k]?"🧩":"❔"}<small>${i+1}</small></span>`).join("")+`<b class="tes-n">${n}/5</b>`;
+ $("tes-pistas").innerHTML=FRAG.map(k=>`<li class="${t[k]?"ok":""}">${t[k]?"✔️ ":""}${x(PISTA[k])}</li>`).join("");
+ const a=$("tes-acao"),cont=cacadores!=null?`<small class="tes-c">${cacadores} caçador${cacadores===1?"":"es"} já ${cacadores===1?"achou":"acharam"} o tesouro.</small>`:"";
+ a.innerHTML=n<5?cont:!EU.logado?`<a class="btn" href="/auth/entrar?volta=inicio">Entrar com Discord e resgatar o cargo</a>${cont}`:`<button class="btn" type="button" id="tes-res">🗝️ Resgatar meu cargo</button>${cont}`;
+ const r=$("tes-res");if(r)r.onclick=async()=>{r.disabled=true;r.textContent="Resgatando…";
+  const j=await fetch("/api/tesouro/resgatar",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({codigos:tesouro()})}).then(r=>r.json()).catch(()=>({}));
+  if(j.ok){a.innerHTML=`<p class="tes-ok">🎉 Parabéns, caçador! O cargo <b>🗝️ Caçador de Tesouros</b> já está no seu perfil do Discord.</p>`;cacadores=(cacadores||0)+1;return}
+  toast({membro:"Você precisa estar no servidor da Kyzen SA para receber o cargo.",permissao:"O bot ainda não tem permissão para dar cargos. Avise a staff!",incompleto:"Algum fragmento está faltando. Procure de novo!",login:"Entre com o Discord primeiro."}[j.motivo]||"Não foi possível resgatar agora. Tente de novo.");r.disabled=false;r.textContent="🗝️ Resgatar meu cargo"}}
+fetch("/api/tesouro/status").then(r=>r.json()).then(j=>{if(typeof j.cacadores==="number"){cacadores=j.cacadores;renderTesouro()}}).catch(()=>{});
+renderTesouro();
+document.addEventListener("click",e=>{if(e.target.closest(".hero .barco"))achar("barco");else if(e.target.closest(".mp-barco"))achar("rota");else if(e.target.closest(".ft .fim")&&e.detail>=3)achar("adeus")});
+const views=["inicio","informacoes","novidades","crews","comunidade","trello","guia","area-crew","suporte"];let counted=false;
 function count(){const calm=matchMedia("(prefers-reduced-motion:reduce)").matches;document.querySelectorAll("[data-n]").forEach(e=>{const t=+e.dataset.n;if(calm){e.textContent=t.toLocaleString("pt-BR");return}let s=null;const f=ts=>{s=s??ts;const p=Math.min((ts-s)/1200,1);e.textContent=Math.floor(+e.dataset.n*p).toLocaleString("pt-BR");if(p<1)requestAnimationFrame(f)};requestAnimationFrame(f)})}
 function route(){document.title="Kyzen SA — Servidor de Vox Seas";let h=location.hash.slice(1),nv=h;const m=h.startsWith("canal-")&&D[h.slice(6)];
- if(m){nv=m.sec;detail(h.slice(6),m);h="canal"}else if(/^crew-[a-z0-9-]+$/.test(h)){renderCrew(h.slice(5));h="crew";nv="crews"}else if(!views.includes(h)){h="inicio";nv="inicio"}
+ if(m){nv=m.sec;detail(h.slice(6),m);h="canal"}else if(/^crew-[a-z0-9-]+$/.test(h)){renderCrew(h.slice(5));h="crew";nv="crews"}else if(!views.includes(h)){if(h&&!h.startsWith("canal-")&&!/^(conta|tesouro)$/.test(h))setTimeout(()=>{toast("Você se perdeu no mar… mas olha só o que achou!");achar("perdido")},600);h="inicio";nv="inicio"}
+ if(h==="guia"){carregarGuia();document.title="Guia do Vox Seas — Kyzen SA"}
  if(h==="trello"){loadTrello();document.title="Trello do Vox Seas — Kyzen SA"}
  if(h==="comunidade")carregarMapa();
  if(h==="area-crew"){renderArea();document.title="Área da Crew — Kyzen SA"}else clearInterval(acTimer);
