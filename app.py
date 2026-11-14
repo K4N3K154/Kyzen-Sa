@@ -62,6 +62,7 @@ def discord_post(path, token, dados):
 
 def limpar(txt):
     txt = txt or ""
+    txt = re.sub(r"(?m)^\s*(?:#{1,3}|-#)\s+", "", txt)  # títulos e subtexto do Discord
     txt = re.sub(r"<a?:\w+:\d+>", "", txt)              # emojis custom
     txt = re.sub(r"<@[!&]?\d+>|<#\d+>", "", txt)         # menções
     txt = re.sub(r"@(everyone|here)", "", txt)
