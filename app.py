@@ -489,6 +489,71 @@ def canal_api(slug):
     return resp
 
 
+_srv_cache = {"t": 0, "data": None}
+TIPOS = {0: "texto", 2: "voz", 4: "categoria", 5: "anuncios", 13: "palco", 15: "forum", 16: "midia"}
+
+
+def buscar_servidor():
+    token = os.environ.get("DISCORD_BOT_TOKEN", "").strip()
+    guild_id = os.environ.get("DISCORD_GUILD_ID", "").strip()
+    if not token or not guild_id:
+        return None
+    g = discord_get(f"/guilds/{guild_id}?with_counts=true", token)
+    canais = discord_get(f"/guilds/{guild_id}/channels", token)
+    cats = {c["id"]: (c.get("position", 0), c.get("name", "")) for c in canais if c.get("type") == 4}
+    por_id = {c["id"]: c for c in canais}
+
+    def oculto(c):
+        """True se @everyone não pode ver (canal privado / da staff)."""
+        for alvo in (c, por_id.get(c.get("parent_id")) or {}):
+            for ow in alvo.get("permission_overwrites") or []:
+                if ow.get("id") == guild_id:
+                    if int(ow.get("deny", 0)) & (1 << 10):
+                        return True
+                    if int(ow.get("allow", 0)) & (1 << 10):
+                        return False
+        return False
+
+    lista = []
+    for c in canais:
+        if c.get("type") == 4 or oculto(c):
+            continue
+        pos_cat, nome_cat = cats.get(c.get("parent_id"), (-1, ""))
+        lista.append({
+            "id": c["id"], "nome": c.get("name", ""), "tipo": TIPOS.get(c.get("type"), str(c.get("type"))),
+            "categoria": nome_cat, "_o": (pos_cat, c.get("type") in (2, 13), c.get("position", 0)),
+        })
+    lista.sort(key=lambda c: c.pop("_o"))
+    return {
+        "nome": g.get("name", ""),
+        "membros": g.get("approximate_member_count", 0),
+        "online": g.get("approximate_presence_count", 0),
+        "boosts": g.get("premium_subscription_count", 0),
+        "guild_id": guild_id,
+        "canais": lista,
+    }
+
+
+@app.route("/api/servidor")
+def servidor():
+    """Contagem de membros e lista de canais (nomes e IDs, para os links do site)."""
+    agora = time.time()
+    if agora - _srv_cache["t"] > 300 or _srv_cache["data"] is None:
+        try:
+            dados = buscar_servidor()
+        except (urllib.error.URLError, ValueError, KeyError, TypeError) as e:
+            dados = None
+            if request.args.get("debug") == "1":
+                return jsonify({"erro": str(e)[:120]}), 502
+        if dados:
+            _srv_cache.update(t=agora, data=dados)
+    if not _srv_cache["data"]:
+        return jsonify({"configured": False}), 503
+    resp = jsonify({"configured": True, **_srv_cache["data"]})
+    resp.headers["Cache-Control"] = "public, s-maxage=300, stale-while-revalidate=600"
+    return resp
+
+
 @app.route("/api/requisitos")
 def requisitos():  # endereço antigo, mantido por compatibilidade
     return canal_api("requisitos")
