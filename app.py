@@ -107,7 +107,7 @@ def montar(msg, tag, guild_id, canal_id):
     }
 
 
-FEEDS_AUTO = [("SUB-ANÚNCIO", "sub-anuncios")]
+FEEDS_AUTO = [("SUB-ANÚNCIO", "sub-anuncios"), ("EVENTO", "eventos"), ("JORNAL", "jornal")]
 
 
 def buscar_anuncios(diag=None):
@@ -421,6 +421,9 @@ PAGINAS = {
 }
 
 
+_canais_cache = {"t": 0, "data": None}
+
+
 def achar_canal(token, guild_id, nome):
     """Procura o ID do canal pelo nome, quando a variável não foi criada."""
     def norm(s):
@@ -428,7 +431,9 @@ def achar_canal(token, guild_id, nome):
         return re.sub(r"[^a-z0-9]", "", s.lower())
 
     try:
-        for c in discord_get(f"/guilds/{guild_id}/channels", token):
+        if time.time() - _canais_cache["t"] > 300 or not _canais_cache["data"]:
+            _canais_cache.update(t=time.time(), data=discord_get(f"/guilds/{guild_id}/channels", token))
+        for c in _canais_cache["data"]:
             if c.get("type") in (0, 5) and norm(c.get("name")).endswith(norm(nome)):
                 return c["id"]
     except (urllib.error.URLError, ValueError, KeyError, TypeError):

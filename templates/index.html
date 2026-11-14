@@ -239,12 +239,12 @@ document.querySelectorAll("[data-cards]").forEach(g=>g.innerHTML=C[g.dataset.car
 function detail(s,m){const N={informacoes:"Informações",novidades:"Novidades",crews:"Crews",comunidade:"Comunidade",suporte:"Suporte"},J={informacoes:"案内",novidades:"知らせ",crews:"仲間",comunidade:"祭",suporte:"助"},u=CH[s];
  $("cj").textContent=J[m.sec];$("ct").textContent=m.t;$("cs").textContent=m.ch;
  $("cb").innerHTML=`<p>${x(m.d)}</p><h3>Como funciona</h3><ul>${m.p.map(i=>`<li>${x(i)}</li>`).join("")}</ul>${m.tb.map(t=>`<h3>${x(t[0])}</h3><div class="tw"><table class="tb">${t[1].map(r=>`<tr>${r.map((c,i)=>i?`<td>${x(c)}</td>`:`<th>${x(c)}</th>`).join("")}</tr>`).join("")}</table></div>`).join("")}<p class="note">Os detalhes completos ficam no canal do Discord.${u?" Você precisa já estar no servidor para abrir o canal.":""}</p><div class="acts"><a class="btn" href="${x(u||DL)}" target="_blank" rel="noopener">${u?"Abrir canal no Discord":"Entrar no Discord"}</a><a class="btn alt" href="#${m.sec}">Voltar para ${N[m.sec]}</a></div>`;
- const TG={anuncios:"ANÚNCIO","sub-anuncios":"SUB-ANÚNCIO",eventos:"EVENTO","videos-novos":"VÍDEO"};
- if(TG[s]){const L=DATA.news.filter(n=>slug(n.tag||"")===slug(TG[s]));$("cb").querySelector("p").insertAdjacentHTML("afterend",`<h3>${({anuncios:"Últimos anúncios","sub-anuncios":"Últimos avisos",eventos:"Últimos eventos","videos-novos":"Últimos vídeos"})[s]}</h3><div class="list">${L.length?L.map(T.news).join(""):`<div class="empty">${s==="videos-novos"?"Nenhum vídeo recente.":"Nada recente por aqui."}</div>`}</div>`)}
+ const TG={anuncios:"ANÚNCIO","sub-anuncios":"SUB-ANÚNCIO",eventos:"EVENTO","videos-novos":"VÍDEO",jornal:"JORNAL"};
+ if(TG[s]){const L=DATA.news.filter(n=>slug(n.tag||"")===slug(TG[s]));$("cb").querySelector("p").insertAdjacentHTML("afterend",`<h3>${({anuncios:"Últimos anúncios","sub-anuncios":"Últimos avisos",eventos:"Últimos eventos","videos-novos":"Últimos vídeos",jornal:"Últimas edições"})[s]}</h3><div class="list">${L.length?L.map(T.news).join(""):`<div class="empty">${s==="videos-novos"?"Nenhum vídeo recente.":"Nada recente por aqui."}</div>`}</div>`)}
  if(ESP.includes(s))loadCanal(s).then(r=>{if(!r||!r.html||location.hash!=="#canal-"+s)return;const a=$("cb").querySelector(".acts");if(r.link)a.querySelector(".btn").href=r.link,a.querySelector(".btn").textContent="Abrir canal no Discord";$("cb").innerHTML=`<div class="dc">${r.html}</div><p class="note">Conteúdo atualizado automaticamente a partir do canal ${x(m.ch)} do Discord.</p>`+a.outerHTML});
  document.title=m.t+" — Kyzen SA"}
 /* Canais espelhados do Discord (bot) -> /api/canal/<slug> (HTML já sanitizado no servidor) */
-const ESP=["requisitos","niveis","jornal"],CAN={};
+const ESP=["requisitos","niveis"],CAN={};
 /* Servidor (bot) -> /api/servidor: contadores ao vivo e link direto de cada canal */
 const norm=s=>s.normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase().replace(/[^a-z0-9]/g,"");
 fetch("/api/servidor").then(r=>r.json()).then(j=>{if(!j.configured)return;
@@ -268,4 +268,14 @@ function route(){document.title="Kyzen SA — Servidor de Vox Seas";let h=locati
  const on=document.querySelector("[data-nav].on");if(on)on.scrollIntoView({inline:"center",block:"nearest"});
  window.scrollTo(0,0);if(h==="inicio"&&!counted){counted=true;count()}}
 addEventListener("hashchange",route);route();
+/* Links do Discord abrem no app. No celular o próprio sistema já abre o app pelo link https;
+   no computador usa discord:// e, se o app não abrir em 2,5 s, abre no navegador. */
+const MOBILE=/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)||matchMedia("(pointer:coarse)").matches;
+document.addEventListener("click",e=>{const a=e.target.closest('a[href^="https://discord.com/channels/"],a[href^="https://discord.gg/"]');
+ if(!a||MOBILE||e.button||e.ctrlKey||e.metaKey||e.shiftKey||e.altKey)return;
+ const u=new URL(a.href),app=u.host==="discord.gg"?"discord://-/invite"+u.pathname:"discord://-"+u.pathname;
+ e.preventDefault();let saiu=false;const sair=()=>{saiu=true};
+ addEventListener("blur",sair,{once:true});document.addEventListener("visibilitychange",sair,{once:true});
+ location.href=app;
+ setTimeout(()=>{removeEventListener("blur",sair);document.removeEventListener("visibilitychange",sair);if(!saiu)window.open(a.href,"_blank","noopener")},2500)});
 </script></body></html>
