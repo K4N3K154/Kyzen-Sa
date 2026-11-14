@@ -1555,7 +1555,7 @@ def crew_novidades():
 #   Crew da semana e maior vitória: do # wars-results            -> só para quem é da crew
 # ---------------------------------------------------------------------------
 _hall_cache = {"t": 0, "data": None}
-_NIVEL = re.compile(r"(?:n[íi]vel|level|lvl|lv|nv)\.?\s*[:#]?\s*\**\s*(\d{1,4})", re.I)
+_NIVEL = re.compile(r"(?:n[íi]vel|level|lvl|lv|nv)\.?[\s:#*'\"`]*(\d{1,4})(?!\d)", re.I)  # Loritta: nível **'3'**
 
 
 def textos_msg(m):
