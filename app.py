@@ -4,14 +4,16 @@ import hmac
 import json
 import os
 import re
+import secrets
 import time
 import unicodedata
 import urllib.error
+import urllib.parse
 import urllib.request
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from flask import Flask, Response, jsonify, request
+from flask import Flask, Response, jsonify, redirect, request, session
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -21,6 +23,12 @@ app = Flask(
     static_url_path="",
 )
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024  # nenhum envio do site passa de 16 KB
+# Sessão do login (cookie assinado). A chave sai do token do bot, então nunca fica em lugar nenhum além da Vercel;
+# se o token for trocado, todo mundo só precisa entrar de novo.
+_tk = os.environ.get("DISCORD_BOT_TOKEN", "").strip()
+app.secret_key = hashlib.sha256(("kyzensa-sessao:" + _tk).encode()).digest() if _tk else secrets.token_bytes(32)
+app.config.update(SESSION_COOKIE_NAME="kz", SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE="Lax",
+                  SESSION_COOKIE_SECURE=bool(os.environ.get("VERCEL")), PERMANENT_SESSION_LIFETIME=timedelta(days=7))
 
 
 # ---------------------------------------------------------------------------
@@ -190,7 +198,8 @@ def montar(msg, tag, guild_id, canal_id):
 
 
 FEEDS_AUTO = [("SUB-ANÚNCIO", "sub-anuncios"), ("EVENTO", "eventos"), ("JORNAL", "jornal"),
-              ("CREW", "crew-post")]
+              ("CREW", "crew-post"), ("ANÚNCIO DA CREW", "anuncios-crew")]
+CREW_TAGS = {"CREW", "ANÚNCIO DA CREW"}  # vêm da categoria Crew (privada): só aparecem para quem tem acesso
 
 
 def buscar_anuncios(diag=None):
@@ -260,7 +269,8 @@ def novidades():
             return resp
         if dados or not _cache["data"]:
             _cache.update(t=agora, data=dados)
-    resp = jsonify({"news": _cache["data"], "configured": True})
+    publicas = [n for n in _cache["data"] or [] if n.get("tag") not in CREW_TAGS]
+    resp = jsonify({"news": publicas, "configured": True})
     resp.headers["Cache-Control"] = "public, s-maxage=60, stale-while-revalidate=300"
     return resp
 
@@ -575,6 +585,10 @@ def buscar_canal(slug, diag=None):
 def canal_api(slug):
     if slug not in PAGINAS:
         return jsonify({"configured": False, "html": "", "link": ""}), 404
+    if slug in PAGINAS_CREW:
+        bloqueio = sem_acesso_crew()
+        if bloqueio:
+            return bloqueio
     if debug_ok():
         diag = {}
         dados = buscar_canal(slug, diag)
@@ -593,8 +607,13 @@ def canal_api(slug):
         if dados["html"] or not cache["data"]:
             cache.update(t=agora, data=dados)
     resp = jsonify({"configured": True, **cache["data"]})
+    if slug in PAGINAS_CREW:
+        return privado(resp)
     resp.headers["Cache-Control"] = "public, s-maxage=60, stale-while-revalidate=300"
     return resp
+
+
+PAGINAS_CREW = {"aliados", "inimigos", "titulos"}  # canais da categoria Crew
 
 
 _srv_cache = {"t": 0, "data": None}
@@ -933,6 +952,10 @@ def buscar_wars():
 
 @app.route("/api/wars")
 def wars():
+    """Placar das wars. O #wars-results é da categoria Crew (privada): só para quem tem acesso."""
+    bloqueio = sem_acesso_crew()
+    if bloqueio:
+        return bloqueio
     agora = time.time()
     if (agora - _wars_cache["t"] > 15 or _wars_cache["data"] is None) and pode_tentar("wars"):
         try:
@@ -945,8 +968,7 @@ def wars():
             falhou("wars")
     resp = jsonify({"configured": _wars_cache["data"] is not None,
                     **(_wars_cache["data"] or {"ranking": [], "partidas": [], "ultima": None})})
-    resp.headers["Cache-Control"] = "public, s-maxage=15, stale-while-revalidate=60"
-    return resp
+    return privado(resp)
 
 
 # ---------------------------------------------------------------------------
@@ -1223,6 +1245,267 @@ def trello_card(cid):
 
 
 # ---------------------------------------------------------------------------
+# Login com Discord + Área da Crew
+#   O site só pede o escopo "identify" (nome e avatar). Quem pode ver o quê é calculado com as
+#   permissões reais do servidor: quem vê os canais da categoria Crew no Discord, vê no site.
+#   DISCORD_CLIENT_SECRET -> segredo do app (Developer Portal > OAuth2). Sem ele o login fica desligado.
+#   Redirect cadastrado no Developer Portal: https://kyzensaofc.vercel.app/auth/callback
+# ---------------------------------------------------------------------------
+VER_CANAL, ADMIN = 1 << 10, 1 << 3
+_guild_cache = {"t": 0, "roles": None, "canais": None, "dono": ""}
+_acesso_cache = {}
+_msgs_cache = {}
+_app_id = {"id": ""}
+
+
+def guild_info():
+    token = os.environ.get("DISCORD_BOT_TOKEN", "").strip()
+    gid = os.environ.get("DISCORD_GUILD_ID", "").strip()
+    if time.time() - _guild_cache["t"] > 300 or _guild_cache["roles"] is None:
+        roles = discord_get(f"/guilds/{gid}/roles", token)
+        canais = discord_get(f"/guilds/{gid}/channels", token)
+        dono = str(discord_get(f"/guilds/{gid}", token).get("owner_id") or "")
+        _guild_cache.update(t=time.time(), roles=roles, canais=canais, dono=dono)
+    return _guild_cache
+
+
+def canais_crew(info):
+    cats = {c["id"] for c in info["canais"] if c.get("type") == 4 and "crew" in slug_py(c.get("name", ""))}
+    return sorted((c for c in info["canais"] if c.get("parent_id") in cats and c.get("type") in (0, 5)),
+                  key=lambda c: c.get("position", 0))
+
+
+def pode_ver(info, gid, uid, cargos, canal):
+    """Mesma conta que o Discord faz para decidir se alguém vê um canal."""
+    if uid == info["dono"]:
+        return True
+    perm = {str(r["id"]): int(r.get("permissions") or 0) for r in info["roles"]}
+    base = perm.get(gid, 0)
+    for r in cargos:
+        base |= perm.get(r, 0)
+    if base & ADMIN:
+        return True
+    ows = {str(o["id"]): o for o in canal.get("permission_overwrites") or []}
+    p = base
+    o = ows.get(gid)
+    if o:
+        p = (p & ~int(o.get("deny") or 0)) | int(o.get("allow") or 0)
+    a = d = 0
+    for r in cargos:
+        o = ows.get(r)
+        if o:
+            a |= int(o.get("allow") or 0)
+            d |= int(o.get("deny") or 0)
+    p = (p & ~d) | a
+    o = ows.get(uid)
+    if o:
+        p = (p & ~int(o.get("deny") or 0)) | int(o.get("allow") or 0)
+    return bool(p & VER_CANAL)
+
+
+def acesso(uid):
+    """Canais da categoria Crew que este usuário vê no Discord (lista; None se o Discord falhou)."""
+    agora = time.time()
+    c = _acesso_cache.get(uid)
+    if c and agora - c[0] < 60:
+        return c[1]
+    token = os.environ.get("DISCORD_BOT_TOKEN", "").strip()
+    gid = os.environ.get("DISCORD_GUILD_ID", "").strip()
+    try:
+        info = guild_info()
+        try:
+            membro = discord_get(f"/guilds/{gid}/members/{uid}", token)
+        except urllib.error.HTTPError as e:
+            if e.code != 404:
+                raise
+            membro = None  # não está no servidor
+        cargos = [str(r) for r in (membro or {}).get("roles") or []]
+        ver = [{"id": str(ch["id"]), "nome": ch.get("name", "")} for ch in canais_crew(info)
+               if membro and pode_ver(info, gid, uid, cargos, ch)]
+    except (urllib.error.URLError, ValueError, KeyError, TypeError) as e:
+        app.logger.error("acesso: %s", str(e)[:120])
+        return c[1] if c else None
+    if len(_acesso_cache) > 500:
+        for k in sorted(_acesso_cache, key=lambda k: _acesso_cache[k][0])[:250]:
+            _acesso_cache.pop(k, None)
+    _acesso_cache[uid] = (agora, ver)
+    return ver
+
+
+def usuario():
+    uid = str(session.get("uid") or "")
+    return uid if re.fullmatch(r"\d{5,25}", uid) else None
+
+
+def privado(resp, status=None):
+    resp.headers["Cache-Control"] = "private, no-store"
+    resp.headers["Vary"] = "Cookie"
+    return (resp, status) if status else resp
+
+
+def sem_acesso_crew():
+    """None se quem pede tem acesso à área da crew; senão a resposta de bloqueio."""
+    uid = usuario()
+    if not uid:
+        return privado(jsonify({"ok": False, "motivo": "login"}), 401)
+    ver = acesso(uid)
+    if ver is None:
+        return privado(jsonify({"ok": False, "motivo": "erro"}), 503)
+    if not ver:
+        return privado(jsonify({"ok": False, "motivo": "cargo"}), 403)
+    return None
+
+
+def oauth_cfg():
+    segredo = os.environ.get("DISCORD_CLIENT_SECRET", "").strip()
+    if not segredo:
+        return None
+    cid = os.environ.get("DISCORD_CLIENT_ID", "").strip() or _app_id["id"]
+    if not cid:
+        try:
+            cid = str(discord_get("/oauth2/applications/@me", os.environ.get("DISCORD_BOT_TOKEN", "").strip())["id"])
+            _app_id["id"] = cid
+        except (urllib.error.URLError, ValueError, KeyError, TypeError):
+            return None
+    local = request.host.split(":")[0] in ("127.0.0.1", "localhost")
+    return {"id": cid, "segredo": segredo,
+            "redirect": f"{'http' if local else 'https'}://{request.host}/auth/callback"}
+
+
+@app.route("/auth/entrar")
+def auth_entrar():
+    cfg = oauth_cfg()
+    volta = request.args.get("volta", "")
+    session["volta"] = volta if re.fullmatch(r"[a-z0-9-]{1,40}", volta) else "area-crew"
+    if not cfg:
+        return redirect("/#area-crew")
+    session["st"] = secrets.token_urlsafe(24)
+    q = urllib.parse.urlencode({"client_id": cfg["id"], "redirect_uri": cfg["redirect"], "response_type": "code",
+                                "scope": "identify", "state": session["st"], "prompt": "none"})
+    return redirect(f"https://discord.com/oauth2/authorize?{q}")
+
+
+@app.route("/auth/callback")
+def auth_callback():
+    cfg = oauth_cfg()
+    st = session.pop("st", "")
+    volta = session.pop("volta", "area-crew")
+    if not cfg or not st or not hmac.compare_digest(request.args.get("state", ""), st) or not request.args.get("code"):
+        return redirect("/#area-crew")
+    try:
+        req = urllib.request.Request("https://discord.com/api/v10/oauth2/token", method="POST",
+                                     data=urllib.parse.urlencode({
+                                         "client_id": cfg["id"], "client_secret": cfg["segredo"],
+                                         "grant_type": "authorization_code", "code": request.args["code"][:200],
+                                         "redirect_uri": cfg["redirect"]}).encode(),
+                                     headers={"Content-Type": "application/x-www-form-urlencoded",
+                                              "User-Agent": "KyzenSA-Site (1.0)"})
+        with urllib.request.urlopen(req, timeout=8) as r:
+            tok = json.loads(r.read().decode("utf-8"))["access_token"]
+        req = urllib.request.Request(API + "/users/@me", headers={"Authorization": f"Bearer {tok}",
+                                                                   "User-Agent": "KyzenSA-Site (1.0)"})
+        with urllib.request.urlopen(req, timeout=8) as r:
+            u = json.loads(r.read().decode("utf-8"))
+    except (urllib.error.URLError, ValueError, KeyError, TypeError) as e:
+        app.logger.error("login: %s", str(e)[:120])
+        return redirect("/#area-crew")
+    session.clear()  # o token do Discord não é guardado: só o ID, o nome e o avatar
+    session.permanent = True
+    av = str(u.get("avatar") or "")
+    session.update(uid=str(u["id"]), nome=cortar(str(u.get("global_name") or u.get("username") or ""), 40),
+                   av=av if re.fullmatch(r"(a_)?[a-f0-9]{32}", av) else "")
+    _acesso_cache.pop(str(u["id"]), None)
+    return redirect(f"/#{volta}")
+
+
+@app.route("/auth/sair", methods=["POST"])
+def auth_sair():
+    origem = request.headers.get("Origin", "")
+    if origem not in (f"https://{request.host}", f"http://{request.host}"):
+        return jsonify({"ok": False}), 403
+    session.clear()
+    return privado(jsonify({"ok": True}))
+
+
+def avatar_url(uid, av):
+    if av:
+        return f"https://cdn.discordapp.com/avatars/{uid}/{av}.png?size=64"
+    try:
+        return f"https://cdn.discordapp.com/embed/avatars/{(int(uid) >> 22) % 6}.png"
+    except ValueError:
+        return "https://cdn.discordapp.com/embed/avatars/0.png"
+
+
+@app.route("/api/eu")
+def eu():
+    configurado = bool(os.environ.get("DISCORD_CLIENT_SECRET", "").strip())
+    uid = usuario()
+    if not uid:
+        return privado(jsonify({"logado": False, "configurado": configurado}))
+    ver = acesso(uid)
+    return privado(jsonify({"logado": True, "configurado": configurado, "nome": session.get("nome", ""),
+                            "avatar": avatar_url(uid, session.get("av", "")), "crew": bool(ver),
+                            "erro": ver is None, "canais": ver or [],
+                            "guild": os.environ.get("DISCORD_GUILD_ID", "").strip()}))
+
+
+def ctx_rapido(info, msgs):
+    ctx = {"roles": {}, "channels": {}, "users": {}}
+    for r in info["roles"]:
+        cor = cor_hex((r.get("colors") or {}).get("primary_color")) or cor_hex(r.get("color"))
+        ctx["roles"][str(r["id"])] = (r.get("name", "cargo"), cor)
+    for c in info["canais"]:
+        ctx["channels"][str(c["id"])] = c.get("name", "canal")
+    for m in msgs:
+        for u in m.get("mentions") or []:
+            ctx["users"][u["id"]] = u.get("global_name") or u.get("username") or "usuário"
+    return ctx
+
+
+@app.route("/api/crew/canal/<cid>")
+def crew_canal(cid):
+    bloqueio = sem_acesso_crew()
+    if bloqueio:
+        return bloqueio
+    if not any(c["id"] == cid for c in acesso(usuario())):
+        return privado(jsonify({"ok": False, "motivo": "cargo"}), 403)
+    agora = time.time()
+    c = _msgs_cache.get(cid)
+    if not c or agora - c[0] > 15:
+        try:
+            token = os.environ.get("DISCORD_BOT_TOKEN", "").strip()
+            msgs = discord_get(f"/channels/{cid}/messages?limit=50", token)
+            ctx = ctx_rapido(guild_info(), msgs)
+            lista = []
+            for m in reversed(msgs):
+                html = render_msg(m, ctx)
+                if not html:
+                    continue
+                a = m.get("author") or {}
+                av = str(a.get("avatar") or "")
+                lista.append({"id": m["id"], "autor": cortar(str(a.get("global_name") or a.get("username") or "usuário"), 40),
+                              "av": avatar_url(str(a.get("id", "0")), av if re.fullmatch(r"(a_)?[a-f0-9]{32}", av) else ""),
+                              "bot": bool(a.get("bot")), "ts": m.get("timestamp"), "html": html})
+            c = (agora, lista)
+            _msgs_cache[cid] = c
+        except (urllib.error.URLError, ValueError, KeyError, TypeError) as e:
+            app.logger.error("crew canal: %s", str(e)[:120])
+            if not c:
+                return privado(jsonify({"ok": False, "motivo": "erro"}), 503)
+    return privado(jsonify({"ok": True, "mensagens": c[1]}))
+
+
+@app.route("/api/crew/novidades")
+def crew_novidades():
+    bloqueio = sem_acesso_crew()
+    if bloqueio:
+        return bloqueio
+    if time.time() - _cache["t"] > CACHE_SECONDS:
+        novidades()  # atualiza o cache compartilhado
+    return privado(jsonify({"ok": True, "news": [n for n in _cache["data"] or [] if n.get("tag") in CREW_TAGS]}))
+
+
+# ---------------------------------------------------------------------------
 # Página, prévia ao compartilhar (Discord/WhatsApp leem as meta tags) e app instalável
 # ---------------------------------------------------------------------------
 ROBOS = re.compile(r"Discordbot|WhatsApp|facebookexternalhit|Twitterbot|TelegramBot|Slackbot|LinkedInBot|"
@@ -1252,21 +1535,18 @@ def trocar_meta(html, titulo, desc, url):
 def meta_ao_vivo(html, crew_slug=None):
     """Prévia com números ao vivo. Só busca dados novos quando quem pede é um robô de prévia."""
     if ROBOS.search(request.headers.get("User-Agent", "")):
-        for f in (jogo, servidor, wars):
+        for f in (jogo, servidor):
             try:
                 f()
             except Exception:  # noqa: BLE001
                 pass
-    j, s, w = _jogo_cache["data"] or {}, _srv_cache["data"] or {}, _wars_cache["data"] or {}
+    j, s = _jogo_cache["data"] or {}, _srv_cache["data"] or {}
     if crew_slug:
-        for i, c in enumerate(w.get("ranking") or []):
-            if slug_py(c["crew"]) == crew_slug:
-                ult = " ".join(c.get("h") or []) or "nenhuma ainda"
-                return trocar_meta(html, f"{c['crew']} — #{i + 1} da Frota Kyzen SA",
-                                   f"🏴‍☠️ {pl(c['v'], 'vitória', 'vitórias')} · {pl(c['e'], 'empate', 'empates')} · "
-                                   f"{pl(c['d'], 'derrota', 'derrotas')} · {pl(c['pts'], 'ponto', 'pontos')}. "
-                                   f"Últimas batalhas: {ult}. Veja a ficha completa da crew no site da Kyzen SA.",
-                                   f"https://kyzensaofc.vercel.app/crew/{crew_slug}")
+        # placar das crews é privado (categoria Crew): a prévia não mostra números
+        return trocar_meta(html, "Ficha de crew — Frota Kyzen SA",
+                           "Ficha de crew da Frota Kyzen SA. Entre com o seu Discord no site para ver o placar "
+                           "e o histórico (só para membros com acesso à área das crews).",
+                           f"https://kyzensaofc.vercel.app/crew/{crew_slug}")
     partes = []
     if j.get("jogando"):
         partes.append(f"🟢 {num(j['jogando'])} jogando Vox Seas agora")
