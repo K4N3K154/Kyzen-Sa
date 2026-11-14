@@ -2048,9 +2048,12 @@ def diag_app():
     if not debug_ok():
         return jsonify({"ok": False}), 404
     info = discord_get("/oauth2/applications/@me", os.environ.get("DISCORD_BOT_TOKEN", "").strip())
+    banco = db_ok()
     return privado(jsonify({"id": str(info.get("id")), "nome": info.get("name"),
                             "interactions_endpoint_url": info.get("interactions_endpoint_url"),
-                            "redirects": info.get("redirect_uris")}))
+                            "redirects": info.get("redirect_uris"),
+                            "variaveis_de_banco": sorted(k for k in os.environ if "DATABASE" in k or "POSTGRES" in k or k.startswith("PG")),
+                            "banco_ok": banco, "banco_erro": "" if banco else _db_erro["msg"]}))
 
 
 @app.route("/api/registrar-comandos", methods=["POST"])
@@ -2083,9 +2086,23 @@ def registrar_comandos():
 _db_pronto = {"ok": False}
 
 
+def url_banco():
+    """A Vercel pode criar a variável com outro nome ou com prefixo (ex.: STORAGE_DATABASE_URL)."""
+    for k in ("DATABASE_URL", "POSTGRES_URL"):
+        if os.environ.get(k, "").strip():
+            return os.environ[k].strip()
+    for k, v in sorted(os.environ.items()):
+        if (k.endswith("_DATABASE_URL") or k.endswith("_POSTGRES_URL")) and v.strip().startswith("postgres"):
+            return v.strip()
+    return ""
+
+
+_db_erro = {"msg": ""}
+
+
 def sql(query, params=None):
     """Consulta na Neon pelo endpoint HTTP (sem driver)."""
-    url = os.environ.get("DATABASE_URL", "").strip()
+    url = url_banco()
     if not url:
         raise ValueError("sem banco")
     host = urllib.parse.urlparse(url).hostname
@@ -2099,14 +2116,19 @@ def sql(query, params=None):
 def db_ok():
     if _db_pronto["ok"]:
         return True
-    if not os.environ.get("DATABASE_URL"):
+    if not url_banco():
+        _db_erro["msg"] = "sem variável de banco"
         return False
     try:
         sql("CREATE TABLE IF NOT EXISTS push_subs (endpoint text PRIMARY KEY, p256dh text NOT NULL, "
             "auth text NOT NULL, criado timestamptz DEFAULT now())")
         sql("CREATE TABLE IF NOT EXISTS push_feitos (chave text PRIMARY KEY, em timestamptz DEFAULT now())")
         _db_pronto["ok"] = True
+    except urllib.error.HTTPError as e:
+        _db_erro["msg"] = f"HTTP {e.code}: {e.read().decode('utf-8', 'replace')[:200]}"
+        app.logger.error("db: %s", _db_erro["msg"])
     except (urllib.error.URLError, ValueError, KeyError, TypeError) as e:
+        _db_erro["msg"] = str(e)[:200]
         app.logger.error("db: %s", str(e)[:120])
     return _db_pronto["ok"]
 
