@@ -88,6 +88,18 @@ def imagem_da(msg):
     return ""
 
 
+def primeiro_link(msg):
+    """Primeiro link externo da mensagem (texto ou embed)."""
+    textos = [msg.get("content") or ""]
+    for e in msg.get("embeds") or []:
+        textos += [e.get("url") or "", e.get("description") or ""]
+    for t in textos:
+        for u in re.findall(r"https?://[^\s<>()\]]+", t):
+            if "discord.com/channels" not in u:
+                return u
+    return ""
+
+
 def montar(msg, tag, guild_id, canal_id):
     emb = (msg.get("embeds") or [{}])[0]
     conteudo = limpar(msg.get("content"))
@@ -116,6 +128,7 @@ def montar(msg, tag, guild_id, canal_id):
         "tag": tag,
         "link": link,
         "img": imagem_da(msg),
+        "ext": primeiro_link(msg),
         "_ts": msg["timestamp"],
     }
 
