@@ -107,7 +107,8 @@ def montar(msg, tag, guild_id, canal_id):
     }
 
 
-FEEDS_AUTO = [("SUB-ANÚNCIO", "sub-anuncios"), ("EVENTO", "eventos"), ("JORNAL", "jornal")]
+FEEDS_AUTO = [("SUB-ANÚNCIO", "sub-anuncios"), ("EVENTO", "eventos"), ("JORNAL", "jornal"),
+              ("CREW", "crew-post")]
 
 
 def buscar_anuncios(diag=None):
@@ -418,6 +419,11 @@ PAGINAS = {
     "requisitos": ("REQUISITOS_CHANNEL", "req-cc"),
     "niveis": ("NIVEIS_CHANNEL", "leveis-embed"),
     "jornal": ("JORNAL_CHANNEL", "jornal"),
+    "regras": ("REGRAS_CHANNEL", "regras"),
+    "convites": ("CONVITES_CHANNEL", "invites"),
+    "aliados": ("ALIADOS_CHANNEL", "aliados"),
+    "inimigos": ("INIMIGOS_CHANNEL", "inimigos"),
+    "titulos": ("TITULOS_CHANNEL", "titulos"),
 }
 
 
@@ -567,30 +573,161 @@ def servidor():
                 return jsonify({"erro": str(e)[:120]}), 502
         if dados:
             _srv_cache.update(t=agora, data=dados)
-    if request.args.get("checar") == "1":
-        # só responde se existe e se o bot consegue ler (nomes já citados no site)
-        token = os.environ.get("DISCORD_BOT_TOKEN", "").strip()
-        guild_id = os.environ.get("DISCORD_GUILD_ID", "").strip()
-        out = {}
-        for nome in ("crew-post", "builds-crew", "chat-crew", "anuncios-crew", "titulos", "wars", "wars-results",
-                     "aliados", "inimigos", "regras", "invites"):
-            cid = achar_canal(token, guild_id, nome)
-            info = {"existe": bool(cid)}
-            if cid:
-                try:
-                    info["mensagens"] = len(discord_get(f"/channels/{cid}/messages?limit=5", token))
-                except urllib.error.HTTPError as e:
-                    info["erro_http"] = e.code
-            out[nome] = info
-        try:
-            out["membros_lidos"] = len(discord_get(f"/guilds/{guild_id}/members?limit=5", token))
-        except urllib.error.HTTPError as e:
-            out["membros_erro_http"] = e.code
-        return jsonify(out)
     if not _srv_cache["data"]:
         return jsonify({"configured": False}), 503
-    resp = jsonify({"configured": True, **_srv_cache["data"]})
+    resp = jsonify({"configured": True, **_srv_cache["data"],
+                    "roblox": os.environ.get("ROBLOX_URL", "").strip()})
     resp.headers["Cache-Control"] = "public, s-maxage=300, stale-while-revalidate=600"
+    return resp
+
+
+# ---------------------------------------------------------------------------
+# Placar das wars (# wars-results). Cada linha no formato:
+#   CrewA 3 x 1 CrewB      (também aceita "3-1", "3×1")
+#   CrewA venceu CrewB     (conta 1 x 0)
+# ---------------------------------------------------------------------------
+_wars_cache = {"t": 0, "data": None}
+_PLACAR = re.compile(r"^\s*(.+?)\s+(\d{1,3})\s*[xX×-]\s*(\d{1,3})\s+(.+?)\s*$")
+_VENCEU = re.compile(r"^\s*(.+?)\s+(?:venceu|ganhou de|derrotou)\s+(?:a\s+|o\s+)?(.+?)\s*$", re.I)
+
+
+def buscar_wars():
+    token = os.environ.get("DISCORD_BOT_TOKEN", "").strip()
+    guild_id = os.environ.get("DISCORD_GUILD_ID", "").strip()
+    if not token or not guild_id:
+        return None
+    canal = os.environ.get("WARS_CHANNEL", "").strip() or achar_canal(token, guild_id, "wars-results")
+    if not canal:
+        return None
+    msgs = discord_get(f"/channels/{canal}/messages?limit=100", token)
+    tabela, partidas = {}, []
+
+    def crew(n):
+        return tabela.setdefault(n.lower(), {"crew": n, "v": 0, "d": 0, "e": 0, "pts": 0})
+
+    for m in reversed(msgs):
+        textos = [m.get("content") or ""] + [(e.get("description") or "") for e in m.get("embeds") or []]
+        for linha in "\n".join(textos).splitlines():
+            linha = limpar(linha)
+            a = b = None
+            p = _PLACAR.match(linha)
+            if p:
+                a, ga, gb, b = p.group(1), int(p.group(2)), int(p.group(3)), p.group(4)
+            else:
+                v = _VENCEU.match(linha)
+                if v:
+                    a, ga, gb, b = v.group(1), 1, 0, v.group(2)
+            if not a:
+                continue
+            a, b = limpar(a).strip(" -–—:|"), limpar(b).strip(" -–—:|")
+            if not a or not b or len(a) > 40 or len(b) > 40:
+                continue
+            ca, cb = crew(a), crew(b)
+            if ga > gb:
+                ca["v"] += 1; cb["d"] += 1; ca["pts"] += 3
+            elif gb > ga:
+                cb["v"] += 1; ca["d"] += 1; cb["pts"] += 3
+            else:
+                ca["e"] += 1; cb["e"] += 1; ca["pts"] += 1; cb["pts"] += 1
+            d = datetime.fromisoformat(m["timestamp"].replace("Z", "+00:00"))
+            partidas.append({"a": ca["crew"], "b": cb["crew"], "ga": ga, "gb": gb,
+                             "data": f"{d.day} {MESES[d.month - 1]} {d.year}",
+                             "link": f"https://discord.com/channels/{guild_id}/{canal}/{m['id']}"})
+    ranking = sorted(tabela.values(), key=lambda c: (-c["pts"], -c["v"], c["d"], c["crew"].lower()))
+    return {"ranking": ranking[:20], "partidas": partidas[::-1][:8]}
+
+
+@app.route("/api/wars")
+def wars():
+    agora = time.time()
+    if agora - _wars_cache["t"] > CACHE_SECONDS or _wars_cache["data"] is None:
+        try:
+            dados = buscar_wars()
+        except (urllib.error.URLError, ValueError, KeyError, TypeError):
+            dados = None
+        if dados is not None:
+            _wars_cache.update(t=agora, data=dados)
+    resp = jsonify({"configured": _wars_cache["data"] is not None,
+                    **(_wars_cache["data"] or {"ranking": [], "partidas": []})})
+    resp.headers["Cache-Control"] = "public, s-maxage=60, stale-while-revalidate=300"
+    return resp
+
+
+# ---------------------------------------------------------------------------
+# Staff: membros com os cargos da cadeia de comando
+# ---------------------------------------------------------------------------
+_staff_cache = {"t": 0, "data": None}
+HIERARQUIA = ["Owner", "Co-Owner", "Dev", "Head Admin", "Adm", "Mod", "Senior Staff", "Staff",
+              "Junior Staff", "Helper"]
+
+
+def _n(s):
+    s = unicodedata.normalize("NFD", s or "").encode("ascii", "ignore").decode()
+    return re.sub(r"[^a-z0-9]", "", s.lower())
+
+
+def buscar_staff():
+    token = os.environ.get("DISCORD_BOT_TOKEN", "").strip()
+    guild_id = os.environ.get("DISCORD_GUILD_ID", "").strip()
+    if not token or not guild_id:
+        return None
+    roles = discord_get(f"/guilds/{guild_id}/roles", token)
+    alvos = [_n(h) for h in HIERARQUIA]
+    cargo_de = {}  # role_id -> índice na hierarquia
+    for i, alvo in enumerate(alvos):
+        exatos = [r for r in roles if _n(r.get("name")) == alvo]
+        if not exatos:  # ex.: "👑 Owner" ou "Owner 👑"; não confunde "Senior Staff" com "Staff"
+            exatos = [r for r in roles if alvo in _n(r.get("name")) and _n(r.get("name")) not in alvos
+                      and not any(o != alvo and o in _n(r.get("name")) and len(o) > len(alvo) for o in alvos)]
+        for r in exatos:
+            cargo_de.setdefault(r["id"], i)
+    info_cargo = {}
+    for r in roles:
+        if r["id"] in cargo_de:
+            i = cargo_de[r["id"]]
+            if i not in info_cargo:
+                cor = cor_hex((r.get("colors") or {}).get("primary_color")) or cor_hex(r.get("color"))
+                info_cargo[i] = {"cargo": limpar(r.get("name")) or HIERARQUIA[i], "cor": cor, "membros": []}
+    depois = "0"
+    for _ in range(5):  # até 5.000 membros
+        lote = discord_get(f"/guilds/{guild_id}/members?limit=1000&after={depois}", token)
+        for mb in lote:
+            u = mb.get("user") or {}
+            if u.get("bot"):
+                continue
+            niveis = [cargo_de[r] for r in mb.get("roles", []) if r in cargo_de]
+            if not niveis:
+                continue
+            i = min(niveis)
+            if mb.get("avatar"):
+                av = f"https://cdn.discordapp.com/guilds/{guild_id}/users/{u['id']}/avatars/{mb['avatar']}.webp?size=96"
+            elif u.get("avatar"):
+                av = f"https://cdn.discordapp.com/avatars/{u['id']}/{u['avatar']}.webp?size=96"
+            else:
+                av = f"https://cdn.discordapp.com/embed/avatars/{(int(u.get('id', 0)) >> 22) % 6}.png"
+            info_cargo[i]["membros"].append({"nome": mb.get("nick") or u.get("global_name") or u.get("username", ""),
+                                             "avatar": av})
+        if len(lote) < 1000:
+            break
+        depois = lote[-1]["user"]["id"]
+    grupos = [info_cargo[i] for i in sorted(info_cargo) if info_cargo[i]["membros"]]
+    for g in grupos:
+        g["membros"].sort(key=lambda m: m["nome"].lower())
+    return grupos
+
+
+@app.route("/api/staff")
+def staff():
+    agora = time.time()
+    if agora - _staff_cache["t"] > 600 or _staff_cache["data"] is None:
+        try:
+            dados = buscar_staff()
+        except (urllib.error.URLError, ValueError, KeyError, TypeError):
+            dados = None
+        if dados is not None:
+            _staff_cache.update(t=agora, data=dados)
+    resp = jsonify({"configured": _staff_cache["data"] is not None, "grupos": _staff_cache["data"] or []})
+    resp.headers["Cache-Control"] = "public, s-maxage=600, stale-while-revalidate=1200"
     return resp
 
 

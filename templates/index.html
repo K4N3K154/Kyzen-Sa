@@ -3,6 +3,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0a1112"><meta name="description" content="Kyzen SA: comunidade de Vox Seas com crews, wars, alianças, novidades e diversão.">
 <meta property="og:title" content="Kyzen SA — Servidor de Vox Seas"><meta property="og:description" content="Crews, wars, alianças, novidades e diversão no Discord.">
+<meta property="og:type" content="website"><meta property="og:url" content="https://kyzensaofc.vercel.app/"><meta property="og:site_name" content="Kyzen SA"><meta property="og:locale" content="pt_BR">
+<meta property="og:image" content="https://kyzensaofc.vercel.app/img/og.jpg"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta property="og:image:alt" content="Logo da Kyzen SA, comunidade de Vox Seas">
+<meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="https://kyzensaofc.vercel.app/img/og.jpg">
+<link rel="icon" href="/img/logo.jpg">
 <title>Kyzen SA — Servidor de Vox Seas</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Noto+Serif+JP:wght@700&display=swap" rel="stylesheet">
@@ -82,6 +86,11 @@ a.card{display:block}.panel.dt{max-width:760px;margin:0 auto;padding:28px}.dt p{
 .cd small{display:block;margin-bottom:10px;opacity:.85;font-size:.82rem;letter-spacing:.04em}.cd .t{display:inline-flex;gap:10px;flex-wrap:wrap;justify-content:center}
 .cd .t span{background:rgba(10,17,18,.78);border:1px solid rgba(227,179,109,.45);border-radius:12px;padding:8px 14px;min-width:70px;color:#fff;font-size:.75rem}
 .cd .t b{display:block;font:700 1.7rem "Cinzel",serif;color:#e3b36d}.cd .live{color:#e3b36d;font-size:1.15rem}
+.rk td,.rk th{text-align:center}.rk tr>th:nth-child(2){text-align:left}.rk tr:first-child th{color:var(--muted);font-size:.78rem;letter-spacing:.08em}
+.sg{margin:26px 0 12px;color:var(--rc,var(--accent));font-size:1rem}.sg small{color:var(--muted);font:600 .75rem system-ui}
+.sm{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.mb{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:8px 10px;min-width:0}
+.mb img{width:36px;height:36px;border-radius:50%;flex:none;background:var(--bar)}.mb span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.9rem}
 .join{padding:28px}.join .ttl{margin-top:0}
 .steps{list-style:none;counter-reset:st;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px}
 .steps li{counter-increment:st;position:relative;padding:44px 16px 16px;border:1px solid var(--border);border-radius:14px;background:color-mix(in srgb,var(--accent) 6%,transparent)}
@@ -157,6 +166,7 @@ a.card{display:block}.panel.dt{max-width:760px;margin:0 auto;padding:28px}.dt p{
   </div>
   <div class="panel cd" data-cd style="margin:34px 0;text-align:center"></div><p class="sub" style="margin-top:-10px">As crews e as wars começam depois do lançamento de Vox Seas. Enquanto isso, veja como os canais vão funcionar.</p><h2 class="ttl">Canais da crew</h2><p class="sub"></p><div class="grid" data-cards="crews"></div>
   <h2 class="ttl" style="margin-top:44px">Wars e relações</h2><p class="sub"></p><div class="grid" data-cards="wars"></div>
+  <h2 class="ttl" style="margin-top:44px">Placar das wars</h2><p class="sub">Calculado automaticamente a partir do canal # wars-results. Vitória vale 3 pontos e empate vale 1.</p><div id="placar"><div class="empty">Carregando o placar…</div></div>
   <h2 class="ttl" style="margin-top:44px">Crews do servidor</h2><p class="sub"></p><div class="list" data-list="crews"></div></div></section></section>
 
 <section class="view" id="v-comunidade" hidden><div class="ph" style="--bgi:var(--imgwater)"><div class="wrap"><i class="jp">祭</i><h1>Comunidade</h1><p>Chat, diversão e o universo de Vox Seas.</p></div></div>
@@ -171,7 +181,8 @@ a.card{display:block}.panel.dt{max-width:760px;margin:0 auto;padding:28px}.dt p{
 <section class="view" id="v-suporte" hidden><div class="ph"><div class="wrap"><i class="jp">助</i><h1>Suporte</h1><p>Ajuda, recrutamento da staff e Content Creator.</p></div></div>
  <section class="blk"><div class="wrap"><div class="grid" data-cards="sup"></div>
   <div class="ip"><div><small style="color:var(--muted)">Convite do Discord</small><br><code>discord.gg/DNZrYHRXU5</code></div><a class="btn" href="https://discord.gg/DNZrYHRXU5" target="_blank" rel="noopener">Entrar no Discord</a></div>
-  <div class="ip"><div><small style="color:var(--muted)">IP do servidor</small><br><code>em breve</code></div></div>
+  <div class="ip"><div><small style="color:var(--muted)">O jogo</small><br><code>Vox Seas · Roblox</code></div><a class="btn" data-rbx href="https://www.roblox.com/discover/?Keyword=Vox%20Seas" target="_blank" rel="noopener">Jogar no Roblox</a></div>
+  <h2 class="ttl" style="margin-top:44px">Staff da Kyzen SA</h2><p class="sub">Quem cuida do servidor, atualizado direto do Discord.</p><div id="staff"><div class="empty">Carregando a equipe…</div></div>
  </div></section></section>
 <section class="view" id="v-canal" hidden><div class="ph"><div class="wrap"><i class="jp" id="cj"></i><h1 id="ct"></h1><p id="cs"></p></div></div>
  <section class="blk"><div class="wrap"><div class="panel dt" id="cb"></div></div></section></section>
@@ -196,11 +207,11 @@ voz:[["➕","Criar Call","Entre aqui para criar a sua própria call.","➕ Criar
 fun:[["🎨","Gartic","Desenhe e adivinhe com a galera.","# gartic"],["🃏","Mudae","Colecione e troque personagens.","# mudae"],["🐓","Rinha de Galo","Teste a sorte do seu galo.","# rinha-de-galo"],["🐔","Akatsuki dos Galos","Mais diversão com a galera.","# akatsuki-dos-galos"]],
 jogo:[["⚓","Piratas ou Marines","Escolha seu lado e siga a jornada por quests e batalhas."],["🍎","Vox Fruits","Frutas com habilidades em cinco raridades: comum, rara, épica, lendária e mítica."],["⚔️","Espadas, armas e estilos","Espadas, armas de fogo, luta corpo a corpo ou frutas."],["⛵","Navios e Sea Beasts","Cruze o oceano e enfrente chefes de raid no mar."],["👁️","Haki e mobilidade","Geppo e Haki ajudam na exploração e no combate."],["🗺️","Ilhas e chefes","Novas ilhas se abrem conforme você avança."]],
 sup:[["🎫","Abrir ticket","Dúvidas, denúncias e parcerias com a staff.","# abrir-ticket"],["📝","Apply","Candidate-se para uma crew ou para a staff.","# kyzen-apply"],["🎥","Content Creator","Veja os requisitos para ser criador de conteúdo da Kyzen SA.","# req-cc","requisitos"]]};
-const E={news:"As novidades aparecerão aqui.",crews:"As crews do servidor aparecerão aqui."};
+const E={news:"As novidades aparecerão aqui.",crews:"As crews aparecem aqui assim que forem divulgadas em # crew-post."};
 const x=s=>String(s??"").replace(/[&<>"]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));
 const T={
  news:n=>`<a class="ev" href="${x(n.link||DL)}" target="_blank" rel="noopener">${n.img?`<img class="th" src="${x(n.img)}" alt="" loading="lazy" referrerpolicy="no-referrer">`:""}<span class="tag">${x(n.tag||"NOVIDADE")}</span><h3>${x(n.titulo)}</h3><p>${x(n.data)}</p></a>`,
- crews:c=>`<div class="ev"><span class="tag">CREW</span><h3>${x(c.nome)}</h3><p>${x(c.lider||"")}</p></div>`};
+ crews:c=>`<a class="ev" href="${x(c.link||DL)}" target="_blank" rel="noopener">${c.img?`<img class="th" src="${x(c.img)}" alt="" loading="lazy" referrerpolicy="no-referrer">`:""}<span class="tag">CREW</span><h3>${x(c.nome)}</h3><p>${x(c.lider||"")}</p></a>`};
 const CH={/* link de cada canal: slug:"https://discord.com/channels/ID_SERVIDOR/ID_CANAL" */};
 const D={};[
 ["regras","informacoes","Regras","# regras","As regras oficiais valem para todas as áreas do servidor e devem ser seguidas em todo momento. O descumprimento pode resultar em advertência, mute ou banimento permanente, dependendo da gravidade. Elas existem para manter uma comunidade saudável, respeitosa e divertida para jogadores de diversos jogos do Roblox.",["Não viole os termos de serviço do Roblox nem os do Discord","Dúvidas sobre as regras: abra um ticket"],[["Sistema de punições",[["Verbal Warning","Aviso verbal, sem punição"],["1 Warn","Mute de 15 minutos"],["2 Warn","Mute de 1 hora"],["3 Warn","Mute de 1 dia"],["4 Warn","Mute de 3 dias"],["5 Warn","Ban"]]],["Cadeia de comando",[["Owner"],["Co-Owner"],["Dev"],["Head Admin"],["Adm"],["Mod"],["Senior Staff"],["Staff"],["Junior Staff"],["Helper"]]]]],
@@ -244,20 +255,29 @@ function detail(s,m){const N={informacoes:"Informações",novidades:"Novidades",
  if(ESP.includes(s))loadCanal(s).then(r=>{if(!r||!r.html||location.hash!=="#canal-"+s)return;const a=$("cb").querySelector(".acts");if(r.link)a.querySelector(".btn").href=r.link,a.querySelector(".btn").textContent="Abrir canal no Discord";$("cb").innerHTML=`<div class="dc">${r.html}</div><p class="note">Conteúdo atualizado automaticamente a partir do canal ${x(m.ch)} do Discord.</p>`+a.outerHTML});
  document.title=m.t+" — Kyzen SA"}
 /* Canais espelhados do Discord (bot) -> /api/canal/<slug> (HTML já sanitizado no servidor) */
-const ESP=["requisitos","niveis"],CAN={};
+const ESP=["requisitos","niveis","regras","convites","aliados","inimigos","titulos"],CAN={};
+/* Placar das wars -> /api/wars */
+fetch("/api/wars").then(r=>r.json()).then(j=>{const R=j.ranking||[],P=j.partidas||[];
+ $("placar").innerHTML=R.length?`<div class="panel tw"><table class="tb rk"><tr><th>#</th><th>Crew</th><th>V</th><th>E</th><th>D</th><th>Pts</th></tr>${R.map((c,i)=>`<tr><td>${i+1}</td><th>${i<3?["🥇","🥈","🥉"][i]+" ":""}${x(c.crew)}</th><td>${c.v}</td><td>${c.e}</td><td>${c.d}</td><td><b>${c.pts}</b></td></tr>`).join("")}</table></div>${P.length?`<h3 style="margin:26px 0 12px">Últimas wars</h3><div class="list">${P.map(p=>`<a class="ev" href="${x(p.link)}" target="_blank" rel="noopener"><span class="tag">WAR</span><h3>${x(p.a)} ${p.ga} x ${p.gb} ${x(p.b)}</h3><p>${x(p.data)}</p></a>`).join("")}</div>`:""}`
+ :`<div class="empty">O placar aparece aqui quando os resultados forem postados em # wars-results.<br><small>Formato de cada linha: <code>Crew A 3 x 1 Crew B</code> ou <code>Crew A venceu Crew B</code></small></div>`}).catch(()=>{$("placar").innerHTML='<div class="empty">Não foi possível carregar o placar agora.</div>'});
+/* Staff -> /api/staff */
+fetch("/api/staff").then(r=>r.json()).then(j=>{const G=j.grupos||[];
+ $("staff").innerHTML=G.length?G.map(g=>`<h3 class="sg"${g.cor?` style="--rc:${x(g.cor)}"`:""}>${x(g.cargo)} <small>${g.membros.length}</small></h3><div class="sm">${g.membros.map(m=>`<div class="mb"><img src="${x(m.avatar)}" alt="" loading="lazy" referrerpolicy="no-referrer"><span>${x(m.nome)}</span></div>`).join("")}</div>`).join(""):'<div class="empty">A lista da staff aparece aqui em breve.</div>'}).catch(()=>{$("staff").innerHTML='<div class="empty">Não foi possível carregar a staff agora.</div>'});
 /* Servidor (bot) -> /api/servidor: contadores ao vivo e link direto de cada canal */
 const norm=s=>s.normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase().replace(/[^a-z0-9]/g,"");
 fetch("/api/servidor").then(r=>r.json()).then(j=>{if(!j.configured)return;
  document.querySelectorAll("[data-live]").forEach(e=>{const v=j[e.dataset.live];if(typeof v==="number"){e.dataset.n=v;if(counted)e.textContent=v.toLocaleString("pt-BR")}});
  Object.entries(D).forEach(([s,m])=>{const n=norm((m.ch.match(/#\s*([^·]+)/)||[])[1]||"");const c=n&&j.canais.find(c=>norm(c.nome).endsWith(n));if(c)CH[s]=`https://discord.com/channels/${j.guild_id}/${c.id}`});
  document.querySelectorAll("[data-ch]").forEach(a=>{if(CH[a.dataset.ch])a.href=CH[a.dataset.ch]});
+ if(j.roblox){RBX=j.roblox;document.querySelectorAll("[data-rbx]").forEach(a=>a.href=RBX)}
  const h=location.hash.slice(1);if(h.startsWith("canal-")&&D[h.slice(6)]&&!$("cb").querySelector(".dc"))detail(h.slice(6),D[h.slice(6)])}).catch(()=>{});const loadCanal=s=>CAN[s]??=fetch("/api/canal/"+s).then(r=>r.json()).catch(()=>null);
 function renderLists(){document.querySelectorAll("[data-list]").forEach(l=>{const k=l.dataset.list,d=DATA[k];l.innerHTML=d.length?d.slice(0,6).map(T[k]).join(""):`<div class="empty">${E[k]}</div>`})}
 renderLists();
 /* Anúncios do Discord (bot) -> /api/novidades */
-fetch("/api/novidades").then(r=>r.json()).then(j=>{if(Array.isArray(j.news)&&j.news.length){DATA.news=j.news;renderLists();const h=location.hash.slice(1);if(h.startsWith("canal-")&&D[h.slice(6)])detail(h.slice(6),D[h.slice(6)])}}).catch(()=>{});
+fetch("/api/novidades").then(r=>r.json()).then(j=>{if(Array.isArray(j.news)&&j.news.length){const ehCrew=n=>slug(n.tag||"")==="crew";DATA.crews=j.news.filter(ehCrew).map(n=>({nome:n.titulo,lider:n.data,link:n.link,img:n.img}));DATA.news=j.news.filter(n=>!ehCrew(n));renderLists();const h=location.hash.slice(1);if(h.startsWith("canal-")&&D[h.slice(6)])detail(h.slice(6),D[h.slice(6)])}}).catch(()=>{});
+let RBX="https://www.roblox.com/discover/?Keyword=Vox%20Seas";
 const LAUNCH=new Date("2026-11-14T16:00:00-03:00").getTime();
-function tick(){const d=LAUNCH-Date.now();document.querySelectorAll("[data-cd]").forEach(e=>{if(d<=0){e.innerHTML='<b class="live">Vox Seas já está no ar! ⚓</b>';return}const s=Math.floor(d/1e3),dd=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60),c=s%60,p=n=>String(n).padStart(2,"0");e.innerHTML=`<small>Lançamento de Vox Seas · 14/11/2026 às 16h (Brasília)</small><div class="t">${dd?`<span><b>${dd}</b>dias</span>`:""}<span><b>${p(h)}</b>horas</span><span><b>${p(m)}</b>min</span><span><b>${p(c)}</b>seg</span></div>`})}
+function tick(){const d=LAUNCH-Date.now();document.querySelectorAll("[data-cd]").forEach(e=>{if(d<=0){if(!e.dataset.live){e.dataset.live=1;e.innerHTML=`<b class="live">Vox Seas já está no ar! ⚓</b><div style="margin-top:14px"><a class="btn" data-rbx href="${x(RBX)}" target="_blank" rel="noopener">Jogar no Roblox</a></div>`}return}const s=Math.floor(d/1e3),dd=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60),c=s%60,p=n=>String(n).padStart(2,"0");e.innerHTML=`<small>Lançamento de Vox Seas · 14/11/2026 às 16h (Brasília)</small><div class="t">${dd?`<span><b>${dd}</b>dias</span>`:""}<span><b>${p(h)}</b>horas</span><span><b>${p(m)}</b>min</span><span><b>${p(c)}</b>seg</span></div>`})}
 tick();setInterval(tick,1000);
 const views=["inicio","informacoes","novidades","crews","comunidade","suporte"];let counted=false;
 function count(){const calm=matchMedia("(prefers-reduced-motion:reduce)").matches;document.querySelectorAll("[data-n]").forEach(e=>{const t=+e.dataset.n;if(calm){e.textContent=t.toLocaleString("pt-BR");return}let s=null;const f=ts=>{s=s??ts;const p=Math.min((ts-s)/1200,1);e.textContent=Math.floor(+e.dataset.n*p).toLocaleString("pt-BR");if(p<1)requestAnimationFrame(f)};requestAnimationFrame(f)})}
