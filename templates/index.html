@@ -6,7 +6,8 @@
 <meta property="og:type" content="website"><meta property="og:url" content="https://kyzensaofc.vercel.app/"><meta property="og:site_name" content="Kyzen SA"><meta property="og:locale" content="pt_BR">
 <meta property="og:image" content="https://kyzensaofc.vercel.app/img/og.jpg"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta property="og:image:alt" content="Logo da Kyzen SA, comunidade de Vox Seas">
 <meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="https://kyzensaofc.vercel.app/img/og.jpg">
-<link rel="icon" href="/img/logo.jpg">
+<link rel="icon" href="/img/logo.jpg"><link rel="manifest" href="/manifest.webmanifest"><link rel="apple-touch-icon" href="/img/icon-180.png">
+<meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="Kyzen SA">
 <title>Kyzen SA — Servidor de Vox Seas</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Pirata+One&family=Noto+Serif+JP:wght@700&display=swap" rel="stylesheet">
@@ -261,15 +262,44 @@ main{background-image:linear-gradient(color-mix(in srgb,var(--accent) 6%,transpa
 .eq i:nth-child(2){animation-delay:-.35s}.eq i:nth-child(3){animation-delay:-.7s}@keyframes eq{0%,100%{transform:scaleY(.3)}50%{transform:scaleY(1)}}
 .calls-t{grid-column:1/-1;margin:2px 0 0;font-size:.78rem;color:var(--muted)}
 @media (prefers-reduced-motion:reduce){html:not(.anim) .eq i{animation:none;transform:scaleY(.7)}}
+/* Ficha da crew */
+.cw-f{display:flex;justify-content:center;margin-bottom:4px}.cw-f .flag{width:min(220px,56vw);height:auto;color:rgba(255,255,255,.75);filter:drop-shadow(0 10px 18px rgba(0,0,0,.5))}
+.cw-s{grid-template-columns:repeat(5,1fr);max-width:760px;margin:0 auto 8px}.cw-s span{padding:12px 4px;font-size:.72rem;background:var(--surface)}.cw-s b{font-size:1.6rem}
+@media (max-width:520px){.cw-s{grid-template-columns:repeat(3,1fr)}}
+.cw-d{margin-top:22px}.log .rs{width:24px;height:24px;padding:0;border-radius:50%;display:grid;place-items:center;font-size:.7rem;color:#fff}
+.log .rV{background:#2f8f55}.log .rD{background:#b23a2c}.log .rE{background:#6b6355}
+/* Trello */
+.tr-bar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.tr-bar input{flex:1 1 260px;min-width:0;border:1px solid var(--border);border-radius:99px;background:var(--surface);color:var(--text);padding:12px 18px;font:inherit}
+.tr-bar input:focus{outline:2px solid var(--accent);border-color:transparent}
+.tr-tabs{display:flex;gap:6px;overflow-x:auto;padding:4px 0 10px;scrollbar-width:thin}
+.tr-tabs button{flex:none;border:1px solid var(--border);background:var(--surface);color:var(--muted);border-radius:99px;padding:8px 14px;font:600 .85rem system-ui,sans-serif;cursor:pointer;white-space:nowrap;transition:.2s}
+.tr-tabs button small{opacity:.7;font-weight:400}.tr-tabs button:hover{color:var(--text);border-color:var(--accent)}.tr-tabs button.on{background:var(--accent);color:#1a1208;border-color:var(--accent)}
+.tr-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px}
+.trc{display:flex;flex-direction:column;text-align:left;padding:0;overflow:hidden;cursor:pointer;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:14px;font:inherit;transition:transform .25s,border-color .25s,box-shadow .25s}
+.trc:hover{transform:translateY(-4px);border-color:var(--accent);box-shadow:0 18px 36px -24px color-mix(in srgb,var(--accent) 80%,transparent)}
+.trc img{display:block;width:100%;aspect-ratio:16/9;object-fit:contain;background:radial-gradient(circle,#1d2b2e,#0a1112 75%)}
+.trb{display:flex;flex-direction:column;gap:6px;padding:12px 14px}.trb small{font-size:.68rem;letter-spacing:.1em;color:var(--accent);text-transform:uppercase}.trb b{font-size:.98rem}
+.trb em{font-style:normal;font-size:.82rem;color:var(--muted);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.trt{display:flex;flex-wrap:wrap;gap:4px}.trt i{font-style:normal;font-size:.7rem;font-weight:700;padding:2px 8px;border-radius:6px;color:var(--tc);background:color-mix(in srgb,var(--tc) 18%,transparent)}
+.tr-dlg{width:min(720px,calc(100% - 24px));max-height:88vh}.tr-in{padding:24px;position:relative;max-height:88vh;overflow:auto}
+.tr-dlg h2{margin:2px 40px 8px 0;font-size:1.3rem}.trl{font-size:.7rem;letter-spacing:.12em;color:var(--accent);text-transform:uppercase}.tr-dlg .dc{margin-top:14px}.tr-dlg .dc .att{max-height:none}
+/* App: botão, avisos e tela de abertura */
+.inst{background:none;border:1px solid var(--accent);color:var(--accent);border-radius:99px;padding:2px 10px;font:600 .74rem system-ui,sans-serif;cursor:pointer}.inst[hidden]{display:none}
+.toast{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom,0px));z-index:120;max-width:min(440px,calc(100% - 32px));transform:translate(-50%,20px);opacity:0;pointer-events:none;background:var(--surface);color:var(--text);border:1px solid var(--accent);border-radius:14px;padding:12px 16px;font-size:.9rem;text-align:center;box-shadow:0 18px 40px -16px rgba(0,0,0,.8);transition:.3s}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+.splash{position:fixed;inset:0;z-index:200;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;background:radial-gradient(circle at 50% 42%,#1a2a2c,#0a1112 62%);color:#e3b36d;transition:opacity .6s}
+.splash .sp-l{width:132px;height:132px;border-radius:50%;background:var(--logo) center/cover;box-shadow:0 0 0 3px #c9954f,0 0 60px rgba(227,179,109,.35);animation:rise .8s cubic-bezier(.2,.7,.2,1) both}
+.splash b{font:400 2.4rem "Pirata One","Cinzel",serif;margin-top:10px}.splash small{letter-spacing:.3em;font-size:.7rem;opacity:.8}.splash.fora{opacity:0}
 @media (prefers-reduced-motion:reduce){html:not(.anim) :is(.rosa,.barco,.barco svg,.cloth,.dot.pu,.porto svg .mar){animation:none!important}html:not(.anim) .barco{display:none}}
 @media (prefers-reduced-motion:reduce){html:not(.anim) :is(.hero .wrap>.logo,.hero h1,.hero .wrap>*,.ph .wrap>*,.kick::after,.waves>svg,.hero::before,.cta::before,.btn,.view){animation:none!important}html:not(.anim) .fx{display:none}html:not(.anim) .rv{opacity:1;transform:none}}
 @media (max-width:640px){.hd .wrap{flex-wrap:wrap;gap:6px 12px;padding-top:8px;padding-bottom:6px;min-height:0}.hd .brand{flex:1}.hd nav{order:3;flex:1 1 100%;margin:0 -6px}}
 @media (max-width:700px){.fg{grid-template-columns:1fr}.top .tl a:nth-child(n+3){display:none}.chip{display:none}}
 @media (prefers-reduced-motion:reduce){html:not(.anim) *{transition:none!important;scroll-behavior:auto}}
 </style></head><body>
-<div class="top"><div class="wrap"><span>影 Comunidade de Vox Seas · Roblox</span><span class="tl"><a href="https://discord.gg/DNZrYHRXU5" target="_blank" rel="noopener">Discord</a><a href="#suporte">Suporte</a><a href="https://discord.gg/DNZrYHRXU5" target="_blank" rel="noopener">Apply</a></span></div></div>
+<div class="top"><div class="wrap"><span>影 Comunidade de Vox Seas · Roblox</span><span class="tl"><button class="inst" id="inst" type="button" hidden>📲 Instalar app</button><a href="https://discord.gg/DNZrYHRXU5" target="_blank" rel="noopener">Discord</a><a href="#suporte">Suporte</a><a href="https://discord.gg/DNZrYHRXU5" target="_blank" rel="noopener">Apply</a></span></div></div>
 <header class="hd"><div class="wrap"><a class="brand" href="#inicio"><span class="mark"></span><b>KYZEN SA</b><i class="chip">VOX SEAS</i></a>
-<nav><a href="#inicio" data-nav="inicio">Início</a><a href="#informacoes" data-nav="informacoes">Informações</a><a href="#novidades" data-nav="novidades">Novidades</a><a href="#crews" data-nav="crews">Crews</a><a href="#comunidade" data-nav="comunidade">Comunidade</a><a href="#suporte" data-nav="suporte">Suporte</a></nav>
+<nav><a href="#inicio" data-nav="inicio">Início</a><a href="#informacoes" data-nav="informacoes">Informações</a><a href="#novidades" data-nav="novidades">Novidades</a><a href="#crews" data-nav="crews">Crews</a><a href="#comunidade" data-nav="comunidade">Comunidade</a><a href="#trello" data-nav="trello">Trello</a><a href="#suporte" data-nav="suporte">Suporte</a></nav>
 <a class="btn sm" href="https://discord.gg/DNZrYHRXU5" target="_blank" rel="noopener">Entrar</a></div></header>
 <main>
 <section class="view" id="v-inicio">
@@ -288,6 +318,7 @@ main{background-image:linear-gradient(color-mix(in srgb,var(--accent) 6%,transpa
    <a class="card" href="#novidades"><div class="ic">📣</div><h3>Novidades</h3><p>Anúncios, eventos e vídeos novos.</p></a>
    <a class="card" href="#crews"><div class="ic">⚔️</div><h3>Crews</h3><p>Canais, wars, alianças e calls.</p></a>
    <a class="card" href="#comunidade"><div class="ic">🎉</div><h3>Comunidade</h3><p>Chat, diversão e o universo de Vox Seas.</p></a>
+   <a class="card" href="#trello"><div class="ic">🗂️</div><h3>Trello do Vox Seas</h3><p>Frutas, espadas, ilhas, chefes e códigos do quadro oficial.</p></a>
    <a class="card" href="#suporte"><div class="ic">🎫</div><h3>Suporte</h3><p>Ticket e apply para a staff.</p></a>
   </div>
   <h2 class="ttl">Últimas novidades</h2><p class="sub"></p><div class="list" data-list="news"></div>
@@ -333,14 +364,26 @@ main{background-image:linear-gradient(color-mix(in srgb,var(--accent) 6%,transpa
   <div class="ip"><div><small style="color:var(--muted)">O jogo</small><br><code>Vox Seas · Roblox</code></div><a class="btn" data-rbx href="https://www.roblox.com/games/104067066727140/Vox-Seas" target="_blank" rel="noopener">Jogar no Roblox</a></div>
   <h2 class="ttl" style="margin-top:44px">Staff da Kyzen SA</h2><p class="sub">Quem cuida do servidor, atualizado direto do Discord.</p><div id="staff"><div class="empty">Carregando a equipe…</div></div>
  </div></section></section>
+<section class="view" id="v-trello" hidden><div class="ph" style="--bgi:var(--imgwater)"><div class="wrap"><i class="jp">情報</i><h1>Trello do Vox Seas</h1><p>O quadro oficial do jogo: frutas, espadas, ilhas, chefes, códigos e mais. Atualizado sozinho.</p></div></div>
+ <section class="blk"><div class="wrap">
+  <div class="tr-bar"><input id="tr-q" type="search" placeholder="Buscar no Trello (ex.: Dragon, Codes, Haki)" aria-label="Buscar no Trello" autocomplete="off"><a class="btn alt sm" id="tr-link" href="https://trello.com/b/qGXeMuSt/vox-seas-official-trello" target="_blank" rel="noopener">Abrir no Trello</a></div>
+  <div class="tr-tabs" id="tr-tabs"></div>
+  <p class="sub" id="tr-info"></p>
+  <div class="tr-grid" id="tr-grid"><div class="empty">Abrindo o Trello…</div></div>
+  <p class="sub" style="font-size:.82rem;margin-top:26px">Conteúdo do Trello oficial do Vox Seas, em inglês, mostrado aqui como está no quadro. A Kyzen SA não é dona desse conteúdo.</p>
+ </div></section></section>
+<section class="view" id="v-crew" hidden><div class="ph" style="--bgi:var(--imgred)"><div class="wrap" id="cw-top"></div></div>
+ <section class="blk"><div class="wrap" id="cw"></div></section></section>
 <section class="view" id="v-canal" hidden><div class="ph"><div class="wrap"><i class="jp" id="cj"></i><h1 id="ct"></h1><p id="cs"></p></div></div>
  <section class="blk"><div class="wrap"><div class="panel dt" id="cb"></div></div></section></section>
 </main>
 <footer class="ft"><div class="wrap"><div class="fg">
  <div><div class="brand"><span class="mark"></span><b>KYZEN SA</b></div><p>A comunidade de Vox Seas para quem vive o mar. Crews, wars e muita diversão.</p><div class="soc"><a href="https://discord.gg/DNZrYHRXU5" target="_blank" rel="noopener">Discord</a></div></div>
- <div><h4>Links rápidos</h4><ul><li><a href="#inicio">Início</a></li><li><a href="#informacoes">Informações</a></li><li><a href="#novidades">Novidades</a></li><li><a href="#crews">Crews</a></li><li><a href="#comunidade">Comunidade</a></li><li><a href="#suporte">Suporte</a></li></ul></div>
+ <div><h4>Links rápidos</h4><ul><li><a href="#inicio">Início</a></li><li><a href="#informacoes">Informações</a></li><li><a href="#novidades">Novidades</a></li><li><a href="#crews">Crews</a></li><li><a href="#comunidade">Comunidade</a></li><li><a href="#trello">Trello do Vox Seas</a></li><li><a href="#suporte">Suporte</a></li></ul></div>
  <div><h4>Suporte</h4><ul><li><a href="https://discord.gg/DNZrYHRXU5" target="_blank" rel="noopener">Contato</a></li><li><a href="#suporte">Regras</a></li><li><a href="#suporte">Abrir ticket</a></li><li><a href="#suporte">Apply</a></li></ul></div>
 </div><div class="cp"><span class="fim">⚓ Bons ventos, marujo.</span>© 2026 Kyzen SA. Não afiliado ao Roblox nem aos criadores de Vox Seas.</div></div></footer>
+<dialog class="av tr-dlg" id="tr-dlg" aria-labelledby="tr-t"><div class="tr-in"><button class="av-x" type="button" id="tr-x" aria-label="Fechar">✕</button><div id="tr-c"></div></div></dialog>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
 <button class="fab" type="button" id="av-abrir" aria-haspopup="dialog">⭐ <span>Avaliar o site</span></button>
 <dialog class="av" id="av" aria-labelledby="av-t">
  <form id="av-f" method="dialog" novalidate>
@@ -438,7 +481,7 @@ function navios(){const M=new Map();
  DATA.crews.forEach(c=>{const k=(c.nome||"").toLowerCase();if(!k)return;const n=M.get(k)||{nome:c.nome,pos:0};n.link=c.link;n.img=c.img;M.set(k,n)});
  return [...M.values()].sort((a,b)=>(a.pos||999)-(b.pos||999))}
 const navio=n=>{const ranked=n.pos>0,pat=ranked?(PATENTE[n.pos-1]||"Capitão"):"Nova no mar";
- return `<a class="ship${n.pos===1?" lider":""}" href="${x(n.link||CH.resultados||DL)}" target="_blank" rel="noopener">${n.img?`<img class="sh-i" src="${x(n.img)}" alt="" loading="lazy" referrerpolicy="no-referrer">`:""}
+ return `<a class="ship${n.pos===1?" lider":""}" href="#crew-${x(slug(n.nome))}" title="Ver a ficha da crew">${n.img?`<img class="sh-i" src="${x(n.img)}" alt="" loading="lazy" referrerpolicy="no-referrer">`:""}
  <div class="sh-f">${bandeira(n.nome)}${ranked?`<span class="pos">#${n.pos}</span>`:""}</div>
  <span class="tag">${ranked&&n.pos<4?["🥇","🥈","🥉"][n.pos-1]+" ":""}${x(pat.toUpperCase())}</span><h3>${x(n.nome)}</h3>
  ${ranked?`<div class="sh-s"><span><b>${n.v}</b>vitórias</span><span><b>${n.e}</b>empates</span><span><b>${n.d}</b>derrotas</span><span class="pt"><b>${n.pts}</b>pontos</span></div>
@@ -454,8 +497,45 @@ function renderDiario(){const P=WARS&&WARS.partidas||[],el=$("diario");if(!el)re
  :`<div class="empty">Nenhuma war registrada ainda. Quando os resultados forem postados em # wars-results, elas aparecem aqui.<br><small>Formato de cada linha: <code>Crew A 3 x 1 Crew B</code> ou <code>Crew A venceu Crew B</code></small></div>`}
 const rel=ts=>{const s=Math.max(0,Date.now()/1e3-ts);return s<60?"agora mesmo":s<3600?`há ${Math.floor(s/60)} min`:s<86400?`há ${Math.floor(s/3600)} h`:`há ${Math.floor(s/86400)} dia${s<172800?"":"s"}`};
 let warsTxt="";
-const pegarWars=()=>fetch("/api/wars").then(r=>r.text()).then(t=>{if(t===warsTxt)return;warsTxt=t;WARS=JSON.parse(t);renderFrota();renderDiario()}).catch(()=>{if(!WARS){renderFrota();renderDiario()}}).finally(()=>{const u=$("w-ult");if(u)u.textContent=WARS&&WARS.ultima?`Última war ${rel(WARS.ultima)} · atualiza sozinho`:"Atualiza sozinho a cada 20 segundos"});
-pegarWars();setInterval(()=>{const h=location.hash.slice(1)||"inicio";if(!document.hidden&&(h==="crews"||h==="inicio"))pegarWars()},20000);
+const pegarWars=()=>fetch("/api/wars").then(r=>r.text()).then(t=>{if(t===warsTxt)return;warsTxt=t;WARS=JSON.parse(t);renderFrota();renderDiario();if(location.hash.startsWith("#crew-"))renderCrew(location.hash.slice(6))}).catch(()=>{if(!WARS){renderFrota();renderDiario()}}).finally(()=>{const u=$("w-ult");if(u)u.textContent=WARS&&WARS.ultima?`Última war ${rel(WARS.ultima)} · atualiza sozinho`:"Atualiza sozinho a cada 20 segundos"});
+pegarWars();setInterval(()=>{const h=location.hash.slice(1)||"inicio";if(!document.hidden&&(h==="crews"||h==="inicio"||h.startsWith("crew-")))pegarWars()},20000);
+/* ===================== Ficha de cada crew: /#crew-<nome> (link para compartilhar: /crew/<nome>) ===================== */
+function toast(t){const e=$("toast");e.textContent=t;e.classList.add("on");clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.remove("on"),3200)}
+function renderCrew(s){const top=$("cw-top"),cw=$("cw");if(!top)return;
+ const n=navios().find(c=>slug(c.nome)===s),r=WARS&&(WARS.ranking||[]).find(c=>slug(c.crew)===s);
+ if(!n){top.innerHTML=`<i class="jp">仲間</i><h1>${WARS?"Crew não encontrada":"Carregando…"}</h1><p>${WARS?"Essa crew ainda não está na Frota.":"Abrindo a ficha da crew."}</p>`;cw.innerHTML=WARS?`<div class="porto"><h3>Nenhuma crew com esse nome</h3><p>Ela aparece aqui quando tiver uma war em # wars-results ou um post em # crew-post.</p><div class="acts" style="justify-content:center"><a class="btn" href="#crews">Ver a Frota</a></div></div>`:"";return}
+ const J=r?r.jogos||[]:[],tot=n.pos?n.v+n.e+n.d:0,apr=tot?Math.round((n.v*3+n.e)/(tot*3)*100):0,res=j=>j.ga>j.gb?"V":j.gb>j.ga?"D":"E";
+ let seq=0;J.forEach((j,i)=>{if(seq===i&&res(j)===res(J[0]))seq++});
+ const R={};J.forEach(j=>{const o=R[j.adv]??={n:0,v:0,e:0,d:0};o.n++;o[{V:"v",E:"e",D:"d"}[res(j)]]++});const rv=Object.entries(R).sort((a,b)=>b[1].n-a[1].n)[0];
+ const mv=J.filter(j=>j.ga>j.gb).sort((a,b)=>(b.ga-b.gb)-(a.ga-a.gb))[0];
+ const pat=n.pos?(PATENTE[n.pos-1]||"Capitão"):"Nova no mar",SEQ={V:["🔥","vitória","vitórias"],D:["🌊","derrota","derrotas"],E:["⚖️","empate","empates"]};
+ top.innerHTML=`<div class="cw-f">${bandeira(n.nome)}</div><i class="jp">${n.pos?`#${n.pos} DA FROTA · `:""}${x(pat.toUpperCase())}</i><h1>${x(n.nome)}</h1><p>${tot?`${tot} war${tot===1?"":"s"} registrada${tot===1?"":"s"} · ${apr}% de aproveitamento`:"Ainda sem wars registradas"}</p>`;
+ cw.innerHTML=`${n.pos?`<div class="sh-s cw-s"><span><b>${n.v}</b>vitórias</span><span><b>${n.e}</b>empates</span><span><b>${n.d}</b>derrotas</span><span class="pt"><b>${n.pts}</b>pontos</span><span><b>${apr}%</b>aproveit.</span></div>`:""}
+ ${J.length?`<div class="grid cw-d"><div class="card"><div class="ic">${SEQ[res(J[0])][0]}</div><h3>Sequência atual</h3><p>${seq} ${SEQ[res(J[0])][seq===1?1:2]} seguida${seq===1?"":"s"}</p></div>${rv?`<a class="card" href="#crew-${x(slug(rv[0]))}"><div class="ic">⚔️</div><h3>Maior rival</h3><p>${x(rv[0])}: ${rv[1].n} war${rv[1].n===1?"":"s"} (${rv[1].v}V ${rv[1].e}E ${rv[1].d}D)</p></a>`:""}${mv?`<div class="card"><div class="ic">🏆</div><h3>Maior vitória</h3><p>${mv.ga} x ${mv.gb} contra ${x(mv.adv)} · ${x(mv.data)}</p></div>`:""}</div>
+ <h2 class="ttl" style="margin-top:40px">Histórico de batalhas</h2><p class="sub">Da mais recente para a mais antiga.</p><ol class="log">${J.map(j=>{const t=res(j);return `<li><a href="${x(j.link)}" target="_blank" rel="noopener"><span class="ld">${x(j.data)}</span><span class="lw"><i class="rs r${t}">${t}</i><b class="${t==="V"?"w":t==="D"?"l":""}">${x(n.nome)}</b><i>${j.ga} ⚔ ${j.gb}</i><b>${x(j.adv)}</b></span></a></li>`}).join("")}</ol>`
+ :`<div class="porto"><h3>Esta crew ainda não foi para a guerra</h3><p>Quando uma war dela for registrada em # wars-results, o histórico, a sequência e o maior rival aparecem aqui.</p></div>`}
+ <div class="acts" style="margin-top:28px"><button class="btn" type="button" id="cw-share">📣 Compartilhar a crew</button>${n.link?`<a class="btn alt" href="${x(n.link)}" target="_blank" rel="noopener">Ver o post no Discord</a>`:""}<a class="btn alt" href="#crews">Voltar para a Frota</a></div>`;
+ $("cw-share").onclick=async()=>{const url=`${location.origin}/crew/${s}`,txt=n.pos?`${n.nome}: #${n.pos} da Frota Kyzen SA com ${n.pts} pontos`:`${n.nome} na Frota Kyzen SA`;
+  try{if(navigator.share){await navigator.share({title:n.nome+" — Kyzen SA",text:txt,url});return}await navigator.clipboard.writeText(url);toast("Link da crew copiado! Cole no Discord ou no WhatsApp.")}catch(e){if(e&&e.name!=="AbortError")toast(url)}};
+ document.title=n.nome+" — Frota Kyzen SA"}
+/* ===================== Trello oficial do Vox Seas -> /api/trello ===================== */
+let TR=null,trAba=0,trPedido=null;
+const trCard=(c,lista)=>`<button class="trc" type="button" data-id="${x(c.id)}">${c.img?`<img src="${x(c.img)}" alt="" loading="lazy" referrerpolicy="no-referrer">`:""}<span class="trb">${lista?`<small>${x(lista)}</small>`:""}<b>${x(c.nome)}</b>${c.tags.length?`<span class="trt">${c.tags.map(t=>`<i style="--tc:${x(t.c||"var(--muted)")}">${x(t.n)}</i>`).join("")}</span>`:""}${c.desc?`<em>${x(c.desc)}</em>`:""}</span></button>`;
+function renderTrello(){const g=$("tr-grid"),tb=$("tr-tabs"),inf=$("tr-info");if(!TR){return}
+ const q=$("tr-q").value.trim().toLowerCase();
+ tb.innerHTML=TR.map((l,i)=>`<button type="button" class="${i===trAba&&!q?"on":""}" data-aba="${i}">${x(l.nome)} <small>${l.cards.length}</small></button>`).join("");
+ if(q){const A=[];TR.forEach(l=>l.cards.forEach(c=>{if((c.nome+" "+c.desc+" "+c.tags.map(t=>t.n).join(" ")).toLowerCase().includes(q))A.push(trCard(c,l.nome))}));
+  inf.textContent=`${A.length} resultado${A.length===1?"":"s"} para "${$("tr-q").value.trim()}"`;g.innerHTML=A.length?A.slice(0,120).join(""):'<div class="empty">Nada encontrado. Tente outra palavra (o Trello é em inglês).</div>';return}
+ const l=TR[trAba]||TR[0];inf.textContent=`${l.cards.length} cartões em ${l.nome}`;g.innerHTML=l.cards.map(c=>trCard(c)).join("")}
+function loadTrello(){if(TR){renderTrello();return}if(trPedido)return;
+ trPedido=fetch("/api/trello").then(r=>r.json()).then(j=>{if(!j.ok)throw 0;TR=j.listas;renderTrello()}).catch(()=>{$("tr-grid").innerHTML='<div class="empty">Não foi possível abrir o Trello agora. Use o botão "Abrir no Trello".</div>';trPedido=null})}
+$("tr-tabs").addEventListener("click",e=>{const b=e.target.closest("[data-aba]");if(!b)return;trAba=+b.dataset.aba;$("tr-q").value="";renderTrello();$("tr-tabs").querySelector(".on")?.scrollIntoView({inline:"center",block:"nearest"})});
+$("tr-q").addEventListener("input",()=>{clearTimeout(renderTrello.t);renderTrello.t=setTimeout(renderTrello,150)});
+$("tr-grid").addEventListener("click",e=>{const b=e.target.closest(".trc");if(!b)return;let c=null,ln="";TR.forEach(l=>l.cards.forEach(k=>{if(k.id===b.dataset.id){c=k;ln=l.nome}}));if(!c)return;
+ const d=$("tr-dlg"),box=$("tr-c");box.innerHTML=`<small class="trl">${x(ln)}</small><h2 id="tr-t">${x(c.nome)}</h2>${c.tags.length?`<span class="trt">${c.tags.map(t=>`<i style="--tc:${x(t.c||"var(--muted)")}">${x(t.n)}</i>`).join("")}</span>`:""}<div class="dc" id="tr-h"><p class="sub">Carregando…</p></div>`;
+ d.showModal?d.showModal():d.setAttribute("open","");
+ fetch("/api/trello/"+encodeURIComponent(c.id)).then(r=>r.json()).then(j=>{if(!j.ok)throw 0;$("tr-h").innerHTML=`${j.img?`<img class="att" src="${x(j.img)}" alt="" referrerpolicy="no-referrer">`:""}${j.html||'<p class="sub">Este cartão não tem descrição.</p>'}${j.url?`<div class="acts"><a class="btn alt" href="${x(j.url)}" target="_blank" rel="noopener">Abrir este cartão no Trello</a></div>`:""}`}).catch(()=>{$("tr-h").innerHTML='<p class="sub">Não foi possível abrir este cartão agora.</p>'})});
+(()=>{const d=$("tr-dlg"),f=()=>d.close?d.close():d.removeAttribute("open");$("tr-x").addEventListener("click",f);d.addEventListener("click",e=>{if(e.target===d)f()})})();
 /* ===================== Eventos agendados do Discord -> /api/eventos ===================== */
 let EVS=null;
 const quando=iso=>new Date(iso).toLocaleString("pt-BR",{weekday:"short",day:"numeric",month:"short",hour:"2-digit",minute:"2-digit",timeZone:"America/Sao_Paulo"});
@@ -503,16 +583,27 @@ fetch("/api/servidor").then(r=>r.json()).then(j=>{if(!j.configured)return;SRV=j.
 function renderLists(){document.querySelectorAll("[data-list]").forEach(l=>{const k=l.dataset.list,d=DATA[k];l.innerHTML=d.length?d.slice(0,6).map(T[k]).join(""):`<div class="empty">${E[k]}</div>`})}
 renderLists();
 /* Anúncios do Discord (bot) -> /api/novidades */
-fetch("/api/novidades").then(r=>r.json()).then(j=>{if(Array.isArray(j.news)&&j.news.length){const ehCrew=n=>slug(n.tag||"")==="crew";DATA.crews=j.news.filter(ehCrew).map(n=>({nome:n.titulo,lider:n.data,link:n.link,img:n.img}));DATA.news=j.news.filter(n=>!ehCrew(n));renderLists();renderFrota();const h=location.hash.slice(1);if(h.startsWith("canal-")&&D[h.slice(6)])detail(h.slice(6),D[h.slice(6)])}}).catch(()=>{});
-const views=["inicio","informacoes","novidades","crews","comunidade","suporte"];let counted=false;
+fetch("/api/novidades").then(r=>r.json()).then(j=>{if(Array.isArray(j.news)&&j.news.length){const ehCrew=n=>slug(n.tag||"")==="crew";DATA.crews=j.news.filter(ehCrew).map(n=>({nome:n.titulo,lider:n.data,link:n.link,img:n.img}));DATA.news=j.news.filter(n=>!ehCrew(n));renderLists();renderFrota();if(location.hash.startsWith("#crew-"))renderCrew(location.hash.slice(6));const h=location.hash.slice(1);if(h.startsWith("canal-")&&D[h.slice(6)])detail(h.slice(6),D[h.slice(6)])}}).catch(()=>{});
+const views=["inicio","informacoes","novidades","crews","comunidade","trello","suporte"];let counted=false;
 function count(){const calm=matchMedia("(prefers-reduced-motion:reduce)").matches;document.querySelectorAll("[data-n]").forEach(e=>{const t=+e.dataset.n;if(calm){e.textContent=t.toLocaleString("pt-BR");return}let s=null;const f=ts=>{s=s??ts;const p=Math.min((ts-s)/1200,1);e.textContent=Math.floor(+e.dataset.n*p).toLocaleString("pt-BR");if(p<1)requestAnimationFrame(f)};requestAnimationFrame(f)})}
 function route(){document.title="Kyzen SA — Servidor de Vox Seas";let h=location.hash.slice(1),nv=h;const m=h.startsWith("canal-")&&D[h.slice(6)];
- if(m){nv=m.sec;detail(h.slice(6),m);h="canal"}else if(!views.includes(h)){h="inicio";nv="inicio"}
+ if(m){nv=m.sec;detail(h.slice(6),m);h="canal"}else if(/^crew-[a-z0-9-]+$/.test(h)){renderCrew(h.slice(5));h="crew";nv="crews"}else if(!views.includes(h)){h="inicio";nv="inicio"}
+ if(h==="trello"){loadTrello();document.title="Trello do Vox Seas — Kyzen SA"}
  document.querySelectorAll(".view").forEach(v=>v.hidden=v.id!=="v-"+h);
  document.querySelectorAll("[data-nav]").forEach(a=>a.classList.toggle("on",a.dataset.nav===nv));
  const on=document.querySelector("[data-nav].on");if(on)on.scrollIntoView({inline:"center",block:"nearest"});
  window.scrollTo(0,0);if(h==="inicio"&&!counted){counted=true;count()}}
+{const pm=location.pathname.match(/^\/crew\/([a-z0-9-]+)/);if(pm)history.replaceState(null,"","/#crew-"+pm[1])}
 addEventListener("hashchange",route);route();
+/* ===================== App instalável (PWA) ===================== */
+(()=>{const st=matchMedia("(display-mode: standalone)").matches||navigator.standalone===true,b=$("inst"),IOS=/iPhone|iPad|iPod/i.test(navigator.userAgent);let pedido=null;
+ if("serviceWorker" in navigator)addEventListener("load",()=>navigator.serviceWorker.register("/sw.js").catch(()=>{}));
+ if(st){/* tela de abertura do app */const s=document.createElement("div");s.className="splash";s.innerHTML='<div class="sp-l"></div><b>KyzenSA</b><small>VOX SEAS</small>';document.body.append(s);setTimeout(()=>{s.classList.add("fora");setTimeout(()=>s.remove(),700)},900);return}
+ addEventListener("beforeinstallprompt",e=>{e.preventDefault();pedido=e;b.hidden=false});
+ addEventListener("appinstalled",()=>{b.hidden=true;toast("App instalado! Procure o ícone da Kyzen SA na sua tela inicial.")});
+ if(IOS)b.hidden=false;
+ b.addEventListener("click",async()=>{if(pedido){pedido.prompt();await pedido.userChoice.catch(()=>{});pedido=null;b.hidden=true;return}
+  toast(IOS?"No Safari, toque em Compartilhar ⬆️ e depois em \"Adicionar à Tela de Início\".":"Abra o menu do navegador e escolha \"Instalar app\" ou \"Adicionar à tela inicial\".")})})();
 /* Links do Discord abrem no app. No celular o próprio sistema já abre o app pelo link https;
    no computador usa discord:// e, se o app não abrir em 2,5 s, abre no navegador. */
 const MOBILE=/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)||matchMedia("(pointer:coarse)").matches;
@@ -569,7 +660,7 @@ document.addEventListener("click",e=>{const a=e.target.closest('a[href^="https:/
    g.globalAlpha=1};
   passo()}
  /* elementos aparecem ao rolar, em sequência */
- const SEL=".card,.ev,.ttl,.panel,.gal .shot,.map,.ip,.mb,.steps li,.cta .wrap>*,.list>.empty,#staff>.empty,#diario>.empty,.ship,.porto,.log li,.evt,.evs>.empty,.call";
+ const SEL=".card,.ev,.ttl,.panel,.gal .shot,.map,.ip,.mb,.steps li,.cta .wrap>*,.list>.empty,#staff>.empty,#diario>.empty,.ship,.porto,.log li,.evt,.evs>.empty,.call,.trc";
  const io=new IntersectionObserver(es=>{let i=0;es.forEach(en=>{if(!en.isIntersecting)return;const el=en.target;io.unobserve(el);
    el.style.setProperty("--d",Math.min(i++,8)*75+"ms");el.classList.add("in");
    const fim=ev=>{if(ev.target!==el||ev.propertyName!=="opacity")return;el.removeEventListener("transitionend",fim);el.classList.remove("rv","in");el.style.removeProperty("--d")};

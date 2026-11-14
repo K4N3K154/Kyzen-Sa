@@ -345,8 +345,9 @@ def inline_md(txt, ctx):
             except (ValueError, OverflowError, OSError):
                 return ""
         if m.group(9):
-            return guardar(f'<a href="{esc(m.group(9))}" target="_blank" rel="noopener nofollow">'
-                           f'{inline_md(m.group(8), ctx)}</a>')
+            txt = m.group(8)  # texto que já é um link não vira outro link dentro do link
+            dentro = esc(txt) if re.match(r"\s*<?https?://", txt) else inline_md(txt, ctx)
+            return guardar(f'<a href="{esc(m.group(9))}" target="_blank" rel="noopener nofollow">{dentro}</a>')
         if m.group(10):
             u = m.group(10)
             return guardar(f'<a href="{esc(u)}" target="_blank" rel="noopener nofollow">{esc(u)}</a>')
@@ -885,7 +886,7 @@ def buscar_wars():
     tabela, partidas, ultima = {}, [], None
 
     def crew(n):
-        return tabela.setdefault(n.lower(), {"crew": n, "v": 0, "d": 0, "e": 0, "pts": 0, "h": []})
+        return tabela.setdefault(n.lower(), {"crew": n, "v": 0, "d": 0, "e": 0, "pts": 0, "h": [], "jogos": []})
 
     for m in reversed(msgs):
         textos = [m.get("content") or ""] + [(e.get("description") or "") for e in m.get("embeds") or []]
@@ -915,11 +916,16 @@ def buscar_wars():
             cb["h"].append("V" if gb > ga else "D" if ga > gb else "E")
             d = datetime.fromisoformat(m["timestamp"].replace("Z", "+00:00"))
             ultima = d
+            data_txt = f"{d.day} {MESES[d.month - 1]} {d.year}"
+            link_m = f"https://discord.com/channels/{guild_id}/{canal}/{m['id']}"
+            ca["jogos"].append({"adv": cb["crew"], "ga": ga, "gb": gb, "data": data_txt, "link": link_m})
+            cb["jogos"].append({"adv": ca["crew"], "ga": gb, "gb": ga, "data": data_txt, "link": link_m})
             partidas.append({"a": ca["crew"], "b": cb["crew"], "ga": ga, "gb": gb,
                              "data": f"{d.day} {MESES[d.month - 1]} {d.year}",
                              "link": f"https://discord.com/channels/{guild_id}/{canal}/{m['id']}"})
     for c in tabela.values():
         c["h"] = c["h"][-5:][::-1]  # últimas 5, da mais recente para a mais antiga
+        c["jogos"] = c["jogos"][-40:][::-1]  # histórico para a página da crew
     ranking = sorted(tabela.values(), key=lambda c: (-c["pts"], -c["v"], c["d"], c["crew"].lower()))
     return {"ranking": ranking[:20], "partidas": partidas[::-1][:10],
             "ultima": int(ultima.timestamp()) if ultima else None}
@@ -1111,10 +1117,176 @@ def requisitos():  # endereço antigo, mantido por compatibilidade
     return canal_api("requisitos")
 
 
-def resposta_pagina(status=200):
+# ---------------------------------------------------------------------------
+# Trello oficial do Vox Seas (quadro público, sem chave)
+# ---------------------------------------------------------------------------
+TRELLO_BOARD = "qGXeMuSt"
+TRELLO_URL = "https://trello.com/b/qGXeMuSt/vox-seas-official-trello"
+_trello_cache = {"t": 0, "data": None, "cards": {}}
+_CORES_TRELLO = {"green": "#4bce97", "yellow": "#e2b203", "orange": "#faa53d", "red": "#f87462", "purple": "#9f8fef",
+                 "blue": "#579dff", "sky": "#6cc3e0", "lime": "#94c748", "pink": "#e774bb", "black": "#8590a2"}
+
+
+def _capa(card, maximo=600):
+    """URL da prévia da capa (a menor com pelo menos 300 px, até `maximo`)."""
+    prev = [p for p in (card.get("cover") or {}).get("scaled") or [] if p.get("url")]
+    if not prev:
+        return ""
+    ok = sorted((p for p in prev if 300 <= int(p.get("width") or 0) <= maximo), key=lambda p: p["width"])
+    p = ok[0] if ok else max(prev, key=lambda p: int(p.get("width") or 0))
+    u = url_segura(p["url"])
+    return u if u.startswith("https://trello.com/") else ""
+
+
+def buscar_trello():
+    base = f"https://api.trello.com/1/boards/{TRELLO_BOARD}"
+    listas = roblox_get(f"{base}/lists?filter=open&fields=name,pos")
+    cards = roblox_get(f"{base}/cards/visible?fields=name,desc,idList,labels,shortUrl,cover,pos"
+                       "&attachments=cover&attachment_fields=previews")  # sem isso a capa vem sem as URLs
+    por_lista = {}
+    detalhes = {}
+    for c in sorted(cards, key=lambda c: c.get("pos") or 0):
+        cid = str(c.get("id", ""))
+        if not re.fullmatch(r"[a-f0-9]{24}", cid):
+            continue
+        desc = c.get("desc") or ""
+        item = {"id": cid, "nome": cortar(str(c.get("name", "")).strip(), 120), "img": _capa(c),
+                "desc": cortar(limpar(re.sub(r"\[([^\]]*)\]\([^)]*\)", lambda m: "" if m.group(1).startswith("http") else m.group(1),
+                                             re.sub(r"!\[[^\]]*\]\([^)]*\)|^\s*#{1,6}\s*", "", desc, flags=re.M))), 140),
+                "tem": bool(desc.strip()),
+                "tags": [{"n": cortar(str(l.get("name") or ""), 30), "c": _CORES_TRELLO.get(str(l.get("color") or "").split("_")[0], "")}
+                         for l in c.get("labels") or [] if l.get("name")]}
+        por_lista.setdefault(c.get("idList"), []).append(item)
+        detalhes[cid] = {"desc": desc[:20000], "url": url_segura(c.get("shortUrl")), "img": _capa(c, 1600)}
+    saida = []
+    for l in sorted(listas, key=lambda l: l.get("pos") or 0):
+        itens = por_lista.get(l.get("id"), [])
+        if itens:
+            saida.append({"nome": cortar(str(l.get("name", "")).strip(), 60), "cards": itens})
+    return saida, detalhes
+
+
+def trello_md(txt):
+    """Markdown do Trello -> HTML seguro (reaproveita o conversor do Discord)."""
+    imgs = []
+
+    def img(m):
+        u = url_segura(m.group(2))
+        if not u.startswith("https://"):
+            return ""
+        imgs.append(u)
+        return f"\x01{len(imgs) - 1}\x01"
+
+    txt = re.sub(r"!\[([^\]]*)\]\(\s*([^\s)]+)[^)]*\)", img, txt or "")
+    txt = re.sub(r"\]\((https?://[^\s)]+)\s+\"[^\"]*\"\)", r"](\1)", txt)  # tira o "smartCard-block"
+    txt = re.sub(r"(?m)^#{4,6} ", "### ", txt)
+    txt = re.sub(r"(?m)^\s*(?:---+|\*\*\*+)\s*$", "", txt)
+    txt = re.sub(r"\\([\\`*_{}\[\]()#+\-.!|>~])", r"\1", txt)
+    html = discord_md(txt, {"roles": {}, "users": {}, "channels": {}})
+    return re.sub("\x01(\\d+)\x01", lambda m: f'<img class="att" src="{esc(imgs[int(m.group(1))])}" alt="" '
+                                              f'loading="lazy" referrerpolicy="no-referrer">', html)
+
+
+def trello_cache():
+    agora = time.time()
+    if (agora - _trello_cache["t"] > 600 or _trello_cache["data"] is None) and pode_tentar("trello", 60):
+        try:
+            dados, det = buscar_trello()
+            _trello_cache.update(t=agora, data=dados, cards=det)
+        except Exception as e:  # noqa: BLE001  (conteúdo de terceiros: nada aqui pode derrubar o site)
+            falhou("trello")
+            app.logger.error("trello: %s", str(e)[:120])
+    return _trello_cache["data"]
+
+
+@app.route("/api/trello")
+def trello():
+    dados = trello_cache()
+    if dados is None:
+        return jsonify({"ok": False, "url": TRELLO_URL}), 503
+    resp = jsonify({"ok": True, "url": TRELLO_URL, "listas": dados})
+    resp.headers["Cache-Control"] = "public, s-maxage=600, stale-while-revalidate=1800"
+    return resp
+
+
+@app.route("/api/trello/<cid>")
+def trello_card(cid):
+    if not re.fullmatch(r"[a-f0-9]{24}", cid):
+        return jsonify({"ok": False}), 404
+    trello_cache()
+    c = _trello_cache["cards"].get(cid)
+    if not c:
+        return jsonify({"ok": False}), 404
+    resp = jsonify({"ok": True, "html": trello_md(c["desc"]), "url": c["url"], "img": c["img"]})
+    resp.headers["Cache-Control"] = "public, s-maxage=600, stale-while-revalidate=1800"
+    return resp
+
+
+# ---------------------------------------------------------------------------
+# Página, prévia ao compartilhar (Discord/WhatsApp leem as meta tags) e app instalável
+# ---------------------------------------------------------------------------
+ROBOS = re.compile(r"Discordbot|WhatsApp|facebookexternalhit|Twitterbot|TelegramBot|Slackbot|LinkedInBot|"
+                   r"SkypeUriPreview|redditbot|Googlebot|bingbot", re.I)
+
+
+def slug_py(s):
+    s = unicodedata.normalize("NFD", s or "").encode("ascii", "ignore").decode().lower()
+    return re.sub(r"[^a-z0-9]+", "-", s).strip("-")
+
+
+def num(n):
+    return f"{int(n):,}".replace(",", ".")
+
+
+def pl(n, um, varios):
+    return f"{n} {um if n == 1 else varios}"
+
+
+def trocar_meta(html, titulo, desc, url):
+    for prop, val in (("og:title", titulo), ("og:description", desc), ("og:url", url)):
+        html = re.sub(rf'(<meta property="{prop}" content=")[^"]*(")', lambda m: m.group(1) + esc(val) + m.group(2), html)
+    html = re.sub(r'(<meta name="description" content=")[^"]*(")', lambda m: m.group(1) + esc(desc) + m.group(2), html)
+    return html
+
+
+def meta_ao_vivo(html, crew_slug=None):
+    """Prévia com números ao vivo. Só busca dados novos quando quem pede é um robô de prévia."""
+    if ROBOS.search(request.headers.get("User-Agent", "")):
+        for f in (jogo, servidor, wars):
+            try:
+                f()
+            except Exception:  # noqa: BLE001
+                pass
+    j, s, w = _jogo_cache["data"] or {}, _srv_cache["data"] or {}, _wars_cache["data"] or {}
+    if crew_slug:
+        for i, c in enumerate(w.get("ranking") or []):
+            if slug_py(c["crew"]) == crew_slug:
+                ult = " ".join(c.get("h") or []) or "nenhuma ainda"
+                return trocar_meta(html, f"{c['crew']} — #{i + 1} da Frota Kyzen SA",
+                                   f"🏴‍☠️ {pl(c['v'], 'vitória', 'vitórias')} · {pl(c['e'], 'empate', 'empates')} · "
+                                   f"{pl(c['d'], 'derrota', 'derrotas')} · {pl(c['pts'], 'ponto', 'pontos')}. "
+                                   f"Últimas batalhas: {ult}. Veja a ficha completa da crew no site da Kyzen SA.",
+                                   f"https://kyzensaofc.vercel.app/crew/{crew_slug}")
+    partes = []
+    if j.get("jogando"):
+        partes.append(f"🟢 {num(j['jogando'])} jogando Vox Seas agora")
+    if s.get("membros"):
+        partes.append(f"{num(s['membros'])} membros na Kyzen SA")
+    if s.get("online"):
+        partes.append(f"{num(s['online'])} online")
+    if not partes:
+        return html
+    return trocar_meta(html, "Kyzen SA — Servidor de Vox Seas",
+                       " · ".join(partes) + ". Crews, wars, eventos e muito mais no Discord.",
+                       "https://kyzensaofc.vercel.app/")
+
+
+def resposta_pagina(status=200, crew_slug=None):
     html = pagina()
     if isinstance(html, tuple):
         return Response(html[0], mimetype="text/plain"), html[1]
+    if status == 200:
+        html = meta_ao_vivo(html, crew_slug)
     resp = Response(html, mimetype="text/html")
     resp.headers["Content-Security-Policy"] = csp_da_pagina(html)
     return resp, status
@@ -1123,6 +1295,27 @@ def resposta_pagina(status=200):
 @app.route("/")
 def index():
     return resposta_pagina()
+
+
+@app.route("/crew/<slug>")
+def pagina_crew(slug):
+    slug = slug_py(slug)[:60]
+    return resposta_pagina(crew_slug=slug or None)
+
+
+@app.route("/manifest.webmanifest")
+def manifesto():
+    resp = app.send_static_file("manifest.webmanifest")
+    resp.mimetype = "application/manifest+json"
+    return resp
+
+
+@app.route("/sw.js")
+def service_worker():
+    resp = app.send_static_file("sw.js")
+    resp.mimetype = "text/javascript"
+    resp.headers["Cache-Control"] = "no-cache"
+    return resp
 
 
 @app.errorhandler(404)

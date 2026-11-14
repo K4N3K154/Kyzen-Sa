@@ -1,0 +1,23 @@
+{
+  "name": "Kyzen SA — Vox Seas",
+  "short_name": "Kyzen SA",
+  "description": "A comunidade da Kyzen SA no Vox Seas: crews, wars, eventos e o Trello do jogo.",
+  "id": "/",
+  "start_url": "/?app=1",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0a1112",
+  "theme_color": "#0a1112",
+  "lang": "pt-BR",
+  "icons": [
+    {"src": "/img/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+    {"src": "/img/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+    {"src": "/img/icon-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+  ],
+  "shortcuts": [
+    {"name": "A Frota", "url": "/#crews", "icons": [{"src": "/img/icon-192.png", "sizes": "192x192"}]},
+    {"name": "Trello do Vox Seas", "url": "/#trello", "icons": [{"src": "/img/icon-192.png", "sizes": "192x192"}]},
+    {"name": "Eventos", "url": "/#novidades", "icons": [{"src": "/img/icon-192.png", "sizes": "192x192"}]}
+  ]
+}
