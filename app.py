@@ -406,6 +406,7 @@ def contexto(token, guild_id, msgs):
 PAGINAS = {
     "requisitos": ("REQUISITOS_CHANNEL", "req-cc"),
     "niveis": ("NIVEIS_CHANNEL", "leveis-embed"),
+    "jornal": ("JORNAL_CHANNEL", "jornal"),
 }
 
 
