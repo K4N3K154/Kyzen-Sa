@@ -1376,9 +1376,9 @@ def oauth_cfg():
 def auth_entrar():
     cfg = oauth_cfg()
     volta = request.args.get("volta", "")
-    session["volta"] = volta if re.fullmatch(r"[a-z0-9-]{1,40}", volta) else "area-crew"
+    session["volta"] = volta if re.fullmatch(r"[a-z0-9-]{1,40}", volta) else "inicio"
     if not cfg:
-        return redirect("/#area-crew")
+        return redirect("/#inicio")
     session["st"] = secrets.token_urlsafe(24)
     q = urllib.parse.urlencode({"client_id": cfg["id"], "redirect_uri": cfg["redirect"], "response_type": "code",
                                 "scope": "identify", "state": session["st"], "prompt": "none"})
@@ -1389,9 +1389,9 @@ def auth_entrar():
 def auth_callback():
     cfg = oauth_cfg()
     st = session.pop("st", "")
-    volta = session.pop("volta", "area-crew")
+    volta = session.pop("volta", "inicio")
     if not cfg or not st or not hmac.compare_digest(request.args.get("state", ""), st) or not request.args.get("code"):
-        return redirect("/#area-crew")
+        return redirect("/#inicio")
     try:
         req = urllib.request.Request("https://discord.com/api/v10/oauth2/token", method="POST",
                                      data=urllib.parse.urlencode({
@@ -1408,7 +1408,7 @@ def auth_callback():
             u = json.loads(r.read().decode("utf-8"))
     except (urllib.error.URLError, ValueError, KeyError, TypeError) as e:
         app.logger.error("login: %s", str(e)[:120])
-        return redirect("/#area-crew")
+        return redirect("/#inicio")
     session.clear()  # o token do Discord não é guardado: só o ID, o nome e o avatar
     session.permanent = True
     av = str(u.get("avatar") or "")

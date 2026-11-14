@@ -286,7 +286,8 @@ main{background-image:linear-gradient(color-mix(in srgb,var(--accent) 6%,transpa
 .tr-dlg h2{margin:2px 40px 8px 0;font-size:1.3rem}.trl{font-size:.7rem;letter-spacing:.12em;color:var(--accent);text-transform:uppercase}.tr-dlg .dc{margin-top:14px}.tr-dlg .dc .att{max-height:none}
 /* Conta e Área da Crew */
 .eu{display:flex;align-items:center;gap:7px;flex:none;padding:4px 12px 4px 4px;border:1px solid var(--border);border-radius:99px;font-size:.82rem;color:var(--muted);transition:.2s;min-height:36px}
-.eu:hover{border-color:var(--accent);color:var(--text)}.eu img{width:28px;height:28px;border-radius:50%}.eu span{white-space:nowrap;max-width:110px;overflow:hidden;text-overflow:ellipsis}.eu>span:only-child{padding-left:8px}
+.eu:hover{border-color:var(--accent);color:var(--text)}.eu[hidden]{display:none}
+.eu-menu{position:fixed;z-index:95;display:flex;flex-direction:column;gap:10px;align-items:flex-start;padding:14px;border-radius:14px;border:1px solid var(--border);background:var(--surface);box-shadow:0 18px 40px -16px rgba(0,0,0,.8);font-size:.88rem;color:var(--muted);max-width:260px}.eu-menu b{color:var(--text)}.eu img{width:28px;height:28px;border-radius:50%}.eu span{white-space:nowrap;max-width:110px;overflow:hidden;text-overflow:ellipsis}.eu>span:only-child{padding-left:8px}
 @media (max-width:640px){.eu span:not(:only-child){display:none}.eu{padding:3px}.eu>span:only-child{padding:0 8px}}
 .lock .lk{font-size:2.4rem;line-height:1;margin-bottom:6px}.lock p b{color:var(--text)}
 .ac-eu{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:34px;padding:12px 14px;border:1px solid var(--border);border-radius:16px;background:var(--surface)}
@@ -321,8 +322,8 @@ main{background-image:linear-gradient(color-mix(in srgb,var(--accent) 6%,transpa
 </style></head><body>
 <div class="top"><div class="wrap"><span>影 Comunidade de Vox Seas · Roblox</span><span class="tl"><button class="inst" id="inst" type="button" hidden>📲 Instalar app</button><a href="https://discord.gg/DNZrYHRXU5" target="_blank" rel="noopener">Discord</a><a href="#suporte">Suporte</a><a href="https://discord.gg/DNZrYHRXU5" target="_blank" rel="noopener">Apply</a></span></div></div>
 <header class="hd"><div class="wrap"><a class="brand" href="#inicio"><span class="mark"></span><b>KYZEN SA</b><i class="chip">VOX SEAS</i></a>
-<nav><a href="#inicio" data-nav="inicio">Início</a><a href="#informacoes" data-nav="informacoes">Informações</a><a href="#novidades" data-nav="novidades">Novidades</a><a href="#crews" data-nav="crews">Crews</a><a href="#comunidade" data-nav="comunidade">Comunidade</a><a href="#trello" data-nav="trello">Trello</a><a href="#area-crew" data-nav="area-crew">🔒 Área da Crew</a><a href="#suporte" data-nav="suporte">Suporte</a></nav>
-<a class="eu" id="eu" href="#area-crew" title="Sua conta"><span>🔒</span></a><a class="btn sm" href="https://discord.gg/DNZrYHRXU5" target="_blank" rel="noopener">Entrar</a></div></header>
+<nav><a href="#inicio" data-nav="inicio">Início</a><a href="#informacoes" data-nav="informacoes">Informações</a><a href="#novidades" data-nav="novidades">Novidades</a><a href="#crews" data-nav="crews">Crews</a><a href="#comunidade" data-nav="comunidade">Comunidade</a><a href="#trello" data-nav="trello">Trello</a><a href="#area-crew" data-nav="area-crew" id="nav-crew" hidden>⚔️ Área da Crew</a><a href="#suporte" data-nav="suporte">Suporte</a></nav>
+<a class="eu" id="eu" href="/auth/entrar?volta=inicio" title="Entrar com Discord"><span>🔒 Login</span></a><a class="btn sm" href="https://discord.gg/DNZrYHRXU5" target="_blank" rel="noopener">Entrar</a></div></header>
 <main>
 <section class="view" id="v-inicio">
  <div class="hero"><div class="wrap"><div class="logo" role="img" aria-label="Logo da Kyzen SA"></div>
@@ -625,8 +626,13 @@ fetch("/api/novidades").then(r=>r.json()).then(j=>{if(Array.isArray(j.news)&&j.n
 let acAba="",acTimer=null;
 const hora=iso=>{const d=new Date(iso),h=new Date();const mesmo=d.toDateString()===h.toDateString();return d.toLocaleString("pt-BR",mesmo?{hour:"2-digit",minute:"2-digit"}:{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})};
 function renderEu(){const e=$("eu");if(!e)return;e.innerHTML=EU.logado?`<img src="${x(EU.avatar)}" alt="" referrerpolicy="no-referrer"><span>${x((EU.nome||"").split(" ")[0])}</span>`:"<span>🔒 Login</span>";e.title=EU.logado?`Você entrou como ${EU.nome}`:"Entrar com Discord";
+ e.hidden=!EU.logado&&!EU.configurado;e.href=EU.crew?"#area-crew":EU.logado?"#conta":`/auth/entrar?volta=${encodeURIComponent(location.hash.slice(1)||"inicio")}`;
+ const nc=$("nav-crew");if(nc)nc.hidden=!EU.crew;
  const cn=$("crew-news");if(cn)cn.hidden=!EU.crew||!DATA.crewNews.some(n=>n.tag==="ANÚNCIO DA CREW");document.querySelectorAll("[data-crewnews]").forEach(l=>l.innerHTML=DATA.crewNews.filter(n=>n.tag==="ANÚNCIO DA CREW").slice(0,+l.dataset.crewnews).map(T.news).join(""))}
+let euOk=false;
 function renderArea(){const el=$("ac");if(!el)return;clearInterval(acTimer);
+ if(!euOk){el.innerHTML='<div class="empty">Verificando a sua conta…</div>';return}
+ if(!EU.crew&&!EU.erro){location.replace("#inicio");if(EU.logado)toast("Essa área é só para quem tem acesso aos canais da crew no Discord.");return}
  if(!EU.crew){el.innerHTML=EU.erro?'<div class="empty">Não foi possível conferir a sua conta no Discord agora. Tente de novo em alguns minutos.</div>':cadeado("Aqui ficam os canais e os anúncios das crews.","area-crew");return}
  const C=EU.canais||[];if(!C.some(c=>c.id===acAba))acAba=(C.find(c=>/anuncio/.test(slug(c.nome)))||C[0]||{}).id||"";
  const an=DATA.crewNews.filter(n=>n.tag==="ANÚNCIO DA CREW");
@@ -645,18 +651,23 @@ function abrirCanal(id,novo){if(!id)return;const c=(EU.canais||[]).find(c=>c.id=
   box.innerHTML=L.length?L.map(m=>{const junta=prev&&prev.autor===m.autor&&new Date(m.ts)-new Date(prev.ts)<7*60e3;prev=m;
    return `<div class="msg${junta?" cont":""}">${junta?'<span class="mav"></span>':`<img class="mav" src="${x(m.av)}" alt="" loading="lazy" referrerpolicy="no-referrer">`}<div class="mb2">${junta?"":`<div class="mh"><b>${x(m.autor)}</b>${m.bot?'<span class="bt">BOT</span>':""}<time>${x(hora(m.ts))}</time></div>`}<div class="dc">${m.html}</div></div></div>`}).join(""):'<div class="empty">Nenhuma mensagem neste canal ainda.</div>';
   if(novo||perto)box.scrollTop=box.scrollHeight}).catch(()=>{if(novo)box.innerHTML='<div class="empty">Não foi possível abrir este canal agora.</div>'})}
+/* menu da conta para quem entrou mas não é da crew (só mostra o nome e o botão de sair) */
+document.addEventListener("click",e=>{const m=document.querySelector(".eu-menu");if(m&&!e.target.closest(".eu-menu,#eu")){m.remove();return}
+ const a=e.target.closest("#eu");if(!a||a.getAttribute("href")!=="#conta")return;e.preventDefault();if(m){m.remove();return}
+ const r=a.getBoundingClientRect(),d=document.createElement("div");d.className="eu-menu";d.style.top=r.bottom+8+"px";d.style.right=Math.max(12,innerWidth-r.right)+"px";
+ d.innerHTML=`<span>Você entrou como <b>${x(EU.nome)}</b></span><button class="btn alt sm" type="button" data-sair>Sair da conta</button>`;document.body.append(d)});
 document.addEventListener("click",e=>{const b=e.target.closest("[data-ac]");if(!b)return;acAba=b.dataset.ac;document.querySelectorAll("#ac-tabs button").forEach(t=>t.classList.toggle("on",t===b));abrirCanal(acAba,true)});
-fetch("/api/eu").then(r=>r.json()).then(j=>{EU=j||{}}).catch(()=>{}).then(async()=>{
+fetch("/api/eu").then(r=>r.json()).then(j=>{EU=j||{}}).catch(()=>{}).then(async()=>{euOk=true;
  if(EU.crew){try{const j=await fetch("/api/crew/novidades").then(r=>r.json());DATA.crewNews=j.news||[];DATA.crews=DATA.crewNews.filter(n=>n.tag==="CREW").map(n=>({nome:n.titulo,lider:n.data,link:n.link,img:n.img}))}catch{}pegarWars()}
  else{renderFrota();renderDiario()}
  renderEu();avisoLogin();const h=location.hash.slice(1);if(h==="area-crew")renderArea();else if(h.startsWith("crew-"))renderCrew(h.slice(5));else if(h.startsWith("canal-")&&PRIV.includes(h.slice(6)))detail(h.slice(6),D[h.slice(6)])});
 /* Mini anúncio de login: aparece a cada visita (uma vez por aba) para quem ainda não entrou */
 function avisoLogin(){let visto=false;try{visto=sessionStorage.getItem("kzLogin")==="1"}catch{}
- if(!EU.configurado||EU.logado||visto||location.hash==="#area-crew")return;
+ if(!EU.configurado||EU.logado||visto)return;
  const d=document.createElement("aside");d.className="lgn";d.setAttribute("role","dialog");d.setAttribute("aria-label","Entrar com Discord");
  d.innerHTML=`<button class="lgn-x" type="button" aria-label="Fechar">✕</button><div class="lgn-i" aria-hidden="true"><svg viewBox="0 0 24 24"><path fill="currentColor" d="M20.3 4.4A19.6 19.6 0 0 0 15.4 3l-.6 1.3a18 18 0 0 0-5.6 0L8.6 3a19.5 19.5 0 0 0-4.9 1.5C.6 9.1-.3 13.6.1 18a19.7 19.7 0 0 0 6 3l1.3-2.1c-.7-.3-1.4-.6-2-1l.5-.4a14 14 0 0 0 12.2 0l.5.4c-.6.4-1.3.7-2 1L18 21a19.6 19.6 0 0 0 6-3c.5-5.1-.8-9.6-3.7-13.6ZM8 15.3c-1.2 0-2.2-1.1-2.2-2.4S6.8 10.5 8 10.5s2.2 1.1 2.2 2.4-1 2.4-2.2 2.4Zm8 0c-1.2 0-2.2-1.1-2.2-2.4s1-2.4 2.2-2.4 2.2 1.1 2.2 2.4-1 2.4-2.2 2.4Z"/></svg></div>
- <div class="lgn-t"><b>Entre com o seu Discord ⚓</b><p>Faça login em 1 clique. Se você é de uma crew, libera a <b>Área da Crew</b> com os canais, os anúncios e a Frota.</p>
- <div class="lgn-a"><a class="btn sm" href="/auth/entrar?volta=${encodeURIComponent(location.hash.slice(1)||"area-crew")}">Entrar com Discord</a><button class="btn alt sm" type="button" data-depois>Agora não</button></div></div>`;
+ <div class="lgn-t"><b>Entre com o seu Discord ⚓</b><p>Faça login em 1 clique e libere no site o que é exclusivo para quem é de crew, como a Frota e o placar das wars.</p>
+ <div class="lgn-a"><a class="btn sm" href="/auth/entrar?volta=${encodeURIComponent(location.hash.slice(1)||"inicio")}">Entrar com Discord</a><button class="btn alt sm" type="button" data-depois>Agora não</button></div></div>`;
  const fechar=()=>{try{sessionStorage.setItem("kzLogin","1")}catch{}d.classList.remove("on");setTimeout(()=>d.remove(),400)};
  d.querySelector(".lgn-x").onclick=fechar;d.querySelector("[data-depois]").onclick=fechar;d.querySelector("a").addEventListener("click",()=>{try{sessionStorage.setItem("kzLogin","1")}catch{}});
  document.body.append(d);setTimeout(()=>d.classList.add("on"),1800)}
