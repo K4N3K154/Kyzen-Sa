@@ -1856,6 +1856,17 @@ def interacoes():
     return resposta(texto="Algo deu errado com esse comando. Tente de novo em instantes.", privada=True)
 
 
+@app.route("/api/diag-app")
+def diag_app():
+    """Staff (com a DEBUG_KEY): qual endereço de comandos está salvo no app do Discord."""
+    if not debug_ok():
+        return jsonify({"ok": False}), 404
+    info = discord_get("/oauth2/applications/@me", os.environ.get("DISCORD_BOT_TOKEN", "").strip())
+    return privado(jsonify({"id": str(info.get("id")), "nome": info.get("name"),
+                            "interactions_endpoint_url": info.get("interactions_endpoint_url"),
+                            "redirects": info.get("redirect_uris")}))
+
+
 @app.route("/api/registrar-comandos", methods=["POST"])
 def registrar_comandos():
     """Cadastra os comandos no servidor (staff, com a DEBUG_KEY)."""
