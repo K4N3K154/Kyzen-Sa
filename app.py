@@ -7,7 +7,7 @@ import urllib.request
 from datetime import datetime
 from pathlib import Path
 
-from flask import Flask, Response, jsonify
+from flask import Flask, Response, jsonify, request
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -78,9 +78,12 @@ def montar(msg, tag, guild_id, canal_id):
     }
 
 
-def buscar_anuncios():
+def buscar_anuncios(diag=None):
     token = os.environ.get("DISCORD_BOT_TOKEN", "").strip()
     canais = [c.strip() for c in os.environ.get("ANNOUNCE_CHANNELS", "").split(",") if c.strip()]
+    if diag is not None:
+        diag["token_configurado"] = bool(token)
+        diag["canais_configurados"] = len(canais)
     if not token or not canais:
         return None
     guild_id = os.environ.get("DISCORD_GUILD_ID", "").strip()
@@ -88,12 +91,28 @@ def buscar_anuncios():
     for c in canais:
         canal_id, _, tag = c.partition(":")
         canal_id, tag = canal_id.strip(), (tag.strip() or "ANÚNCIO")
+        info = {"canal": canal_id[:4] + "…" + canal_id[-4:], "tag": tag}
         try:
             if not guild_id:
                 guild_id = str(discord_get(f"/channels/{canal_id}", token).get("guild_id", "@me"))
             msgs = discord_get(f"/channels/{canal_id}/messages?limit=10", token)
-        except (urllib.error.URLError, ValueError, KeyError):
-            continue
+            info["mensagens_lidas"] = len(msgs)
+            info["com_texto"] = sum(1 for m in msgs if m.get("content") or m.get("embeds"))
+            if msgs and not info["com_texto"]:
+                info["aviso"] = "Mensagens vazias: ligue o Message Content Intent no Developer Portal (Bot)."
+        except urllib.error.HTTPError as e:
+            info["erro_http"] = e.code
+            info["significa"] = {
+                401: "Token do bot inválido (gere um novo em Bot > Redefinir token).",
+                403: "Bot sem permissão no canal (Ver canal + Ler histórico de mensagens) ou não está no servidor.",
+                404: "ID do canal errado (use o ID do CANAL, não do servidor).",
+            }.get(e.code, "Erro do Discord.")
+            msgs = []
+        except (urllib.error.URLError, ValueError, KeyError) as e:
+            info["erro"] = str(e)[:120]
+            msgs = []
+        if diag is not None:
+            diag.setdefault("canais", []).append(info)
         for m in msgs:
             if m.get("content") or m.get("embeds"):
                 itens.append(montar(m, tag, guild_id, canal_id))
@@ -105,6 +124,12 @@ def buscar_anuncios():
 
 @app.route("/api/novidades")
 def novidades():
+    if request.args.get("debug") == "1":
+        diag = {}
+        dados = buscar_anuncios(diag)
+        resp = jsonify({"configured": dados is not None, "total": len(dados or []), "diagnostico": diag})
+        resp.headers["Cache-Control"] = "no-store"
+        return resp
     agora = time.time()
     if agora - _cache["t"] > CACHE_SECONDS:
         dados = buscar_anuncios()
@@ -131,4 +156,3 @@ def not_found(_):
 
 if __name__ == "__main__":
     app.run(debug=True)
-    
