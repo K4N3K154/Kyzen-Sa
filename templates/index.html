@@ -298,6 +298,14 @@ main{background-image:linear-gradient(color-mix(in srgb,var(--accent) 6%,transpa
 .mb2{flex:1;min-width:0}.mh{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}.mh b{font-weight:700}.mh time{font-size:.72rem;color:var(--muted)}
 .bt{font:700 .6rem system-ui;background:#5865f2;color:#fff;padding:1px 5px;border-radius:4px;letter-spacing:.04em}
 .msg .dc{font-size:.93rem}
+/* Mini anúncio de login */
+.lgn{position:fixed;left:18px;bottom:calc(18px + env(safe-area-inset-bottom,0px));z-index:90;width:min(380px,calc(100% - 36px));display:flex;gap:14px;padding:16px 16px 16px 14px;border-radius:18px;border:1px solid color-mix(in srgb,#5865f2 60%,var(--border));background:color-mix(in srgb,var(--surface) 94%,transparent);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);box-shadow:0 24px 60px -20px rgba(0,0,0,.85),0 0 0 1px rgba(88,101,242,.15);opacity:0;transform:translateY(24px) scale(.97);pointer-events:none;transition:opacity .45s,transform .45s cubic-bezier(.2,.9,.3,1.2)}
+.lgn.on{opacity:1;transform:none;pointer-events:auto}
+.lgn-i{width:46px;height:46px;flex:none;border-radius:14px;display:grid;place-items:center;color:#fff;background:#5865f2;box-shadow:0 8px 20px -8px #5865f2}.lgn-i svg{width:26px;height:26px}
+.lgn-t{min-width:0}.lgn-t>b{display:block;font-family:"Cinzel",serif;font-size:1rem;padding-right:22px}.lgn-t p{margin:4px 0 12px;color:var(--muted);font-size:.86rem;line-height:1.45}.lgn-t p b{color:var(--text)}
+.lgn-a{display:flex;gap:8px;flex-wrap:wrap}.lgn-a .btn{padding:9px 16px}.lgn-a .btn:not(.alt){background:#5865f2;color:#fff;box-shadow:0 10px 24px -12px #5865f2}
+.lgn-x{position:absolute;top:10px;right:10px;width:28px;height:28px;border-radius:50%;border:0;background:transparent;color:var(--muted);cursor:pointer;font-size:.8rem}.lgn-x:hover{color:var(--text);background:color-mix(in srgb,var(--text) 8%,transparent)}
+@media (max-width:560px){.lgn{left:12px;right:12px;width:auto;bottom:calc(78px + env(safe-area-inset-bottom,0px))}}
 /* App: botão, avisos e tela de abertura */
 .inst{background:none;border:1px solid var(--accent);color:var(--accent);border-radius:99px;padding:2px 10px;font:600 .74rem system-ui,sans-serif;cursor:pointer}.inst[hidden]{display:none}
 .toast{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom,0px));z-index:120;max-width:min(440px,calc(100% - 32px));transform:translate(-50%,20px);opacity:0;pointer-events:none;background:var(--surface);color:var(--text);border:1px solid var(--accent);border-radius:14px;padding:12px 16px;font-size:.9rem;text-align:center;box-shadow:0 18px 40px -16px rgba(0,0,0,.8);transition:.3s}
@@ -641,7 +649,17 @@ document.addEventListener("click",e=>{const b=e.target.closest("[data-ac]");if(!
 fetch("/api/eu").then(r=>r.json()).then(j=>{EU=j||{}}).catch(()=>{}).then(async()=>{
  if(EU.crew){try{const j=await fetch("/api/crew/novidades").then(r=>r.json());DATA.crewNews=j.news||[];DATA.crews=DATA.crewNews.filter(n=>n.tag==="CREW").map(n=>({nome:n.titulo,lider:n.data,link:n.link,img:n.img}))}catch{}pegarWars()}
  else{renderFrota();renderDiario()}
- renderEu();const h=location.hash.slice(1);if(h==="area-crew")renderArea();else if(h.startsWith("crew-"))renderCrew(h.slice(5));else if(h.startsWith("canal-")&&PRIV.includes(h.slice(6)))detail(h.slice(6),D[h.slice(6)])});
+ renderEu();avisoLogin();const h=location.hash.slice(1);if(h==="area-crew")renderArea();else if(h.startsWith("crew-"))renderCrew(h.slice(5));else if(h.startsWith("canal-")&&PRIV.includes(h.slice(6)))detail(h.slice(6),D[h.slice(6)])});
+/* Mini anúncio de login: aparece a cada visita (uma vez por aba) para quem ainda não entrou */
+function avisoLogin(){let visto=false;try{visto=sessionStorage.getItem("kzLogin")==="1"}catch{}
+ if(!EU.configurado||EU.logado||visto||location.hash==="#area-crew")return;
+ const d=document.createElement("aside");d.className="lgn";d.setAttribute("role","dialog");d.setAttribute("aria-label","Entrar com Discord");
+ d.innerHTML=`<button class="lgn-x" type="button" aria-label="Fechar">✕</button><div class="lgn-i" aria-hidden="true"><svg viewBox="0 0 24 24"><path fill="currentColor" d="M20.3 4.4A19.6 19.6 0 0 0 15.4 3l-.6 1.3a18 18 0 0 0-5.6 0L8.6 3a19.5 19.5 0 0 0-4.9 1.5C.6 9.1-.3 13.6.1 18a19.7 19.7 0 0 0 6 3l1.3-2.1c-.7-.3-1.4-.6-2-1l.5-.4a14 14 0 0 0 12.2 0l.5.4c-.6.4-1.3.7-2 1L18 21a19.6 19.6 0 0 0 6-3c.5-5.1-.8-9.6-3.7-13.6ZM8 15.3c-1.2 0-2.2-1.1-2.2-2.4S6.8 10.5 8 10.5s2.2 1.1 2.2 2.4-1 2.4-2.2 2.4Zm8 0c-1.2 0-2.2-1.1-2.2-2.4s1-2.4 2.2-2.4 2.2 1.1 2.2 2.4-1 2.4-2.2 2.4Z"/></svg></div>
+ <div class="lgn-t"><b>Entre com o seu Discord ⚓</b><p>Faça login em 1 clique. Se você é de uma crew, libera a <b>Área da Crew</b> com os canais, os anúncios e a Frota.</p>
+ <div class="lgn-a"><a class="btn sm" href="/auth/entrar?volta=${encodeURIComponent(location.hash.slice(1)||"area-crew")}">Entrar com Discord</a><button class="btn alt sm" type="button" data-depois>Agora não</button></div></div>`;
+ const fechar=()=>{try{sessionStorage.setItem("kzLogin","1")}catch{}d.classList.remove("on");setTimeout(()=>d.remove(),400)};
+ d.querySelector(".lgn-x").onclick=fechar;d.querySelector("[data-depois]").onclick=fechar;d.querySelector("a").addEventListener("click",()=>{try{sessionStorage.setItem("kzLogin","1")}catch{}});
+ document.body.append(d);setTimeout(()=>d.classList.add("on"),1800)}
 const views=["inicio","informacoes","novidades","crews","comunidade","trello","area-crew","suporte"];let counted=false;
 function count(){const calm=matchMedia("(prefers-reduced-motion:reduce)").matches;document.querySelectorAll("[data-n]").forEach(e=>{const t=+e.dataset.n;if(calm){e.textContent=t.toLocaleString("pt-BR");return}let s=null;const f=ts=>{s=s??ts;const p=Math.min((ts-s)/1200,1);e.textContent=Math.floor(+e.dataset.n*p).toLocaleString("pt-BR");if(p<1)requestAnimationFrame(f)};requestAnimationFrame(f)})}
 function route(){document.title="Kyzen SA — Servidor de Vox Seas";let h=location.hash.slice(1),nv=h;const m=h.startsWith("canal-")&&D[h.slice(6)];
