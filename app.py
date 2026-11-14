@@ -567,6 +567,26 @@ def servidor():
                 return jsonify({"erro": str(e)[:120]}), 502
         if dados:
             _srv_cache.update(t=agora, data=dados)
+    if request.args.get("checar") == "1":
+        # só responde se existe e se o bot consegue ler (nomes já citados no site)
+        token = os.environ.get("DISCORD_BOT_TOKEN", "").strip()
+        guild_id = os.environ.get("DISCORD_GUILD_ID", "").strip()
+        out = {}
+        for nome in ("crew-post", "builds-crew", "chat-crew", "anuncios-crew", "titulos", "wars", "wars-results",
+                     "aliados", "inimigos", "regras", "invites"):
+            cid = achar_canal(token, guild_id, nome)
+            info = {"existe": bool(cid)}
+            if cid:
+                try:
+                    info["mensagens"] = len(discord_get(f"/channels/{cid}/messages?limit=5", token))
+                except urllib.error.HTTPError as e:
+                    info["erro_http"] = e.code
+            out[nome] = info
+        try:
+            out["membros_lidos"] = len(discord_get(f"/guilds/{guild_id}/members?limit=5", token))
+        except urllib.error.HTTPError as e:
+            out["membros_erro_http"] = e.code
+        return jsonify(out)
     if not _srv_cache["data"]:
         return jsonify({"configured": False}), 503
     resp = jsonify({"configured": True, **_srv_cache["data"]})
