@@ -17,6 +17,13 @@ app = Flask(
     static_url_path="",
 )
 
+# ---------------------------------------------------------------------------
+# Configuração (variáveis de ambiente na Vercel)
+#   DISCORD_BOT_TOKEN  -> token do bot
+#   ANNOUNCE_CHANNELS  -> "ID_CANAL:TAG,ID_CANAL:TAG"  (a TAG é opcional)
+#                         ex: 1111111111:ANÚNCIO,2222222222:EVENTO
+#   DISCORD_GUILD_ID   -> ID do servidor (para o link da mensagem)
+# ---------------------------------------------------------------------------
 API = "https://discord.com/api/v10"
 MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"]
 _cache = {"t": 0, "data": []}
@@ -42,16 +49,29 @@ def discord_get(path, token):
 
 def limpar(txt):
     txt = txt or ""
-    txt = re.sub(r"<a?:\w+:\d+>", "", txt)
-    txt = re.sub(r"<@[!&]?\d+>|<#\d+>", "", txt)
+    txt = re.sub(r"<a?:\w+:\d+>", "", txt)              # emojis custom
+    txt = re.sub(r"<@[!&]?\d+>|<#\d+>", "", txt)         # menções
     txt = re.sub(r"@(everyone|here)", "", txt)
-    txt = re.sub(r"https?://\S+", "", txt)
-    txt = re.sub(r"[*_~`>|]+", "", txt)
+    txt = re.sub(r"https?://\S+", "", txt)               # links soltos
+    txt = re.sub(r"[*_~`>|]+", "", txt)                  # markdown
     return re.sub(r"\s+", " ", txt).strip()
 
 
 def cortar(txt, n):
     return txt if len(txt) <= n else txt[: n - 1].rstrip() + "…"
+
+
+def imagem_da(msg):
+    """Miniatura do vídeo/embed ou primeira imagem anexada."""
+    for emb in msg.get("embeds") or []:
+        for k in ("image", "thumbnail"):
+            u = (emb.get(k) or {}).get("url")
+            if u:
+                return u
+    for a in msg.get("attachments") or []:
+        if (a.get("content_type") or "").startswith("image/") and a.get("url"):
+            return a["url"]
+    return ""
 
 
 def montar(msg, tag, guild_id, canal_id):
@@ -63,17 +83,25 @@ def montar(msg, tag, guild_id, canal_id):
         primeira = next((l for l in (msg.get("content") or "").splitlines() if limpar(l)), "")
         titulo = limpar(primeira)
     if not titulo:
-        titulo = "Novo anúncio"
+        titulo = "Novo vídeo" if "VÍDEO" in tag.upper() or "VIDEO" in tag.upper() else "Novo anúncio"
     resto = corpo[len(titulo):].strip(" -–—:") if corpo.startswith(titulo) else corpo
+    eh_video = bool(emb.get("video")) or emb.get("type") == "video"
+    if eh_video:
+        # em vídeos, mostra o nome do canal (autor) em vez da descrição enorme
+        resto = limpar((emb.get("author") or {}).get("name")) or limpar((emb.get("provider") or {}).get("name"))
     d = datetime.fromisoformat(msg["timestamp"].replace("Z", "+00:00"))
     data = f"{d.day} {MESES[d.month - 1]} {d.year}"
     if resto:
         data += " · " + cortar(resto, 110)
+    link = f"https://discord.com/channels/{guild_id}/{canal_id}/{msg['id']}"
+    if eh_video and emb.get("url"):
+        link = emb["url"]                      # abre o vídeo direto
     return {
         "titulo": cortar(titulo, 90),
         "data": data,
         "tag": tag,
-        "link": f"https://discord.com/channels/{guild_id}/{canal_id}/{msg['id']}",
+        "link": link,
+        "img": imagem_da(msg),
         "_ts": msg["timestamp"],
     }
 
@@ -113,13 +141,12 @@ def buscar_anuncios(diag=None):
             msgs = []
         if diag is not None:
             diag.setdefault("canais", []).append(info)
-        for m in msgs:
-            if m.get("content") or m.get("embeds"):
-                itens.append(montar(m, tag, guild_id, canal_id))
+        do_canal = [montar(m, tag, guild_id, canal_id) for m in msgs if m.get("content") or m.get("embeds")]
+        itens.extend(do_canal[:6])
     itens.sort(key=lambda i: i["_ts"], reverse=True)
     for i in itens:
         i.pop("_ts")
-    return itens[:6]
+    return itens
 
 
 @app.route("/api/novidades")

@@ -55,6 +55,7 @@ nav a:hover{color:var(--text);background:var(--surface)}nav a.on{color:#1a1208;b
 .cta h2{font-size:1.8rem;margin:0 0 8px}.cta p{max-width:520px;margin:0 auto 22px;color:rgba(255,255,255,.85)}
 .list{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin:0 0 38px}
 .empty{grid-column:1/-1;color:var(--muted);text-align:center;padding:24px;border:1px dashed var(--border);border-radius:14px}
+.ev .th{display:block;width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:10px;margin:0 0 12px;background:#0a1112}
 .ev .tag{font-size:.7rem;letter-spacing:.12em;color:var(--accent);font-weight:700}.ev h3{margin:6px 0 2px}
 .two{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
 .panel h3{margin:0 0 8px;display:flex;justify-content:space-between;align-items:center}.panel h3 a{font:.8rem system-ui;color:var(--accent)}
@@ -159,7 +160,7 @@ sup:[["🎫","Abrir ticket","Dúvidas, denúncias e parcerias com a staff.","# a
 const E={news:"As novidades aparecerão aqui.",crews:"As crews do servidor aparecerão aqui."};
 const x=s=>String(s??"").replace(/[&<>"]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));
 const T={
- news:n=>`<a class="ev" href="${x(n.link||DL)}" target="_blank" rel="noopener"><span class="tag">${x(n.tag||"NOVIDADE")}</span><h3>${x(n.titulo)}</h3><p>${x(n.data)}</p></a>`,
+ news:n=>`<a class="ev" href="${x(n.link||DL)}" target="_blank" rel="noopener">${n.img?`<img class="th" src="${x(n.img)}" alt="" loading="lazy" referrerpolicy="no-referrer">`:""}<span class="tag">${x(n.tag||"NOVIDADE")}</span><h3>${x(n.titulo)}</h3><p>${x(n.data)}</p></a>`,
  crews:c=>`<div class="ev"><span class="tag">CREW</span><h3>${x(c.nome)}</h3><p>${x(c.lider||"")}</p></div>`};
 const CH={/* link de cada canal: slug:"https://discord.com/channels/ID_SERVIDOR/ID_CANAL" */};
 const D={};[
@@ -199,9 +200,9 @@ function detail(s,m){const N={informacoes:"Informações",novidades:"Novidades",
  $("cj").textContent=J[m.sec];$("ct").textContent=m.t;$("cs").textContent=m.ch;
  $("cb").innerHTML=`<p>${x(m.d)}</p><h3>Como funciona</h3><ul>${m.p.map(i=>`<li>${x(i)}</li>`).join("")}</ul>${m.tb.map(t=>`<h3>${x(t[0])}</h3><div class="tw"><table class="tb">${t[1].map(r=>`<tr>${r.map((c,i)=>i?`<td>${x(c)}</td>`:`<th>${x(c)}</th>`).join("")}</tr>`).join("")}</table></div>`).join("")}<p class="note">Os detalhes completos ficam no canal do Discord.${u?" Você precisa já estar no servidor para abrir o canal.":""}</p><div class="acts"><a class="btn" href="${x(u||DL)}" target="_blank" rel="noopener">${u?"Abrir canal no Discord":"Entrar no Discord"}</a><a class="btn alt" href="#${m.sec}">Voltar para ${N[m.sec]}</a></div>`;
  const TG={anuncios:"ANÚNCIO","sub-anuncios":"SUB-ANÚNCIO",eventos:"EVENTO","videos-novos":"VÍDEO"};
- if(TG[s]){const L=DATA.news.filter(n=>slug(n.tag||"")===slug(TG[s]));$("cb").querySelector("p").insertAdjacentHTML("afterend",`<h3>Últimos anúncios</h3><div class="list">${L.length?L.map(T.news).join(""):`<div class="empty">Nenhum anúncio recente.</div>`}</div>`)}
+ if(TG[s]){const L=DATA.news.filter(n=>slug(n.tag||"")===slug(TG[s]));$("cb").querySelector("p").insertAdjacentHTML("afterend",`<h3>${({anuncios:"Últimos anúncios","sub-anuncios":"Últimos avisos",eventos:"Últimos eventos","videos-novos":"Últimos vídeos"})[s]}</h3><div class="list">${L.length?L.map(T.news).join(""):`<div class="empty">${s==="videos-novos"?"Nenhum vídeo recente.":"Nada recente por aqui."}</div>`}</div>`)}
  document.title=m.t+" — Kyzen SA"}
-function renderLists(){document.querySelectorAll("[data-list]").forEach(l=>{const k=l.dataset.list,d=DATA[k];l.innerHTML=d.length?d.map(T[k]).join(""):`<div class="empty">${E[k]}</div>`})}
+function renderLists(){document.querySelectorAll("[data-list]").forEach(l=>{const k=l.dataset.list,d=DATA[k];l.innerHTML=d.length?d.slice(0,6).map(T[k]).join(""):`<div class="empty">${E[k]}</div>`})}
 renderLists();
 /* Anúncios do Discord (bot) -> /api/novidades */
 fetch("/api/novidades").then(r=>r.json()).then(j=>{if(Array.isArray(j.news)&&j.news.length){DATA.news=j.news;renderLists();const h=location.hash.slice(1);if(h.startsWith("canal-")&&D[h.slice(6)])detail(h.slice(6),D[h.slice(6)])}}).catch(()=>{});
