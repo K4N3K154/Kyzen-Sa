@@ -250,7 +250,7 @@ a.card{display:block}.panel.dt{max-width:760px;margin:0 auto;padding:28px}.dt p{
 <section class="view" id="v-suporte" hidden><div class="ph"><div class="wrap"><i class="jp">助</i><h1>Suporte</h1><p>Ajuda, recrutamento da staff e Content Creator.</p></div></div>
  <section class="blk"><div class="wrap"><div class="grid" data-cards="sup"></div>
   <div class="ip"><div><small style="color:var(--muted)">Convite do Discord</small><br><code>discord.gg/DNZrYHRXU5</code></div><a class="btn" href="https://discord.gg/DNZrYHRXU5" target="_blank" rel="noopener">Entrar no Discord</a></div>
-  <div class="ip"><div><small style="color:var(--muted)">O jogo</small><br><code>Vox Seas · Roblox</code></div><a class="btn" data-rbx href="https://www.roblox.com/discover/?Keyword=Vox%20Seas" target="_blank" rel="noopener">Jogar no Roblox</a></div>
+  <div class="ip"><div><small style="color:var(--muted)">O jogo</small><br><code>Vox Seas · Roblox</code></div><a class="btn" data-rbx href="https://www.roblox.com/games/104067066727140/Vox-Seas" target="_blank" rel="noopener">Jogar no Roblox</a></div>
   <h2 class="ttl" style="margin-top:44px">Staff da Kyzen SA</h2><p class="sub">Quem cuida do servidor, atualizado direto do Discord.</p><div id="staff"><div class="empty">Carregando a equipe…</div></div>
  </div></section></section>
 <section class="view" id="v-canal" hidden><div class="ph"><div class="wrap"><i class="jp" id="cj"></i><h1 id="ct"></h1><p id="cs"></p></div></div>
@@ -366,7 +366,7 @@ function renderLists(){document.querySelectorAll("[data-list]").forEach(l=>{cons
 renderLists();
 /* Anúncios do Discord (bot) -> /api/novidades */
 fetch("/api/novidades").then(r=>r.json()).then(j=>{if(Array.isArray(j.news)&&j.news.length){const ehCrew=n=>slug(n.tag||"")==="crew";DATA.crews=j.news.filter(ehCrew).map(n=>({nome:n.titulo,lider:n.data,link:n.link,img:n.img}));DATA.news=j.news.filter(n=>!ehCrew(n));renderLists();const h=location.hash.slice(1);if(h.startsWith("canal-")&&D[h.slice(6)])detail(h.slice(6),D[h.slice(6)])}}).catch(()=>{});
-let RBX="https://www.roblox.com/discover/?Keyword=Vox%20Seas";
+let RBX="https://www.roblox.com/games/104067066727140/Vox-Seas";
 const LAUNCH=new Date("2026-11-14T16:00:00-03:00").getTime();
 function tick(){const d=LAUNCH-Date.now();document.querySelectorAll("[data-cd]").forEach(e=>{if(d<=0){if(!e.dataset.live){e.dataset.live=1;e.innerHTML=`<b class="live">Vox Seas já está no ar! ⚓</b><div style="margin-top:14px"><a class="btn" data-rbx href="${x(RBX)}" target="_blank" rel="noopener">Jogar no Roblox</a></div>`}return}const s=Math.floor(d/1e3),dd=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60),c=s%60,p=n=>String(n).padStart(2,"0");e.innerHTML=`<small>Lançamento de Vox Seas · 14/11/2026 às 16h (Brasília)</small><div class="t">${dd?`<span><b>${dd}</b>dias</span>`:""}<span><b>${p(h)}</b>horas</span><span><b>${p(m)}</b>min</span><span><b>${p(c)}</b>seg</span></div>`})}
 tick();setInterval(tick,1000);
