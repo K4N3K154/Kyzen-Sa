@@ -939,14 +939,14 @@ def buscar_wars():
             link_m = f"https://discord.com/channels/{guild_id}/{canal}/{m['id']}"
             ca["jogos"].append({"adv": cb["crew"], "ga": ga, "gb": gb, "data": data_txt, "link": link_m})
             cb["jogos"].append({"adv": ca["crew"], "ga": gb, "gb": ga, "data": data_txt, "link": link_m})
-            partidas.append({"a": ca["crew"], "b": cb["crew"], "ga": ga, "gb": gb,
+            partidas.append({"a": ca["crew"], "b": cb["crew"], "ga": ga, "gb": gb, "ts": int(d.timestamp()),
                              "data": f"{d.day} {MESES[d.month - 1]} {d.year}",
                              "link": f"https://discord.com/channels/{guild_id}/{canal}/{m['id']}"})
     for c in tabela.values():
         c["h"] = c["h"][-5:][::-1]  # últimas 5, da mais recente para a mais antiga
         c["jogos"] = c["jogos"][-40:][::-1]  # histórico para a página da crew
     ranking = sorted(tabela.values(), key=lambda c: (-c["pts"], -c["v"], c["d"], c["crew"].lower()))
-    return {"ranking": ranking[:20], "partidas": partidas[::-1][:10],
+    return {"ranking": ranking[:20], "partidas": partidas[::-1][:10], "todas": partidas[::-1],
             "ultima": int(ultima.timestamp()) if ultima else None}
 
 
@@ -1244,6 +1244,43 @@ def trello_card(cid):
     return resp
 
 
+def lista_trello(nome):
+    alvo = slug_py(nome)
+    for l in trello_cache() or []:
+        if slug_py(l["nome"]).startswith(alvo):
+            return l["cards"]
+    return []
+
+
+_ILHA = re.compile(r"^\s*(.+?)\s*\|\s*Lvl\s*(\d+)\s*-\s*(\d+)\s*$", re.I)
+
+
+@app.route("/api/mapa")
+def mapa():
+    """Ilhas do Vox Seas (lista Islands do Trello), em ordem de nível, para o mapa interativo."""
+    cards = lista_trello("Islands")
+    if not cards:
+        return jsonify({"ok": False}), 503
+    ilhas, extras, mundo, porto = [], [], "", None
+    for c in cards:
+        m = _ILHA.match(c["nome"])
+        if m:
+            ilhas.append({"id": c["id"], "nome": m.group(1), "min": int(m.group(2)), "max": int(m.group(3)), "img": c["img"]})
+        elif c["nome"].lower().startswith("world map"):
+            det = _trello_cache["cards"].get(c["id"]) or {}
+            achou = re.search(r"!\[[^\]]*\]\((https://trello\.com/[^\s)]+)", det.get("desc", ""))
+            mundo = det.get("img") or (url_segura(achou.group(1)) if achou else "")
+        elif "|" in c["nome"] and "main island" in c["nome"].lower():
+            porto = {"id": c["id"], "nome": c["nome"].split("|")[0].strip(), "img": c["img"]}
+        elif c["nome"].lower() not in ("main islands", "miscellaneous"):
+            extras.append({"id": c["id"], "nome": c["nome"].split("|")[0].strip(), "img": c["img"]})
+    ilhas.sort(key=lambda i: (i["min"], i["max"]))
+    resp = jsonify({"ok": True, "porto": porto, "ilhas": ilhas, "extras": extras, "mundo": mundo,
+                    "chefes": len(lista_trello("Bosses")), "url": TRELLO_URL})
+    resp.headers["Cache-Control"] = "public, s-maxage=600, stale-while-revalidate=1800"
+    return resp
+
+
 # ---------------------------------------------------------------------------
 # Login com Discord + Área da Crew
 #   O site só pede o escopo "identify" (nome e avatar). Quem pode ver o quê é calculado com as
@@ -1328,8 +1365,15 @@ def acesso(uid):
     if len(_acesso_cache) > 500:
         for k in sorted(_acesso_cache, key=lambda k: _acesso_cache[k][0])[:250]:
             _acesso_cache.pop(k, None)
-    _acesso_cache[uid] = (agora, ver)
+    _acesso_cache[uid] = (agora, ver, membro is not None)
     return ver
+
+
+def e_membro(uid):
+    """True se a pessoa está no servidor (qualquer cargo)."""
+    acesso(uid)
+    c = _acesso_cache.get(uid)
+    return bool(c and len(c) > 2 and c[2])
 
 
 def usuario():
@@ -1503,6 +1547,333 @@ def crew_novidades():
     if time.time() - _cache["t"] > CACHE_SECONDS:
         novidades()  # atualiza o cache compartilhado
     return privado(jsonify({"ok": True, "news": [n for n in _cache["data"] or [] if n.get("tag") in CREW_TAGS]}))
+
+
+# ---------------------------------------------------------------------------
+# Hall da Fama (últimos 7 dias)
+#   Piratas em ascensão: quem mais subiu de nível no # level-up  -> para membros do servidor logados
+#   Crew da semana e maior vitória: do # wars-results            -> só para quem é da crew
+# ---------------------------------------------------------------------------
+_hall_cache = {"t": 0, "data": None}
+_NIVEL = re.compile(r"(?:n[íi]vel|level|lvl|lv|nv)\.?\s*[:#]?\s*\**\s*(\d{1,4})", re.I)
+
+
+def textos_msg(m):
+    t = [m.get("content") or ""]
+    for e in m.get("embeds") or []:
+        t += [e.get("title") or "", e.get("description") or ""]
+        t += [f"{f.get('name', '')} {f.get('value', '')}" for f in e.get("fields") or []]
+    return "\n".join(t)
+
+
+def buscar_ascensao():
+    token = os.environ.get("DISCORD_BOT_TOKEN", "").strip()
+    gid = os.environ.get("DISCORD_GUILD_ID", "").strip()
+    canal = os.environ.get("LEVELUP_CHANNEL", "").strip() or achar_canal(token, gid, "level-up")
+    if not canal:
+        return []
+    msgs = discord_get(f"/channels/{canal}/messages?limit=100", token)
+    limite = datetime.now(timezone.utc) - timedelta(days=7)
+    gente = {}
+    for m in msgs:
+        if datetime.fromisoformat(m["timestamp"].replace("Z", "+00:00")) < limite:
+            continue
+        txt = textos_msg(m)
+        quem = (m.get("mentions") or [None])[0]
+        if not quem:
+            continue
+        niveis = [int(n) for n in _NIVEL.findall(txt)]
+        p = gente.setdefault(quem["id"], {"nome": cortar(str(quem.get("global_name") or quem.get("username") or ""), 32),
+                                          "av": avatar_url(quem["id"], quem.get("avatar") or ""), "subidas": 0, "nivel": 0})
+        p["subidas"] += 1
+        if niveis:
+            p["nivel"] = max(p["nivel"], max(niveis))
+    return sorted(gente.values(), key=lambda p: (-p["subidas"], -p["nivel"], p["nome"].lower()))[:5]
+
+
+def semana_crews(dados):
+    """Crew da semana (mais pontos em 7 dias) e maior vitória, a partir das partidas do placar."""
+    limite = time.time() - 7 * 86400
+    pts, melhor = {}, None
+    for p in (dados or {}).get("todas") or []:
+        if p["ts"] < limite:
+            continue
+        for nome, gp, gc in ((p["a"], p["ga"], p["gb"]), (p["b"], p["gb"], p["ga"])):
+            o = pts.setdefault(nome, {"crew": nome, "pts": 0, "v": 0})
+            o["pts"] += 3 if gp > gc else 1 if gp == gc else 0
+            o["v"] += 1 if gp > gc else 0
+        if p["ga"] != p["gb"] and (not melhor or abs(p["ga"] - p["gb"]) > abs(melhor["ga"] - melhor["gb"])):
+            melhor = p
+    top = sorted(pts.values(), key=lambda o: (-o["pts"], -o["v"], o["crew"].lower()))
+    if melhor and melhor["gb"] > melhor["ga"]:
+        melhor = {**melhor, "a": melhor["b"], "b": melhor["a"], "ga": melhor["gb"], "gb": melhor["ga"]}
+    return {"crew": top[0] if top else None, "maior": melhor}
+
+
+@app.route("/api/hall")
+def hall():
+    uid = usuario()
+    if debug_ok():  # para a staff conferir o formato das mensagens do # level-up
+        token = os.environ.get("DISCORD_BOT_TOKEN", "").strip()
+        canal = achar_canal(token, os.environ.get("DISCORD_GUILD_ID", "").strip(), "level-up")
+        msgs = discord_get(f"/channels/{canal}/messages?limit=5", token) if canal else []
+        return privado(jsonify({"canal": bool(canal), "amostra": [
+            {"autor_bot": bool((m.get("author") or {}).get("bot")), "mencoes": len(m.get("mentions") or []),
+             "texto": cortar(re.sub(r"<@!?\d+>", "<@…>", textos_msg(m)), 200)} for m in msgs]}))
+    if not uid:
+        return privado(jsonify({"ok": False, "motivo": "login"}), 401)
+    if not e_membro(uid):
+        return privado(jsonify({"ok": False, "motivo": "membro"}), 403)
+    agora = time.time()
+    if (agora - _hall_cache["t"] > 300 or _hall_cache["data"] is None) and pode_tentar("hall", 60):
+        try:
+            _hall_cache.update(t=agora, data=buscar_ascensao())
+        except (urllib.error.URLError, ValueError, KeyError, TypeError) as e:
+            falhou("hall")
+            app.logger.error("hall: %s", str(e)[:120])
+    saida = {"ok": True, "ascensao": _hall_cache["data"] or [], "crew_ok": bool(acesso(uid))}
+    if saida["crew_ok"]:
+        if _wars_cache["data"] is None or agora - _wars_cache["t"] > 60:
+            try:
+                _wars_cache.update(t=agora, data=buscar_wars())
+            except (urllib.error.URLError, ValueError, KeyError, TypeError):
+                pass
+        saida.update(semana_crews(_wars_cache["data"]))
+    return privado(jsonify(saida))
+
+
+# ---------------------------------------------------------------------------
+# Comandos do bot (/codigos /fruta /ilha /evento /frota /site)
+#   O Discord manda cada comando para /api/interacoes (Developer Portal > General Information >
+#   Interactions Endpoint URL). Cada pedido é conferido com a assinatura Ed25519 do Discord.
+# ---------------------------------------------------------------------------
+try:
+    from nacl.exceptions import BadSignatureError
+    from nacl.signing import VerifyKey
+except ImportError:  # pragma: no cover
+    VerifyKey = BadSignatureError = None
+
+SITE = "https://kyzensaofc.vercel.app"
+COR = 0xC9954F
+_chave_pub = {"k": ""}
+COMANDOS = [
+    {"name": "codigos", "description": "Códigos do Vox Seas (do Trello oficial)"},
+    {"name": "fruta", "description": "Poderes de uma Vox Fruit",
+     "options": [{"type": 3, "name": "nome", "description": "Nome da fruta", "required": True, "autocomplete": True}]},
+    {"name": "ilha", "description": "Para qual ilha ir no seu nível",
+     "options": [{"type": 4, "name": "nivel", "description": "Seu nível no Vox Seas", "required": True,
+                  "min_value": 0, "max_value": 5000}]},
+    {"name": "evento", "description": "Próximo evento do servidor"},
+    {"name": "frota", "description": "Top 3 da Frota (só para quem é da crew)"},
+    {"name": "site", "description": "Site da Kyzen SA com Trello, Frota e eventos"},
+]
+
+
+def chave_publica():
+    k = os.environ.get("DISCORD_PUBLIC_KEY", "").strip() or _chave_pub["k"]
+    if not k:
+        info = discord_get("/oauth2/applications/@me", os.environ.get("DISCORD_BOT_TOKEN", "").strip())
+        k = _chave_pub["k"] = str(info["verify_key"])
+        _app_id["id"] = str(info["id"])
+    return k
+
+
+def assinatura_ok():
+    if VerifyKey is None:
+        return False
+    try:
+        VerifyKey(bytes.fromhex(chave_publica())).verify(
+            request.headers.get("X-Signature-Timestamp", "").encode() + request.get_data(),
+            bytes.fromhex(request.headers.get("X-Signature-Ed25519", "")))
+        return True
+    except (BadSignatureError, ValueError, TypeError, KeyError, urllib.error.URLError):
+        return False
+
+
+def md_discord(txt, n=1500):
+    """Markdown do Trello -> texto do Discord (sem imagens e sem os sufixos smartCard)."""
+    txt = re.sub(r"!\[[^\]]*\]\([^)]*\)", "", txt or "")
+    txt = re.sub(r"\]\((https?://[^\s)]+)\s+\"[^\"]*\"\)", r"](\1)", txt)
+    txt = re.sub(r"\[(https?://[^\]]+)\]\((https?://[^)\s]+)\)", r"\2", txt)
+    txt = re.sub(r"(?m)^#{4,6} ", "### ", txt)
+    txt = re.sub(r"\\([\\`*_{}\[\]()#+\-.!|>~])", r"\1", txt)
+    txt = re.sub(r"@(everyone|here)", r"@​\1", txt)
+    txt = re.sub(r"\n{3,}", "\n\n", txt).strip()
+    return cortar(txt, n)
+
+
+def botoes(*extra):
+    b = [{"type": 2, "style": 5, "label": "Abrir o site", "url": SITE}] + list(extra)
+    return [{"type": 1, "components": b[:5]}]
+
+
+def resposta(embed=None, texto="", privada=False, componentes=None):
+    d = {"allowed_mentions": {"parse": []}}
+    if embed:
+        embed.setdefault("color", COR)
+        embed.setdefault("footer", {"text": "Kyzen SA · kyzensaofc.vercel.app"})
+        d["embeds"] = [embed]
+    if texto:
+        d["content"] = texto
+    if privada:
+        d["flags"] = 64
+    d["components"] = componentes if componentes is not None else botoes()
+    return jsonify({"type": 4, "data": d})
+
+
+def frutas():
+    return [c for c in lista_trello("Vox Fruits") if c.get("tem")]
+
+
+def cmd_codigos():
+    card = next((c for c in lista_trello("Info") if c["nome"].lower().startswith("codes")), None)
+    if not card:
+        return resposta(texto="Não consegui abrir o Trello agora. Tente de novo em instantes.", privada=True)
+    det = _trello_cache["cards"].get(card["id"]) or {}
+    e = {"title": "🎟️ Códigos do Vox Seas",
+         "description": "Os códigos ativos ficam no cartão **Codes** do Trello oficial do jogo. "
+                        "Resgate dentro do Vox Seas no menu de códigos. Corre que alguns expiram! ⏳",
+         "url": det.get("url") or TRELLO_URL}
+    if det.get("img"):
+        e["image"] = {"url": det["img"]}
+    return resposta(e, componentes=botoes({"type": 2, "style": 5, "label": "Ver no Trello", "url": det.get("url") or TRELLO_URL}))
+
+
+def cmd_fruta(nome):
+    alvo = slug_py(nome)
+    lista = frutas()
+    f = next((c for c in lista if slug_py(c["nome"]) == alvo), None) or \
+        next((c for c in lista if alvo and alvo in slug_py(c["nome"])), None)
+    if not f:
+        return resposta(texto=f"Não achei a fruta **{sem_markdown(nome)[:40]}** no Trello. Use as sugestões da lista ao digitar.", privada=True)
+    det = _trello_cache["cards"].get(f["id"]) or {}
+    e = {"title": f"🍎 {f['nome']}", "description": md_discord(det.get("desc")) or "Sem descrição no Trello.",
+         "url": det.get("url") or TRELLO_URL}
+    if f["tags"]:
+        e["fields"] = [{"name": "Raridade", "value": " · ".join(t["n"] for t in f["tags"]), "inline": True}]
+    if f.get("img"):
+        e["thumbnail"] = {"url": f["img"]}
+    return resposta(e, componentes=botoes({"type": 2, "style": 5, "label": "Ver no Trello", "url": det.get("url") or TRELLO_URL}))
+
+
+def cmd_ilha(nivel):
+    ilhas = sorted(((m.group(1), int(m.group(2)), int(m.group(3)), c) for c in lista_trello("Islands")
+                    if (m := _ILHA.match(c["nome"]))), key=lambda i: i[1])
+    if not ilhas:
+        return resposta(texto="Não consegui abrir o mapa agora. Tente de novo em instantes.", privada=True)
+    certas = [i for i in ilhas if i[1] <= nivel <= i[2]]
+    if not certas:
+        certas = [ilhas[-1]] if nivel > ilhas[-1][2] else [min(ilhas, key=lambda i: abs(i[1] - nivel))]
+    prox = next((i for i in ilhas if i[1] > nivel), None)
+    nomes = " ou ".join(f"**{i[0]}** (Lvl {i[1]}-{i[2]})" for i in certas)
+    e = {"title": f"🧭 Nível {nivel}: para onde navegar",
+         "description": f"Seu lugar agora é {nomes}.\n" +
+                        (f"Próximo destino: **{prox[0]}** a partir do nível {prox[1]}." if prox else "Você já chegou nos mares mais perigosos! 🌋"),
+         "url": SITE + "/#comunidade"}
+    if certas[0][3].get("img"):
+        e["thumbnail"] = {"url": certas[0][3]["img"]}
+    return resposta(e, componentes=botoes({"type": 2, "style": 5, "label": "Ver o mapa", "url": SITE + "/#comunidade"}))
+
+
+def cmd_evento():
+    if _eventos_cache["data"] is None or time.time() - _eventos_cache["t"] > 120:
+        try:
+            _eventos_cache.update(t=time.time(), data=buscar_eventos() or [])
+        except (urllib.error.URLError, ValueError, KeyError, TypeError):
+            pass
+    evs = _eventos_cache["data"] or []
+    if not evs:
+        return resposta({"title": "📅 Nenhum evento agendado agora",
+                         "description": "Fique de olho na aba **Eventos** do servidor e no site: assim que tiver, aparece com contagem regressiva!"})
+    ev = evs[0]
+    ts = int(datetime.fromisoformat(ev["inicio"].replace("Z", "+00:00")).timestamp())
+    e = {"title": ("🔴 Acontecendo agora: " if ev["ao_vivo"] else "📅 ") + ev["nome"], "url": ev["link"],
+         "description": (ev["desc"] + "\n\n" if ev["desc"] else "") +
+                        (f"Começou <t:{ts}:R>." if ev["ao_vivo"] else f"**<t:{ts}:F>** (<t:{ts}:R>)"),
+         "fields": [{"name": "Interessados", "value": str(ev["interessados"]), "inline": True}]}
+    if ev["local"]:
+        e["fields"].append({"name": "Onde", "value": ev["local"], "inline": True})
+    if ev["img"]:
+        e["image"] = {"url": ev["img"]}
+    return resposta(e, componentes=botoes({"type": 2, "style": 5, "label": "Tenho interesse", "url": ev["link"]}))
+
+
+def cmd_frota(uid):
+    if not uid or not acesso(uid):
+        return resposta(texto="🔒 A Frota é só para quem é da crew. Quer entrar numa? Faça o apply em #kyzen-apply!", privada=True)
+    if _wars_cache["data"] is None or time.time() - _wars_cache["t"] > 30:
+        try:
+            _wars_cache.update(t=time.time(), data=buscar_wars())
+        except (urllib.error.URLError, ValueError, KeyError, TypeError):
+            pass
+    r = (_wars_cache["data"] or {}).get("ranking") or []
+    if not r:
+        return resposta(texto="⚓ Nenhuma war registrada ainda no # wars-results.", privada=True)
+    linhas = [f"{['🥇', '🥈', '🥉'][i]} **{sem_markdown(c['crew'])}**: {c['pts']} pts ({c['v']}V {c['e']}E {c['d']}D)"
+              for i, c in enumerate(r[:3])]
+    return resposta({"title": "🏴‍☠️ Top 3 da Frota", "description": "\n".join(linhas), "url": SITE + "/#crews"},
+                    privada=True)
+
+
+@app.route("/api/interacoes", methods=["POST"])
+def interacoes():
+    try:
+        request.max_content_length = 256 * 1024  # comandos podem ser maiores que o limite de 16 KB do site
+    except AttributeError:
+        pass
+    if not assinatura_ok():
+        return "assinatura inválida", 401
+    d = request.get_json(silent=True) or {}
+    tipo = d.get("type")
+    if tipo == 1:  # PING do Discord
+        return jsonify({"type": 1})
+    dados = d.get("data") or {}
+    nome = dados.get("name")
+    opcoes = {o.get("name"): o.get("value") for o in dados.get("options") or []}
+    uid = str(((d.get("member") or {}).get("user") or d.get("user") or {}).get("id") or "")
+    if tipo == 4:  # sugestões enquanto a pessoa digita
+        q = slug_py(str(opcoes.get("nome") or ""))
+        lista = [c["nome"] for c in frutas() if q in slug_py(c["nome"])][:25] if nome == "fruta" else []
+        return jsonify({"type": 8, "data": {"choices": [{"name": n[:100], "value": n[:100]} for n in lista]}})
+    try:
+        if nome == "codigos":
+            return cmd_codigos()
+        if nome == "fruta":
+            return cmd_fruta(str(opcoes.get("nome") or ""))
+        if nome == "ilha":
+            return cmd_ilha(int(opcoes.get("nivel") or 0))
+        if nome == "evento":
+            return cmd_evento()
+        if nome == "frota":
+            return cmd_frota(uid)
+        if nome == "site":
+            return resposta({"title": "🌐 Site da Kyzen SA", "url": SITE,
+                             "description": "🗂️ Trello oficial do Vox Seas com busca\n🗺️ Mapa das ilhas por nível\n"
+                                            "🟢 Jogadores online agora\n📅 Eventos com contagem regressiva\n"
+                                            "🏴‍☠️ Frota e placar das crews\n📲 Instale como app no celular"})
+    except Exception as e:  # noqa: BLE001  (o Discord precisa de uma resposta em até 3 s)
+        app.logger.error("comando %s: %s", nome, str(e)[:120])
+    return resposta(texto="Algo deu errado com esse comando. Tente de novo em instantes.", privada=True)
+
+
+@app.route("/api/registrar-comandos", methods=["POST"])
+def registrar_comandos():
+    """Cadastra os comandos no servidor (staff, com a DEBUG_KEY)."""
+    if not debug_ok():
+        return jsonify({"ok": False}), 404
+    token = os.environ.get("DISCORD_BOT_TOKEN", "").strip()
+    gid = os.environ.get("DISCORD_GUILD_ID", "").strip()
+    chave_publica()
+    req = urllib.request.Request(f"{API}/applications/{_app_id['id']}/guilds/{gid}/commands", method="PUT",
+                                 data=json.dumps(COMANDOS).encode(),
+                                 headers={"Authorization": f"Bot {token}", "Content-Type": "application/json",
+                                          "User-Agent": "KyzenSA-Site (1.0)"})
+    try:
+        with urllib.request.urlopen(req, timeout=8) as r:
+            feitos = json.loads(r.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        return privado(jsonify({"ok": False, "erro": e.code, "discord": e.read().decode("utf-8", "replace")[:300]}), 502)
+    return privado(jsonify({"ok": True, "comandos": [c.get("name") for c in feitos]}))
 
 
 # ---------------------------------------------------------------------------
