@@ -1,5 +1,13 @@
+import json
+import os
+import re
+import time
+import urllib.error
+import urllib.request
+from datetime import datetime
 from pathlib import Path
-from flask import Flask, Response
+
+from flask import Flask, Response, jsonify
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -9,14 +17,106 @@ app = Flask(
     static_url_path="",
 )
 
+API = "https://discord.com/api/v10"
+MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"]
+_cache = {"t": 0, "data": []}
+CACHE_SECONDS = 60
+
 
 def pagina():
-    # procura o index.html em templates (ou no nome antigo errado, por segurança)
     for pasta in ("templates", "teamplates"):
         arq = BASE_DIR / pasta / "index.html"
         if arq.exists():
             return arq.read_text(encoding="utf-8")
     return "index.html não encontrado", 500
+
+
+def discord_get(path, token):
+    req = urllib.request.Request(
+        API + path,
+        headers={"Authorization": f"Bot {token}", "User-Agent": "KyzenSA-Site (1.0)"},
+    )
+    with urllib.request.urlopen(req, timeout=8) as r:
+        return json.loads(r.read().decode("utf-8"))
+
+
+def limpar(txt):
+    txt = txt or ""
+    txt = re.sub(r"<a?:\w+:\d+>", "", txt)
+    txt = re.sub(r"<@[!&]?\d+>|<#\d+>", "", txt)
+    txt = re.sub(r"@(everyone|here)", "", txt)
+    txt = re.sub(r"https?://\S+", "", txt)
+    txt = re.sub(r"[*_~`>|]+", "", txt)
+    return re.sub(r"\s+", " ", txt).strip()
+
+
+def cortar(txt, n):
+    return txt if len(txt) <= n else txt[: n - 1].rstrip() + "…"
+
+
+def montar(msg, tag, guild_id, canal_id):
+    emb = (msg.get("embeds") or [{}])[0]
+    conteudo = limpar(msg.get("content"))
+    corpo = limpar(emb.get("description")) or conteudo
+    titulo = limpar(emb.get("title"))
+    if not titulo:
+        primeira = next((l for l in (msg.get("content") or "").splitlines() if limpar(l)), "")
+        titulo = limpar(primeira)
+    if not titulo:
+        titulo = "Novo anúncio"
+    resto = corpo[len(titulo):].strip(" -–—:") if corpo.startswith(titulo) else corpo
+    d = datetime.fromisoformat(msg["timestamp"].replace("Z", "+00:00"))
+    data = f"{d.day} {MESES[d.month - 1]} {d.year}"
+    if resto:
+        data += " · " + cortar(resto, 110)
+    return {
+        "titulo": cortar(titulo, 90),
+        "data": data,
+        "tag": tag,
+        "link": f"https://discord.com/channels/{guild_id}/{canal_id}/{msg['id']}",
+        "_ts": msg["timestamp"],
+    }
+
+
+def buscar_anuncios():
+    token = os.environ.get("DISCORD_BOT_TOKEN", "").strip()
+    canais = [c.strip() for c in os.environ.get("ANNOUNCE_CHANNELS", "").split(",") if c.strip()]
+    if not token or not canais:
+        return None
+    guild_id = os.environ.get("DISCORD_GUILD_ID", "").strip()
+    itens = []
+    for c in canais:
+        canal_id, _, tag = c.partition(":")
+        canal_id, tag = canal_id.strip(), (tag.strip() or "ANÚNCIO")
+        try:
+            if not guild_id:
+                guild_id = str(discord_get(f"/channels/{canal_id}", token).get("guild_id", "@me"))
+            msgs = discord_get(f"/channels/{canal_id}/messages?limit=10", token)
+        except (urllib.error.URLError, ValueError, KeyError):
+            continue
+        for m in msgs:
+            if m.get("content") or m.get("embeds"):
+                itens.append(montar(m, tag, guild_id, canal_id))
+    itens.sort(key=lambda i: i["_ts"], reverse=True)
+    for i in itens:
+        i.pop("_ts")
+    return itens[:6]
+
+
+@app.route("/api/novidades")
+def novidades():
+    agora = time.time()
+    if agora - _cache["t"] > CACHE_SECONDS:
+        dados = buscar_anuncios()
+        if dados is None:
+            resp = jsonify({"news": [], "configured": False})
+            resp.headers["Cache-Control"] = "no-store"
+            return resp
+        if dados or not _cache["data"]:
+            _cache.update(t=agora, data=dados)
+    resp = jsonify({"news": _cache["data"], "configured": True})
+    resp.headers["Cache-Control"] = "public, s-maxage=60, stale-while-revalidate=300"
+    return resp
 
 
 @app.route("/")
