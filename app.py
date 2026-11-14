@@ -664,6 +664,65 @@ def servidor():
 
 
 # ---------------------------------------------------------------------------
+# Vox Seas ao vivo: APIs públicas do Roblox (sem token)
+# ---------------------------------------------------------------------------
+_jogo_cache = {"t": 0, "data": None, "universo": None}
+
+
+def roblox_get(url):
+    req = urllib.request.Request(url, headers={"User-Agent": "KyzenSA-Site (1.0)", "Accept": "application/json"})
+    with urllib.request.urlopen(req, timeout=6) as r:
+        return json.loads(r.read().decode("utf-8"))
+
+
+def place_id():
+    m = re.search(r"/games/(\d+)", os.environ.get("ROBLOX_URL", ""))
+    return m.group(1) if m else "104067066727140"
+
+
+def buscar_jogo():
+    uni = _jogo_cache["universo"] or os.environ.get("ROBLOX_UNIVERSE_ID", "").strip()
+    if not uni:
+        uni = str(int(roblox_get(f"https://apis.roblox.com/universes/v1/places/{place_id()}/universe")["universeId"]))
+        _jogo_cache["universo"] = uni
+    g = roblox_get(f"https://games.roblox.com/v1/games?universeIds={uni}")["data"][0]
+    dados = {"nome": str(g.get("name", ""))[:60], "jogando": int(g.get("playing") or 0),
+             "visitas": int(g.get("visits") or 0), "favoritos": int(g.get("favoritedCount") or 0),
+             "atualizado": str(g.get("updated", ""))[:30], "aprovacao": None, "icone": ""}
+    try:
+        v = roblox_get(f"https://games.roblox.com/v1/games/votes?universeIds={uni}")["data"][0]
+        up, down = int(v.get("upVotes") or 0), int(v.get("downVotes") or 0)
+        if up + down:
+            dados["aprovacao"] = round(100 * up / (up + down))
+    except (urllib.error.URLError, ValueError, KeyError, IndexError, TypeError):
+        pass
+    try:
+        ic = roblox_get(f"https://thumbnails.roblox.com/v1/games/icons?universeIds={uni}&size=150x150&format=Png")
+        u = url_segura(ic["data"][0].get("imageUrl"))
+        dados["icone"] = u if u.startswith("https://") and u.split("/")[2].endswith(".rbxcdn.com") else ""
+    except (urllib.error.URLError, ValueError, KeyError, IndexError, TypeError):
+        pass
+    return dados
+
+
+@app.route("/api/jogo")
+def jogo():
+    """Jogadores online, visitas, favoritos e aprovação de Vox Seas (atualiza a cada 60 s)."""
+    agora = time.time()
+    if (agora - _jogo_cache["t"] > 60 or _jogo_cache["data"] is None) and pode_tentar("jogo"):
+        try:
+            _jogo_cache.update(t=agora, data=buscar_jogo())
+        except (urllib.error.URLError, ValueError, KeyError, IndexError, TypeError) as e:
+            falhou("jogo")
+            app.logger.error("jogo: %s", str(e)[:120])
+    if not _jogo_cache["data"]:
+        return jsonify({"ok": False}), 503
+    resp = jsonify({"ok": True, **_jogo_cache["data"]})
+    resp.headers["Cache-Control"] = "public, s-maxage=60, stale-while-revalidate=120"
+    return resp
+
+
+# ---------------------------------------------------------------------------
 # Placar das wars (# wars-results). Cada linha no formato:
 #   CrewA 3 x 1 CrewB      (também aceita "3-1", "3×1")
 #   CrewA venceu CrewB     (conta 1 x 0)
@@ -685,7 +744,7 @@ def buscar_wars():
     tabela, partidas = {}, []
 
     def crew(n):
-        return tabela.setdefault(n.lower(), {"crew": n, "v": 0, "d": 0, "e": 0, "pts": 0})
+        return tabela.setdefault(n.lower(), {"crew": n, "v": 0, "d": 0, "e": 0, "pts": 0, "h": []})
 
     for m in reversed(msgs):
         textos = [m.get("content") or ""] + [(e.get("description") or "") for e in m.get("embeds") or []]
@@ -711,12 +770,16 @@ def buscar_wars():
                 cb["v"] += 1; ca["d"] += 1; cb["pts"] += 3
             else:
                 ca["e"] += 1; cb["e"] += 1; ca["pts"] += 1; cb["pts"] += 1
+            ca["h"].append("V" if ga > gb else "D" if gb > ga else "E")
+            cb["h"].append("V" if gb > ga else "D" if ga > gb else "E")
             d = datetime.fromisoformat(m["timestamp"].replace("Z", "+00:00"))
             partidas.append({"a": ca["crew"], "b": cb["crew"], "ga": ga, "gb": gb,
                              "data": f"{d.day} {MESES[d.month - 1]} {d.year}",
                              "link": f"https://discord.com/channels/{guild_id}/{canal}/{m['id']}"})
+    for c in tabela.values():
+        c["h"] = c["h"][-5:][::-1]  # últimas 5, da mais recente para a mais antiga
     ranking = sorted(tabela.values(), key=lambda c: (-c["pts"], -c["v"], c["d"], c["crew"].lower()))
-    return {"ranking": ranking[:20], "partidas": partidas[::-1][:8]}
+    return {"ranking": ranking[:20], "partidas": partidas[::-1][:10]}
 
 
 @app.route("/api/wars")

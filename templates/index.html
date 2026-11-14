@@ -9,7 +9,7 @@
 <link rel="icon" href="/img/logo.jpg">
 <title>Kyzen SA — Servidor de Vox Seas</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Noto+Serif+JP:wght@700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Pirata+One&family=Noto+Serif+JP:wght@700&display=swap" rel="stylesheet">
 <style>:root{--img1:url("/img/img1.jpg");--img2:url("/img/img2.jpg")}
 :root{--logo:url("/img/logo.jpg");--imgink:url("/img/imgink.jpg");--imgred:url("/img/imgred.jpg");--imgwater:url("/img/imgwater.jpg")}
 
@@ -143,15 +143,15 @@ a.card{display:block}.panel.dt{max-width:760px;margin:0 auto;padding:28px}.dt p{
 .hero::before{content:"";position:absolute;inset:-20%;z-index:0;pointer-events:none;background:radial-gradient(28% 26% at 50% 33%,rgba(227,179,109,.3),transparent 70%);animation:breathe 5s ease-in-out infinite}
 @keyframes breathe{50%{opacity:.45;transform:scale(1.08)}}
 .waves{position:absolute;left:0;right:0;bottom:-2px;height:74px;z-index:3;pointer-events:none;overflow:hidden}
-.waves svg{position:absolute;bottom:0;left:0;width:200%;height:100%;animation:wave 16s linear infinite}
-.waves svg+svg{animation-duration:26s;opacity:.55;height:85%}
+.waves>svg{position:absolute;bottom:0;left:0;width:200%;height:100%;animation:wave 16s linear infinite}
+.waves>svg:last-child{animation-duration:26s;opacity:.55;height:85%}
 @keyframes wave{to{transform:translateX(-50%)}}
 .ph .waves{height:46px}
 @keyframes float{50%{transform:translateY(-12px)}}
 .hero h1{background:linear-gradient(100deg,#b9884b 20%,#fff1cf 38%,#efcf9a 50%,#b9884b 68%);background-size:260% 100%;-webkit-background-clip:text;background-clip:text;animation:rise .9s cubic-bezier(.2,.7,.2,1) .15s both,shine 6s linear 1.2s infinite}
 @keyframes shine{from{background-position:100% 0}to{background-position:-160% 0}}
 .hero .wrap>*:not(h1),.ph .wrap>*{animation:rise .9s cubic-bezier(.2,.7,.2,1) both}
-.hero .wrap>:nth-child(2){animation-delay:.05s}.hero .wrap>p{animation-delay:.3s}.hero .wrap>a{animation-delay:.42s}.hero .wrap>.cd{animation-delay:.55s}.hero .wrap>.stats{animation-delay:.7s}
+.hero .wrap>:nth-child(2){animation-delay:.05s}.hero .wrap>p{animation-delay:.3s}.hero .wrap>a{animation-delay:.42s}.hero .wrap>.vs{animation-delay:.55s}.hero .wrap>.stats{animation-delay:.7s}
 .ph .wrap>h1{animation-delay:.08s}.ph .wrap>p{animation-delay:.18s}
 .hero .wrap>.logo{animation:rise .9s cubic-bezier(.2,.7,.2,1) both,float 6s ease-in-out 1s infinite}
 @keyframes rise{from{opacity:0;transform:translateY(26px)}}
@@ -182,7 +182,66 @@ a.card{display:block}.panel.dt{max-width:760px;margin:0 auto;padding:28px}.dt p{
 .rv.in{opacity:1;transform:none}
 .ttl.rv::after{width:0;transition:width .9s cubic-bezier(.2,.7,.2,1) .35s}.ttl.rv.in::after{width:46px}
 .cta{position:relative;overflow:hidden;isolation:isolate}.cta::before{content:"";position:absolute;inset:0;z-index:-1;background:radial-gradient(60% 80% at 50% 120%,rgba(224,87,75,.35),transparent 70%);animation:breathe 6s ease-in-out infinite}
-@media (prefers-reduced-motion:reduce){html:not(.anim) :is(.hero .wrap>.logo,.hero h1,.hero .wrap>*,.ph .wrap>*,.kick::after,.waves svg,.hero::before,.cta::before,.btn,.view){animation:none!important}html:not(.anim) .fx{display:none}html:not(.anim) .rv{opacity:1;transform:none}}
+/* ===================== Visual náutico ===================== */
+main{background-image:linear-gradient(color-mix(in srgb,var(--accent) 6%,transparent) 1px,transparent 1px),linear-gradient(90deg,color-mix(in srgb,var(--accent) 6%,transparent) 1px,transparent 1px);background-size:88px 88px;background-position:center top}
+.hero h1,.ph h1{font-family:"Pirata One","Cinzel",serif;font-weight:400;letter-spacing:.04em}.hero h1{font-size:clamp(3rem,10vw,5.6rem)}.ph h1{font-size:clamp(2.3rem,6vw,3.4rem)}
+.ttl::after{width:70px;height:4px;border-radius:2px;background:repeating-linear-gradient(-55deg,var(--accent) 0 3px,color-mix(in srgb,var(--accent) 40%,transparent) 3px 6px)}.ttl.rv.in::after{width:70px}
+.ic{border-radius:50%;border:2px solid color-mix(in srgb,var(--accent) 65%,transparent);box-shadow:inset 0 0 0 3px var(--surface),inset 0 0 0 4px color-mix(in srgb,var(--accent) 30%,transparent),inset 0 -10px 18px -10px color-mix(in srgb,#3f8fd6 45%,transparent)}
+.card:hover .ic{transform:rotate(-14deg) scale(1.08)}
+.panel{box-shadow:inset 0 0 0 5px var(--surface),inset 0 0 0 6px color-mix(in srgb,var(--accent) 22%,transparent)}
+.rosa{position:absolute;z-index:1;pointer-events:none;color:#e3b36d;opacity:.13;width:560px;height:560px;right:-150px;top:50%;margin-top:-300px;animation:spin 160s linear infinite}
+.ph .rosa{width:300px;height:300px;right:-70px;margin-top:-170px;opacity:.11}
+@media (max-width:700px){.hero .rosa{right:50%;margin-right:-280px;opacity:.08}}
+@keyframes spin{to{transform:rotate(360deg)}}
+.barco{position:absolute;bottom:18px;left:0;width:96px;height:56px;color:#e3b36d;animation:sail 48s linear infinite}
+.barco svg{display:block;width:100%;height:100%;animation:bob 3.2s ease-in-out infinite;transform-origin:50% 80%}
+@keyframes sail{from{transform:translateX(-120px)}to{transform:translateX(calc(100vw + 40px))}}
+@keyframes bob{50%{transform:translateY(3px) rotate(-3deg)}}
+.ft{position:relative}.ft::before{content:"";position:absolute;left:0;right:0;top:-1px;height:4px;background:repeating-linear-gradient(-55deg,var(--accent) 0 3px,transparent 3px 7px);opacity:.5}
+.ft .fim{display:block;margin-top:6px;font-family:"Pirata One","Cinzel",serif;font-size:1.15rem;color:var(--accent);letter-spacing:.04em}
+/* Vox Seas ao vivo */
+.vs{display:flex;align-items:center;gap:14px;max-width:580px;margin:28px auto 0;padding:12px 12px 12px 14px;border-radius:18px;text-align:left;color:#fff;background:rgba(10,17,18,.62);border:1px solid rgba(227,179,109,.45);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+.vs img,.vs .vi{width:58px;height:58px;border-radius:14px;flex:none;background:#0a1112;display:grid;place-items:center;font-size:1.6rem;box-shadow:0 0 0 2px rgba(227,179,109,.5)}
+.vs .vt{flex:1;min-width:0;display:block}.vs small{display:block;font-size:.66rem;letter-spacing:.2em;color:#e3b36d}
+.vs b{display:block;font:700 1.3rem/1.25 "Cinzel",serif;font-variant-numeric:tabular-nums}.vs .vm{display:block;font-size:.8rem;color:rgba(255,255,255,.75)}
+.vs .vj{flex:none;padding:10px 18px;border-radius:99px;font-weight:700;font-size:.88rem;color:#1a1208;background:linear-gradient(#d9a862,#b0793a);transition:transform .2s}.vs .vj:hover{transform:translateY(-2px)}
+.vs.lt{max-width:none;margin:0;color:var(--text);background:var(--surface);border-color:var(--border);-webkit-backdrop-filter:none;backdrop-filter:none}.vs.lt small{color:var(--accent)}.vs.lt .vm{color:var(--muted)}
+@media (max-width:520px){.vs{flex-wrap:wrap}.vs .vj{flex:1 1 100%;text-align:center}}
+.dot.pu{animation:ping 2s ease-out infinite}@keyframes ping{0%{box-shadow:0 0 0 0 rgba(59,165,93,.7)}80%,100%{box-shadow:0 0 0 8px rgba(59,165,93,0)}}
+.hero .wrap>.vs{animation-delay:.55s}
+/* A Frota */
+.frota{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:16px;margin-bottom:12px}
+.ship{position:relative;isolation:isolate;overflow:hidden;display:block;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:18px 18px 16px;transition:transform .3s cubic-bezier(.2,.7,.2,1),border-color .3s,box-shadow .3s}
+.ship::after{content:"";position:absolute;left:0;right:0;bottom:0;height:5px;z-index:-1;background:repeating-linear-gradient(90deg,color-mix(in srgb,var(--accent) 35%,transparent) 0 12px,transparent 12px 18px)}
+.ship:hover{transform:translateY(-5px) rotate(-.4deg);border-color:var(--accent);box-shadow:0 22px 44px -26px color-mix(in srgb,var(--accent) 80%,transparent)}
+.ship.lider{border-color:color-mix(in srgb,#e3b36d 70%,var(--border));background:linear-gradient(160deg,color-mix(in srgb,#e3b36d 14%,var(--surface)),var(--surface) 55%)}
+.ship .sh-i{position:absolute;inset:0 0 auto;width:100%;height:96px;object-fit:cover;z-index:-1;opacity:.28;-webkit-mask-image:linear-gradient(#000,transparent);mask-image:linear-gradient(#000,transparent)}
+.sh-f{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:6px}
+.flag{width:96px;height:68px;color:var(--muted);overflow:visible}.cloth{transform-origin:11px 30px;animation:flap 3.4s ease-in-out infinite}
+.ship:nth-child(2n) .cloth{animation-delay:-1.2s}.ship:nth-child(3n) .cloth{animation-delay:-2.1s}
+@keyframes flap{50%{transform:skewY(-3deg) scaleX(.96)}}
+.pos{font:400 2rem/1 "Pirata One","Cinzel",serif;color:var(--accent)}
+.ship .tag{font-size:.68rem;letter-spacing:.14em;color:var(--accent);font-weight:700}.ship h3{margin:4px 0 10px;font-size:1.12rem;overflow-wrap:anywhere}
+.sh-s{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;text-align:center}
+.sh-s span{border:1px solid var(--border);border-radius:10px;padding:6px 2px;font-size:.66rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.sh-s b{display:block;font:700 1.15rem "Cinzel",serif;color:var(--text)}.sh-s .pt{border-color:var(--accent)}.sh-s .pt b{color:var(--accent)}
+.sh-h{display:flex;gap:5px;margin-top:10px;align-items:center}.sh-h em{font-style:normal;font-size:.8rem;color:var(--muted)}
+.sh-h i{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font:700 .68rem system-ui;font-style:normal;color:#fff}
+.sh-h .rV{background:#2f8f55}.sh-h .rD{background:#b23a2c}.sh-h .rE{background:#6b6355}
+.sh-n{margin:0;color:var(--muted);font-size:.9rem}
+.ship.ghost{border-style:dashed;background:transparent}.ship.ghost .flag{color:var(--accent)}.ship.ghost::after{display:none}
+.porto{grid-column:1/-1;text-align:center;padding:30px 22px;border:1px dashed color-mix(in srgb,var(--accent) 55%,var(--border));border-radius:18px;background:color-mix(in srgb,var(--accent) 5%,transparent)}
+.porto svg{width:220px;max-width:70%;height:auto;color:var(--accent);display:block;margin:0 auto 6px}.porto svg .mar{animation:wave 6s linear infinite alternate}
+.porto h3{margin:6px 0 8px}.porto p{max-width:560px;margin:0 auto;color:var(--muted)}
+/* Diário de bordo */
+.log{list-style:none;margin:0;padding:6px 18px;border:1px solid var(--border);border-radius:16px;background:var(--surface);box-shadow:inset 0 0 0 5px var(--surface),inset 0 0 0 6px color-mix(in srgb,var(--accent) 22%,transparent)}
+.log li+li{border-top:1px dashed var(--border)}.log a{display:flex;gap:14px;align-items:center;padding:12px 4px;flex-wrap:wrap}
+.log .ld{font:.78rem ui-monospace,Consolas,monospace;color:var(--muted);min-width:92px}.log .lw{display:flex;gap:10px;align-items:center;flex:1;flex-wrap:wrap}
+.log b{font-family:"Cinzel",serif}.log b.w{color:#3ba55d}.log b.l{opacity:.7}.log i{font-style:normal;font-weight:700;padding:2px 10px;border-radius:99px;background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--accent)}
+.log a:hover b{text-decoration:underline}
+@media (max-width:520px){.log a{gap:4px}.log .ld{flex:1 1 100%;min-width:0}}
+@media (prefers-reduced-motion:reduce){html:not(.anim) :is(.rosa,.barco,.barco svg,.cloth,.dot.pu,.porto svg .mar){animation:none!important}html:not(.anim) .barco{display:none}}
+@media (prefers-reduced-motion:reduce){html:not(.anim) :is(.hero .wrap>.logo,.hero h1,.hero .wrap>*,.ph .wrap>*,.kick::after,.waves>svg,.hero::before,.cta::before,.btn,.view){animation:none!important}html:not(.anim) .fx{display:none}html:not(.anim) .rv{opacity:1;transform:none}}
 @media (max-width:640px){.hd .wrap{flex-wrap:wrap;gap:6px 12px;padding-top:8px;padding-bottom:6px;min-height:0}.hd .brand{flex:1}.hd nav{order:3;flex:1 1 100%;margin:0 -6px}}
 @media (max-width:700px){.fg{grid-template-columns:1fr}.top .tl a:nth-child(n+3){display:none}.chip{display:none}}
 @media (prefers-reduced-motion:reduce){html:not(.anim) *{transition:none!important;scroll-behavior:auto}}
@@ -196,8 +255,8 @@ a.card{display:block}.panel.dt{max-width:760px;margin:0 auto;padding:28px}.dt p{
  <div class="hero"><div class="wrap"><div class="logo" role="img" aria-label="Logo da Kyzen SA"></div>
   <span class="kick">影 KYZEN SA</span><h1>KyzenSA</h1>
   <p>Monte sua crew, entre em wars e faça alianças nos mares de Vox Seas.</p>
-  <a class="btn" href="#crews">Ver crews</a><a class="btn ghost" href="https://discord.gg/DNZrYHRXU5" target="_blank" rel="noopener">Entrar no Discord</a>
-  <div class="cd" data-cd style="margin-top:28px"></div><div class="stats"><div class="stat"><b data-n="1288" data-live="membros">0</b><small>Membros</small></div><div class="stat"><b data-n="158" data-live="online">0</b><small><i class="dot"></i>Online agora</small></div><div class="stat"><b data-n="8" data-live="boosts">0</b><small>Boosts</small></div><div class="stat"><b data-n="10">0</b><small>Canais de crew</small></div><div class="stat"><b data-n="2">0</b><small>Calls de crew</small></div><div class="stat"><b data-n="4">0</b><small>Canais de diversão</small></div></div>
+  <a class="btn" href="#crews">Ver a frota</a><a class="btn ghost" href="https://discord.gg/DNZrYHRXU5" target="_blank" rel="noopener">Entrar no Discord</a>
+  <div class="vs" data-jogo><span class="vt"><small>VOX SEAS · AO VIVO</small><b>Carregando…</b></span></div><div class="stats"><div class="stat"><b data-n="1288" data-live="membros">0</b><small>Membros</small></div><div class="stat"><b data-n="158" data-live="online">0</b><small><i class="dot"></i>Online agora</small></div><div class="stat"><b data-n="8" data-live="boosts">0</b><small>Boosts</small></div><div class="stat"><b data-n="10">0</b><small>Canais de crew</small></div><div class="stat"><b data-n="2">0</b><small>Calls de crew</small></div><div class="stat"><b data-n="4">0</b><small>Canais de diversão</small></div></div>
  </div></div>
  <section class="blk"><div class="wrap"><h2 class="ttl">Por que fazer parte?</h2><p class="sub">Tudo que a sua tripulação precisa em um só lugar.</p><div class="grid" data-cards="why"></div></div></section>
  <section class="cta"><div class="wrap"><h2>Quer entrar para a equipe?</h2><p>Fale com a staff e faça o apply direto no Discord.</p><a class="btn" href="https://discord.gg/DNZrYHRXU5" target="_blank" rel="noopener">Entrar no Discord</a></div></section>
@@ -211,7 +270,7 @@ a.card{display:block}.panel.dt{max-width:760px;margin:0 auto;padding:28px}.dt p{
    <a class="card" href="#suporte"><div class="ic">🎫</div><h3>Suporte</h3><p>Ticket e apply para a staff.</p></a>
   </div>
   <h2 class="ttl">Últimas novidades</h2><p class="sub"></p><div class="list" data-list="news"></div>
-  <h2 class="ttl">Crews do servidor</h2><p class="sub"></p><div class="list" data-list="crews"></div>
+  <h2 class="ttl">A Frota</h2><p class="sub">As crews do servidor, cada uma com o seu navio. <a class="more" style="display:inline" href="#crews">Ver a frota completa →</a></p><div class="frota" data-frota="3"></div>
  </div></section>
 </section>
 
@@ -233,16 +292,16 @@ a.card{display:block}.panel.dt{max-width:760px;margin:0 auto;padding:28px}.dt p{
    </ol>
    <div class="acts"><a class="btn" data-ch="apply" href="https://discord.gg/DNZrYHRXU5" target="_blank" rel="noopener">Abrir #kyzen-apply</a><a class="btn alt" href="#canal-requisitos">Quer ser Content Creator?</a></div>
   </div>
-  <div class="panel cd" data-cd style="margin:34px 0;text-align:center"></div><p class="sub" style="margin-top:-10px">As crews e as wars começam depois do lançamento de Vox Seas. Enquanto isso, veja como os canais vão funcionar.</p><h2 class="ttl">Canais da crew</h2><p class="sub"></p><div class="grid" data-cards="crews"></div>
-  <h2 class="ttl" style="margin-top:44px">Wars e relações</h2><p class="sub"></p><div class="grid" data-cards="wars"></div>
-  <h2 class="ttl" style="margin-top:44px">Placar das wars</h2><p class="sub">Calculado automaticamente a partir do canal # wars-results. Vitória vale 3 pontos e empate vale 1.</p><div id="placar"><div class="empty">Carregando o placar…</div></div>
-  <h2 class="ttl" style="margin-top:44px">Crews do servidor</h2><p class="sub"></p><div class="list" data-list="crews"></div></div></section></section>
+  <h2 class="ttl" style="margin-top:44px">A Frota</h2><p class="sub">Cada crew é um navio. Bandeira, posição, placar e últimas batalhas se atualizam sozinhos a partir de # crew-post e # wars-results. Vitória vale 3 pontos e empate vale 1.</p><div class="frota" data-frota="0"></div>
+  <h2 class="ttl" style="margin-top:44px">Diário de bordo</h2><p class="sub">As últimas wars registradas.</p><div id="diario"><div class="empty">Abrindo o diário…</div></div>
+  <h2 class="ttl" style="margin-top:44px">Canais da crew</h2><p class="sub"></p><div class="grid" data-cards="crews"></div>
+  <h2 class="ttl" style="margin-top:44px">Wars e relações</h2><p class="sub"></p><div class="grid" data-cards="wars"></div></div></section></section>
 
 <section class="view" id="v-comunidade" hidden><div class="ph" style="--bgi:var(--imgwater)"><div class="wrap"><i class="jp">祭</i><h1>Comunidade</h1><p>Chat, diversão e o universo de Vox Seas.</p></div></div>
  <section class="blk"><div class="wrap"><h2 class="ttl">Chat geral</h2><p class="sub"></p><div class="grid" data-cards="chat"></div>
   <h2 class="ttl" style="margin-top:44px">Canais de voz</h2><p class="sub"></p><div class="grid" data-cards="voz"></div>
   <h2 class="ttl" style="margin-top:44px">Diversão</h2><p class="sub"></p><div class="grid" data-cards="fun"></div>
-  <h2 class="ttl" style="margin-top:44px">O jogo: Vox Seas</h2><p class="sub">Resumo feito pela comunidade, não oficial.</p><div class="grid" data-cards="jogo"></div>
+  <h2 class="ttl" style="margin-top:44px">O jogo: Vox Seas</h2><p class="sub">Resumo feito pela comunidade, não oficial. Os números ao vivo vêm direto do Roblox.</p><div class="vs lt" data-jogo><span class="vt"><small>VOX SEAS · AO VIVO</small><b>Carregando…</b></span></div><div class="grid" data-cards="jogo" style="margin-top:22px"></div>
   <figure class="map"><svg viewBox="0 0 640 260" role="img" aria-label="Mapa ilustrativo com ilhas e rota de navegação"><rect width="640" height="260" rx="10" fill="none"/><path d="M40 200Q130 120 230 150T390 90T590 60" fill="none" stroke="var(--accent2)" stroke-width="2.5" stroke-dasharray="7 7"/><ellipse cx="70" cy="205" rx="42" ry="22" fill="var(--accent)" opacity=".8"/><ellipse cx="235" cy="150" rx="36" ry="20" fill="var(--accent)" opacity=".65"/><ellipse cx="395" cy="92" rx="44" ry="22" fill="var(--accent)" opacity=".5"/><ellipse cx="575" cy="62" rx="38" ry="20" fill="var(--accent)" opacity=".35"/><g fill="var(--text)" font-size="13" font-family="system-ui,sans-serif" text-anchor="middle"><text x="70" y="242">Ilha inicial</text><text x="235" y="185">Ilhas intermediárias</text><text x="395" y="128">Mar aberto</text><text x="575" y="98">Ilhas avançadas</text><text x="470" y="215">🐉 Sea Beast</text></g><g transform="translate(580 200)" stroke="var(--muted)" fill="none" stroke-width="1.5"><circle r="22"/><path d="M0 -28V28M-28 0H28"/><path d="M0 -22L5 0L0 22L-5 0Z" fill="var(--accent)" stroke="none"/></g></svg><figcaption>Ilustração decorativa, não é o mapa oficial do jogo.</figcaption></figure>
   <div class="gal"><div class="shot s1" role="img" aria-label="Membros da crew reunidos"><span>A tripulação reunida</span></div><div class="shot s2" role="img" aria-label="Frota de navios ao anoitecer"><span>Frota ao anoitecer</span></div></div>
  </div></section></section>
@@ -260,7 +319,7 @@ a.card{display:block}.panel.dt{max-width:760px;margin:0 auto;padding:28px}.dt p{
  <div><div class="brand"><span class="mark"></span><b>KYZEN SA</b></div><p>A comunidade de Vox Seas para quem vive o mar. Crews, wars e muita diversão.</p><div class="soc"><a href="https://discord.gg/DNZrYHRXU5" target="_blank" rel="noopener">Discord</a></div></div>
  <div><h4>Links rápidos</h4><ul><li><a href="#inicio">Início</a></li><li><a href="#informacoes">Informações</a></li><li><a href="#novidades">Novidades</a></li><li><a href="#crews">Crews</a></li><li><a href="#comunidade">Comunidade</a></li><li><a href="#suporte">Suporte</a></li></ul></div>
  <div><h4>Suporte</h4><ul><li><a href="https://discord.gg/DNZrYHRXU5" target="_blank" rel="noopener">Contato</a></li><li><a href="#suporte">Regras</a></li><li><a href="#suporte">Abrir ticket</a></li><li><a href="#suporte">Apply</a></li></ul></div>
-</div><div class="cp">© 2026 Kyzen SA. Não afiliado ao Roblox nem aos criadores de Vox Seas.</div></div></footer>
+</div><div class="cp"><span class="fim">⚓ Bons ventos, marujo.</span>© 2026 Kyzen SA. Não afiliado ao Roblox nem aos criadores de Vox Seas.</div></div></footer>
 <button class="fab" type="button" id="av-abrir" aria-haspopup="dialog">⭐ <span>Avaliar o site</span></button>
 <dialog class="av" id="av" aria-labelledby="av-t">
  <form id="av-f" method="dialog" novalidate>
@@ -284,7 +343,7 @@ a.card{display:block}.panel.dt{max-width:760px;margin:0 auto;padding:28px}.dt p{
  </form>
 </dialog>
 <script>
-const DL="https://discord.gg/DNZrYHRXU5";
+const DL="https://discord.gg/DNZrYHRXU5";let RBX="https://www.roblox.com/games/104067066727140/Vox-Seas";
 /* Preencha aqui: news {titulo,data,tag,link} · crews {nome,lider} */
 const DATA={news:[],crews:[]};
 const C={
@@ -298,7 +357,7 @@ voz:[["➕","Criar Call","Entre aqui para criar a sua própria call.","➕ Criar
 fun:[["🎨","Gartic","Desenhe e adivinhe com a galera.","# gartic"],["🃏","Mudae","Colecione e troque personagens.","# mudae"],["🐓","Rinha de Galo","Teste a sorte do seu galo.","# rinha-de-galo"],["🐔","Akatsuki dos Galos","Mais diversão com a galera.","# akatsuki-dos-galos"]],
 jogo:[["⚓","Piratas ou Marines","Escolha seu lado e siga a jornada por quests e batalhas."],["🍎","Vox Fruits","Frutas com habilidades em cinco raridades: comum, rara, épica, lendária e mítica."],["⚔️","Espadas, armas e estilos","Espadas, armas de fogo, luta corpo a corpo ou frutas."],["⛵","Navios e Sea Beasts","Cruze o oceano e enfrente chefes de raid no mar."],["👁️","Haki e mobilidade","Geppo e Haki ajudam na exploração e no combate."],["🗺️","Ilhas e chefes","Novas ilhas se abrem conforme você avança."]],
 sup:[["🎫","Abrir ticket","Dúvidas, denúncias e parcerias com a staff.","# abrir-ticket"],["📝","Apply","Candidate-se para uma crew ou para a staff.","# kyzen-apply"],["🎥","Content Creator","Veja os requisitos para ser criador de conteúdo da Kyzen SA.","# req-cc","requisitos"]]};
-const E={news:"As novidades aparecerão aqui.",crews:"As crews aparecem aqui assim que forem divulgadas em # crew-post."};
+const E={news:"As novidades aparecerão aqui."};
 const x=s=>String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
 const T={
  news:n=>`<a class="ev" href="${x(n.link||DL)}" target="_blank" rel="noopener">${n.img?`<img class="th" src="${x(n.img)}" alt="" loading="lazy" referrerpolicy="no-referrer">`:""}<span class="tag">${x(n.tag||"NOVIDADE")}</span><h3>${x(n.titulo)}</h3><p>${x(n.data)}</p></a>`,
@@ -347,10 +406,41 @@ function detail(s,m){const N={informacoes:"Informações",novidades:"Novidades",
  document.title=m.t+" — Kyzen SA"}
 /* Canais espelhados do Discord (bot) -> /api/canal/<slug> (HTML já sanitizado no servidor) */
 const ESP=["requisitos","niveis","regras","aliados","inimigos","titulos"],CAN={};
-/* Placar das wars -> /api/wars */
-fetch("/api/wars").then(r=>r.json()).then(j=>{const R=j.ranking||[],P=j.partidas||[];
- $("placar").innerHTML=R.length?`<div class="panel tw"><table class="tb rk"><tr><th>#</th><th>Crew</th><th>V</th><th>E</th><th>D</th><th>Pts</th></tr>${R.map((c,i)=>`<tr><td>${i+1}</td><th>${i<3?["🥇","🥈","🥉"][i]+" ":""}${x(c.crew)}</th><td>${c.v}</td><td>${c.e}</td><td>${c.d}</td><td><b>${c.pts}</b></td></tr>`).join("")}</table></div>${P.length?`<h3 style="margin:26px 0 12px">Últimas wars</h3><div class="list">${P.map(p=>`<a class="ev" href="${x(p.link)}" target="_blank" rel="noopener"><span class="tag">WAR</span><h3>${x(p.a)} ${p.ga} x ${p.gb} ${x(p.b)}</h3><p>${x(p.data)}</p></a>`).join("")}</div>`:""}`
- :`<div class="empty">O placar aparece aqui quando os resultados forem postados em # wars-results.<br><small>Formato de cada linha: <code>Crew A 3 x 1 Crew B</code> ou <code>Crew A venceu Crew B</code></small></div>`}).catch(()=>{$("placar").innerHTML='<div class="empty">Não foi possível carregar o placar agora.</div>'});
+/* ===================== A Frota: crews (# crew-post) + placar (# wars-results -> /api/wars) ===================== */
+let WARS=null;
+const hashN=s=>[...s.toLowerCase()].reduce((h,c)=>(h*31+c.charCodeAt(0))>>>0,7);
+const PATENTE=["Yonkou","Almirante","Vice-Almirante"];
+const bandeira=(nome,ghost)=>{const h=hashN(nome),c1=`hsl(${h%360} 52% 34%)`,c2=`hsl(${(h>>9)%360} 60% 22%)`,L=ghost?"?":x([...nome.replace(/[^\p{L}\p{N}]/gu,"")][0]||"⚓").toUpperCase(),tipo=(h>>4)%3;
+ return `<svg class="flag" viewBox="0 0 120 84" aria-hidden="true"><path d="M9 3V82" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><circle cx="9" cy="4" r="3.5" fill="#e3b36d"/><g class="cloth"><path d="M11 8Q38 2 64 8T116 8V54Q90 48 64 54T11 54Z" fill="${ghost?"none":c1}" ${ghost?'stroke="currentColor" stroke-dasharray="4 4" stroke-width="1.5"':""}/>${ghost?"":tipo===0?`<path d="M11 31Q38 25 64 31T116 31V40Q90 34 64 40T11 40Z" fill="${c2}"/>`:tipo===1?`<path d="M40 7V53M12 31H116" stroke="${c2}" stroke-width="7" opacity=".9"/>`:`<circle cx="63" cy="31" r="16" fill="${c2}"/>`}<text x="63" y="41" text-anchor="middle" font-family="Pirata One,Cinzel,serif" font-size="30" fill="${ghost?"currentColor":"#f3e6c8"}">${L}</text></g></svg>`};
+function navios(){const M=new Map();
+ (WARS&&WARS.ranking||[]).forEach((c,i)=>M.set(c.crew.toLowerCase(),{nome:c.crew,v:c.v,e:c.e,d:c.d,pts:c.pts,h:c.h||[],pos:i+1}));
+ DATA.crews.forEach(c=>{const k=(c.nome||"").toLowerCase();if(!k)return;const n=M.get(k)||{nome:c.nome,pos:0};n.link=c.link;n.img=c.img;M.set(k,n)});
+ return [...M.values()].sort((a,b)=>(a.pos||999)-(b.pos||999))}
+const navio=n=>{const ranked=n.pos>0,pat=ranked?(PATENTE[n.pos-1]||"Capitão"):"Nova no mar";
+ return `<a class="ship${n.pos===1?" lider":""}" href="${x(n.link||CH.resultados||DL)}" target="_blank" rel="noopener">${n.img?`<img class="sh-i" src="${x(n.img)}" alt="" loading="lazy" referrerpolicy="no-referrer">`:""}
+ <div class="sh-f">${bandeira(n.nome)}${ranked?`<span class="pos">#${n.pos}</span>`:""}</div>
+ <span class="tag">${ranked&&n.pos<4?["🥇","🥈","🥉"][n.pos-1]+" ":""}${x(pat.toUpperCase())}</span><h3>${x(n.nome)}</h3>
+ ${ranked?`<div class="sh-s"><span><b>${n.v}</b>vitórias</span><span><b>${n.e}</b>empates</span><span><b>${n.d}</b>derrotas</span><span class="pt"><b>${n.pts}</b>pontos</span></div>
+ <div class="sh-h" title="Últimas batalhas (a mais recente primeiro)">${n.h.length?n.h.map(r=>`<i class="r${r}">${r}</i>`).join(""):"<em>Sem batalhas ainda</em>"}</div>`:`<p class="sh-n">Ainda sem wars registradas.</p>`}</a>`};
+function renderFrota(){const N=navios(),post=CH["crew-post"]||DL,apl=CH.apply||DL;
+ document.querySelectorAll("[data-frota]").forEach(f=>{const lim=+f.dataset.frota||99;
+  f.innerHTML=N.length?N.slice(0,lim).map(navio).join("")+(lim===99||N.length<lim?`<a class="ship ghost" href="${x(post)}" target="_blank" rel="noopener"><div class="sh-f">${bandeira("?",1)}</div><span class="tag">VAGA NO PORTO</span><h3>Sua crew aqui</h3><p class="sh-n">Divulgue a sua crew em # crew-post para ela entrar na frota.</p></a>`:"")
+  :`<div class="porto"><svg viewBox="0 0 220 120" aria-hidden="true"><path d="M110 12v70" stroke="currentColor" stroke-width="3"/><path d="M113 18q40 24 0 56z" fill="currentColor" opacity=".22"/><path d="M107 24q-34 22 0 50z" fill="currentColor" opacity=".14"/><path d="M110 12l20 6-20 6z" fill="var(--accent2)"/><path d="M40 84h140l-18 22H58z" fill="currentColor" opacity=".35"/><path class="mar" d="M0 108q27-8 55 0t55 0 55 0 55 0v12H0z" fill="var(--accent)" opacity=".35"/></svg>
+  <h3>O porto está esperando a primeira crew</h3><p>Quando uma crew for divulgada em <b># crew-post</b> ou tiver uma war registrada em <b># wars-results</b>, ela aparece aqui como um navio da frota, com bandeira própria, posição no ranking e as últimas batalhas.</p>
+  <div class="acts" style="justify-content:center"><a class="btn" href="${x(apl)}" target="_blank" rel="noopener">Entrar numa crew</a><a class="btn alt" href="${x(post)}" target="_blank" rel="noopener">Divulgar minha crew</a></div></div>`})}
+function renderDiario(){const P=WARS&&WARS.partidas||[],el=$("diario");if(!el)return;
+ el.innerHTML=P.length?`<ol class="log">${P.map(p=>{const va=p.ga>p.gb,vb=p.gb>p.ga;return `<li><a href="${x(p.link)}" target="_blank" rel="noopener"><span class="ld">${x(p.data)}</span><span class="lw"><b class="${va?"w":vb?"l":""}">${x(p.a)}</b><i>${p.ga} ⚔ ${p.gb}</i><b class="${vb?"w":va?"l":""}">${x(p.b)}</b></span></a></li>`}).join("")}</ol>`
+ :`<div class="empty">Nenhuma war registrada ainda. Quando os resultados forem postados em # wars-results, elas aparecem aqui.<br><small>Formato de cada linha: <code>Crew A 3 x 1 Crew B</code> ou <code>Crew A venceu Crew B</code></small></div>`}
+fetch("/api/wars").then(r=>r.json()).then(j=>{WARS=j}).catch(()=>{}).finally(()=>{renderFrota();renderDiario()});
+/* ===================== Vox Seas ao vivo -> /api/jogo (APIs públicas do Roblox) ===================== */
+const cmp=n=>new Intl.NumberFormat("pt-BR",{notation:"compact",maximumFractionDigits:1}).format(n);
+function renderJogo(j){document.querySelectorAll("[data-jogo]").forEach(e=>{
+ const extra=j?[`${cmp(j.visitas)} visitas`,`${cmp(j.favoritos)} favoritos`,j.aprovacao!=null?`${j.aprovacao}% de aprovação`:""].filter(Boolean).join(" · "):"Navegue pelos mares no Roblox.";
+ const old=e.querySelector("[data-jg]"),de=old?+old.dataset.jg:0;
+ e.innerHTML=`${j&&j.icone?`<img src="${x(j.icone)}" alt="" width="58" height="58" referrerpolicy="no-referrer">`:'<span class="vi">⚓</span>'}<span class="vt"><small>VOX SEAS · ${j?"AO VIVO":"ROBLOX"}</small><b>${j?`<i class="dot pu"></i><span data-jg="${j.jogando}">${de.toLocaleString("pt-BR")}</span> jogando agora`:"Vox Seas"}</b><span class="vm">${x(extra)}</span></span><a class="vj" data-rbx href="${x(RBX)}" target="_blank" rel="noopener">Jogar ▸</a>`;
+ const s=e.querySelector("[data-jg]");if(s){const alvo=j.jogando,calm=matchMedia("(prefers-reduced-motion:reduce)").matches;if(calm||!de&&document.hidden){s.textContent=alvo.toLocaleString("pt-BR");return}let t0=null;const f=ts=>{t0=t0??ts;const p=Math.min((ts-t0)/1100,1),v=Math.round(de+(alvo-de)*(1-Math.pow(1-p,3)));s.textContent=v.toLocaleString("pt-BR");if(p<1)requestAnimationFrame(f)};requestAnimationFrame(f)}})}
+const pegarJogo=()=>fetch("/api/jogo").then(r=>r.json()).then(j=>renderJogo(j.ok?j:null)).catch(()=>renderJogo(null));
+pegarJogo();setInterval(()=>{if(!document.hidden)pegarJogo()},60000);
 /* Staff -> /api/staff */
 fetch("/api/staff").then(r=>r.json()).then(j=>{const G=j.grupos||[];
  $("staff").innerHTML=G.length?G.map(g=>`<h3 class="sg"${g.cor?` style="--rc:${x(g.cor)}"`:""}>${x(g.cargo)} <small>${g.membros.length}</small></h3><div class="stm">${g.membros.map(m=>`<div class="mb"><img src="${x(m.avatar)}" alt="" loading="lazy" referrerpolicy="no-referrer"><span>${x(m.nome)}</span></div>`).join("")}</div>`).join(""):'<div class="empty">A lista da staff aparece aqui em breve.</div>'}).catch(()=>{$("staff").innerHTML='<div class="empty">Não foi possível carregar a staff agora.</div>'});
@@ -359,17 +449,14 @@ const norm=s=>s.normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase().replace(/[
 fetch("/api/servidor").then(r=>r.json()).then(j=>{if(!j.configured)return;
  document.querySelectorAll("[data-live]").forEach(e=>{const v=j[e.dataset.live];if(typeof v==="number"){e.dataset.n=v;if(counted)e.textContent=v.toLocaleString("pt-BR")}});
  Object.entries(D).forEach(([s,m])=>{const n=norm((m.ch.match(/#\s*([^·]+)/)||[])[1]||"");const c=n&&j.canais.find(c=>norm(c.nome).endsWith(n));if(c)CH[s]=`https://discord.com/channels/${j.guild_id}/${c.id}`});
+ const cp=j.canais.find(c=>norm(c.nome).endsWith("crewpost"));if(cp)CH["crew-post"]=`https://discord.com/channels/${j.guild_id}/${cp.id}`;renderFrota();
  document.querySelectorAll("[data-ch]").forEach(a=>{if(CH[a.dataset.ch])a.href=CH[a.dataset.ch]});
  if(/^https:\/\/(www\.)?roblox\.com\//.test(j.roblox||"")){RBX=j.roblox;document.querySelectorAll("[data-rbx]").forEach(a=>a.href=RBX)}
  const h=location.hash.slice(1);if(h.startsWith("canal-")&&D[h.slice(6)]&&!$("cb").querySelector(".dc"))detail(h.slice(6),D[h.slice(6)])}).catch(()=>{});const loadCanal=s=>CAN[s]??=fetch("/api/canal/"+s).then(r=>r.json()).catch(()=>null);
 function renderLists(){document.querySelectorAll("[data-list]").forEach(l=>{const k=l.dataset.list,d=DATA[k];l.innerHTML=d.length?d.slice(0,6).map(T[k]).join(""):`<div class="empty">${E[k]}</div>`})}
 renderLists();
 /* Anúncios do Discord (bot) -> /api/novidades */
-fetch("/api/novidades").then(r=>r.json()).then(j=>{if(Array.isArray(j.news)&&j.news.length){const ehCrew=n=>slug(n.tag||"")==="crew";DATA.crews=j.news.filter(ehCrew).map(n=>({nome:n.titulo,lider:n.data,link:n.link,img:n.img}));DATA.news=j.news.filter(n=>!ehCrew(n));renderLists();const h=location.hash.slice(1);if(h.startsWith("canal-")&&D[h.slice(6)])detail(h.slice(6),D[h.slice(6)])}}).catch(()=>{});
-let RBX="https://www.roblox.com/games/104067066727140/Vox-Seas";
-const LAUNCH=new Date("2026-11-14T16:00:00-03:00").getTime();
-function tick(){const d=LAUNCH-Date.now();document.querySelectorAll("[data-cd]").forEach(e=>{if(d<=0){if(!e.dataset.live){e.dataset.live=1;e.innerHTML=`<b class="live">Vox Seas já está no ar! ⚓</b><div style="margin-top:14px"><a class="btn" data-rbx href="${x(RBX)}" target="_blank" rel="noopener">Jogar no Roblox</a></div>`}return}const s=Math.floor(d/1e3),dd=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60),c=s%60,p=n=>String(n).padStart(2,"0");e.innerHTML=`<small>Lançamento de Vox Seas · 14/11/2026 às 16h (Brasília)</small><div class="t">${dd?`<span><b>${dd}</b>dias</span>`:""}<span><b>${p(h)}</b>horas</span><span><b>${p(m)}</b>min</span><span><b>${p(c)}</b>seg</span></div>`})}
-tick();setInterval(tick,1000);
+fetch("/api/novidades").then(r=>r.json()).then(j=>{if(Array.isArray(j.news)&&j.news.length){const ehCrew=n=>slug(n.tag||"")==="crew";DATA.crews=j.news.filter(ehCrew).map(n=>({nome:n.titulo,lider:n.data,link:n.link,img:n.img}));DATA.news=j.news.filter(n=>!ehCrew(n));renderLists();renderFrota();const h=location.hash.slice(1);if(h.startsWith("canal-")&&D[h.slice(6)])detail(h.slice(6),D[h.slice(6)])}}).catch(()=>{});
 const views=["inicio","informacoes","novidades","crews","comunidade","suporte"];let counted=false;
 function count(){const calm=matchMedia("(prefers-reduced-motion:reduce)").matches;document.querySelectorAll("[data-n]").forEach(e=>{const t=+e.dataset.n;if(calm){e.textContent=t.toLocaleString("pt-BR");return}let s=null;const f=ts=>{s=s??ts;const p=Math.min((ts-s)/1200,1);e.textContent=Math.floor(+e.dataset.n*p).toLocaleString("pt-BR");if(p<1)requestAnimationFrame(f)};requestAnimationFrame(f)})}
 function route(){document.title="Kyzen SA — Servidor de Vox Seas";let h=location.hash.slice(1),nv=h;const m=h.startsWith("canal-")&&D[h.slice(6)];
@@ -409,7 +496,10 @@ document.addEventListener("click",e=>{const a=e.target.closest('a[href^="https:/
  const calm=matchMedia("(prefers-reduced-motion:reduce)").matches&&!document.documentElement.classList.contains("anim");
  /* ondas na base dos topos (o período de 720 se repete, então o loop não tem emenda) */
  const onda=(a,b)=>`<svg viewBox="0 0 1440 80" preserveAspectRatio="none"><path d="M0 ${a} Q180 ${b} 360 ${a} T720 ${a} T1080 ${a} T1440 ${a} V80 H0Z" fill="var(--bg)"/></svg>`;
- document.querySelectorAll(".hero,.ph").forEach(h=>h.insertAdjacentHTML("beforeend",`<div class="waves" aria-hidden="true">${onda(44,74)}${onda(38,12)}</div>`));
+ /* rosa dos ventos girando ao fundo e um navio navegando entre as ondas do topo */
+ const ROSA=`<svg class="rosa" viewBox="-100 -100 200 200" aria-hidden="true"><g fill="none" stroke="currentColor"><circle r="97" stroke-width=".8"/><circle r="90" stroke-width=".5" stroke-dasharray="1.5 3.2"/><circle r="62" stroke-width=".5"/><circle r="22" stroke-width=".8"/></g><g fill="currentColor"><path d="M0-88 9-9 0 0-9-9Z"/><path d="M0 88 9 9 0 0-9 9Z" opacity=".5"/><path d="M88 0 9 9 0 0 9-9Z" opacity=".5"/><path d="M-88 0-9 9 0 0-9-9Z" opacity=".5"/><g opacity=".35"><path d="M55-55 7 0 0 0 0-7Z"/><path d="M55 55 0 7 0 0 7 0Z"/><path d="M-55 55-7 0 0 0 0 7Z"/><path d="M-55-55 0-7 0 0-7 0Z"/></g></g><g fill="currentColor" font-family="Cinzel,serif" font-size="11" text-anchor="middle"><text y="-72">N</text><text y="80">S</text><text x="76" y="4">L</text><text x="-76" y="4">O</text></g></svg>`;
+ const BARCO=`<div class="barco"><svg viewBox="0 0 120 70"><path d="M58 4V50" stroke="currentColor" stroke-width="2.4"/><path d="M61 9Q90 24 61 44Z" fill="#f3e6c8" opacity=".9"/><path d="M55 14Q32 28 55 44Z" fill="#f3e6c8" opacity=".7"/><path d="M58 4l15 4-15 4Z" fill="#e0574b"/><path d="M12 48H108L95 64H26Z" fill="currentColor"/><path d="M20 53H101" stroke="#0a1112" stroke-width="1.2" stroke-dasharray="3 5" opacity=".6"/></svg></div>`;
+ document.querySelectorAll(".hero,.ph").forEach(h=>{h.insertAdjacentHTML("afterbegin",ROSA);h.insertAdjacentHTML("beforeend",`<div class="waves" aria-hidden="true">${onda(44,74)}${h.classList.contains("hero")?BARCO:""}${onda(38,12)}</div>`)});
  /* barra de progresso e sombra do cabeçalho */
  const prog=document.createElement("div");prog.className="prog";document.body.append(prog);const hd=document.querySelector(".hd");
  const onScroll=()=>{const m=document.documentElement.scrollHeight-innerHeight;prog.style.setProperty("--p",m>0?(scrollY/m).toFixed(4):0);hd.classList.toggle("sc",scrollY>8)};
@@ -432,7 +522,7 @@ document.addEventListener("click",e=>{const a=e.target.closest('a[href^="https:/
    g.globalAlpha=1};
   passo()}
  /* elementos aparecem ao rolar, em sequência */
- const SEL=".card,.ev,.ttl,.panel,.gal .shot,.map,.ip,.mb,.steps li,.cta .wrap>*,.list>.empty,#staff>.empty,#placar>.empty";
+ const SEL=".card,.ev,.ttl,.panel,.gal .shot,.map,.ip,.mb,.steps li,.cta .wrap>*,.list>.empty,#staff>.empty,#diario>.empty,.ship,.porto,.log li";
  const io=new IntersectionObserver(es=>{let i=0;es.forEach(en=>{if(!en.isIntersecting)return;const el=en.target;io.unobserve(el);
    el.style.setProperty("--d",Math.min(i++,8)*75+"ms");el.classList.add("in");
    const fim=ev=>{if(ev.target!==el||ev.propertyName!=="opacity")return;el.removeEventListener("transitionend",fim);el.classList.remove("rv","in");el.style.removeProperty("--d")};
