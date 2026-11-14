@@ -80,6 +80,25 @@ a.card{display:block}.panel.dt{max-width:760px;margin:0 auto;padding:28px}.dt p{
 .cd small{display:block;margin-bottom:10px;opacity:.85;font-size:.82rem;letter-spacing:.04em}.cd .t{display:inline-flex;gap:10px;flex-wrap:wrap;justify-content:center}
 .cd .t span{background:rgba(10,17,18,.78);border:1px solid rgba(227,179,109,.45);border-radius:12px;padding:8px 14px;min-width:70px;color:#fff;font-size:.75rem}
 .cd .t b{display:block;font:700 1.7rem "Cinzel",serif;color:#e3b36d}.cd .live{color:#e3b36d;font-size:1.15rem}
+.dc{--dt:var(--text);--dm:var(--muted);color:var(--dt);font-size:.95rem;line-height:1.5;overflow-wrap:anywhere}
+.dc .dm+.dm{margin-top:14px}.dc .gap{height:.7em}.dc b{font-weight:700}
+.dc .h1,.dc .h2,.dc .h3{font-weight:800;line-height:1.3;margin:12px 0 4px}.dc .h1{font-size:1.45rem}.dc .h2{font-size:1.2rem}.dc .h3{font-size:1.05rem}
+.dc .small{font-size:.78rem;color:var(--dm)}
+.dc ul,.dc ol{margin:4px 0;padding-left:22px;color:var(--dt)}.dc li{margin:2px 0}.dc li.sub{margin-left:20px}
+.dc blockquote{margin:0;padding:0 0 0 12px;border-left:4px solid var(--border)}
+.dc a{color:#3f8fd6}.dc a:hover{text-decoration:underline}
+.dc code{font:.85em ui-monospace,Consolas,monospace;background:color-mix(in srgb,var(--text) 10%,transparent);padding:1px 5px;border-radius:4px}
+.dc pre{background:color-mix(in srgb,var(--text) 8%,transparent);border:1px solid var(--border);border-radius:8px;padding:10px;overflow-x:auto;margin:6px 0}.dc pre code{background:none;padding:0}
+.dc .em{width:1.375em;height:1.375em;vertical-align:-.3em;object-fit:contain}
+.dc .mn{background:color-mix(in srgb,#5865f2 22%,transparent);color:#7984f5;padding:0 3px;border-radius:4px;font-weight:600}
+.dc .mn.role{background:color-mix(in srgb,var(--rc,#5865f2) 18%,transparent);color:var(--rc,#7984f5)}
+.dc .sp{background:var(--dm);color:transparent;border-radius:4px;cursor:pointer;transition:.2s}.dc .sp:hover,.dc .sp:focus{background:color-mix(in srgb,var(--text) 12%,transparent);color:inherit}
+.dc .ts{background:color-mix(in srgb,var(--text) 10%,transparent);padding:0 3px;border-radius:4px}
+.dc .emb{display:flex;gap:16px;max-width:560px;margin-top:6px;background:color-mix(in srgb,var(--surface) 70%,var(--bg));border:1px solid var(--border);border-left:4px solid var(--ec,var(--border));border-radius:6px;padding:12px 16px}
+.dc .eb{flex:1;min-width:0}.dc .ea{font-size:.85rem;font-weight:600;margin-bottom:6px}.dc .et{font-weight:700;font-size:1.02rem;margin-bottom:6px}
+.dc .efs{display:flex;flex-wrap:wrap;gap:8px 16px;margin-top:8px}.dc .ef{flex:1 1 100%}.dc .ef.il{flex:1 1 150px}.dc .en{font-weight:700;margin-bottom:2px}
+.dc .ei,.dc .att{display:block;max-width:100%;max-height:420px;border-radius:6px;margin-top:12px}.dc .eth{width:80px;height:80px;object-fit:cover;border-radius:6px;flex:none}
+.dc .eft{font-size:.75rem;color:var(--dm);margin-top:8px}
 @media (max-width:700px){.fg{grid-template-columns:1fr}.top .tl a:nth-child(n+3){display:none}.chip{display:none}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto}}
 </style></head><body>
@@ -201,7 +220,10 @@ function detail(s,m){const N={informacoes:"Informações",novidades:"Novidades",
  $("cb").innerHTML=`<p>${x(m.d)}</p><h3>Como funciona</h3><ul>${m.p.map(i=>`<li>${x(i)}</li>`).join("")}</ul>${m.tb.map(t=>`<h3>${x(t[0])}</h3><div class="tw"><table class="tb">${t[1].map(r=>`<tr>${r.map((c,i)=>i?`<td>${x(c)}</td>`:`<th>${x(c)}</th>`).join("")}</tr>`).join("")}</table></div>`).join("")}<p class="note">Os detalhes completos ficam no canal do Discord.${u?" Você precisa já estar no servidor para abrir o canal.":""}</p><div class="acts"><a class="btn" href="${x(u||DL)}" target="_blank" rel="noopener">${u?"Abrir canal no Discord":"Entrar no Discord"}</a><a class="btn alt" href="#${m.sec}">Voltar para ${N[m.sec]}</a></div>`;
  const TG={anuncios:"ANÚNCIO","sub-anuncios":"SUB-ANÚNCIO",eventos:"EVENTO","videos-novos":"VÍDEO"};
  if(TG[s]){const L=DATA.news.filter(n=>slug(n.tag||"")===slug(TG[s]));$("cb").querySelector("p").insertAdjacentHTML("afterend",`<h3>${({anuncios:"Últimos anúncios","sub-anuncios":"Últimos avisos",eventos:"Últimos eventos","videos-novos":"Últimos vídeos"})[s]}</h3><div class="list">${L.length?L.map(T.news).join(""):`<div class="empty">${s==="videos-novos"?"Nenhum vídeo recente.":"Nada recente por aqui."}</div>`}</div>`)}
+ if(s==="requisitos")loadReq().then(r=>{if(!r||!r.html||location.hash!=="#canal-requisitos")return;const a=$("cb").querySelector(".acts");if(r.link)a.querySelector(".btn").href=r.link,a.querySelector(".btn").textContent="Abrir canal no Discord";$("cb").innerHTML=`<div class="dc">${r.html}</div><p class="note">Conteúdo atualizado automaticamente a partir do canal # req-cc do Discord.</p>`+a.outerHTML});
  document.title=m.t+" — Kyzen SA"}
+/* Requisitos do Discord (bot) -> /api/requisitos (HTML já sanitizado no servidor) */
+let REQ=null;const loadReq=()=>REQ??=fetch("/api/requisitos").then(r=>r.json()).catch(()=>null);
 function renderLists(){document.querySelectorAll("[data-list]").forEach(l=>{const k=l.dataset.list,d=DATA[k];l.innerHTML=d.length?d.slice(0,6).map(T[k]).join(""):`<div class="empty">${E[k]}</div>`})}
 renderLists();
 /* Anúncios do Discord (bot) -> /api/novidades */
