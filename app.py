@@ -1,3 +1,4 @@
+import hmac
 import json
 import os
 import re
@@ -810,6 +811,27 @@ def avaliacao():
     _envios[ip] = meus + [agora]
     _envios_global.append(agora)
     return jsonify({"ok": True})
+
+
+# TEMPORÁRIO: envio único do anúncio de lançamento do site. Será removido depois do uso.
+CANAL_ANUNCIOS = "1383990514701041836"
+
+
+@app.route("/api/anunciar", methods=["POST"])
+def anunciar():
+    chave = os.environ.get("ANUNCIO_KEY", "")
+    if len(chave) < 32 or not hmac.compare_digest(request.headers.get("X-Chave", ""), chave):
+        return jsonify({"ok": False}), 404
+    token = os.environ.get("DISCORD_BOT_TOKEN", "").strip()
+    texto = str((request.get_json(silent=True) or {}).get("texto") or "")
+    if not 0 < len(texto) <= 2000:
+        return jsonify({"ok": False, "erro": "texto vazio ou maior que 2000"}), 400
+    try:
+        m = discord_post(f"/channels/{CANAL_ANUNCIOS}/messages", token,
+                         {"content": texto, "allowed_mentions": {"parse": ["everyone"]}})
+    except urllib.error.HTTPError as e:
+        return jsonify({"ok": False, "erro_http": e.code, "discord": e.read().decode("utf-8", "replace")[:300]}), 502
+    return jsonify({"ok": True, "id": m.get("id"), "mention_everyone": m.get("mention_everyone")})
 
 
 @app.route("/api/requisitos")
