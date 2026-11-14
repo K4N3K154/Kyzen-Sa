@@ -2,6 +2,7 @@ import json
 import os
 import re
 import time
+import unicodedata
 import urllib.error
 import urllib.request
 from datetime import datetime, timedelta, timezone
@@ -106,6 +107,9 @@ def montar(msg, tag, guild_id, canal_id):
     }
 
 
+FEEDS_AUTO = [("SUB-ANÚNCIO", "sub-anuncios")]
+
+
 def buscar_anuncios(diag=None):
     token = os.environ.get("DISCORD_BOT_TOKEN", "").strip()
     canais = [c.strip() for c in os.environ.get("ANNOUNCE_CHANNELS", "").split(",") if c.strip()]
@@ -115,6 +119,13 @@ def buscar_anuncios(diag=None):
     if not token or not canais:
         return None
     guild_id = os.environ.get("DISCORD_GUILD_ID", "").strip()
+    # canais que entram sozinhos (pelo nome), se não estiverem no ANNOUNCE_CHANNELS
+    tags = {c.partition(":")[2].strip().upper() for c in canais}
+    for tag, nome in FEEDS_AUTO:
+        if tag not in tags and guild_id:
+            cid = achar_canal(token, guild_id, nome)
+            if cid:
+                canais.append(f"{cid}:{tag}")
     itens = []
     for c in canais:
         canal_id, _, tag = c.partition(":")
@@ -412,10 +423,13 @@ PAGINAS = {
 
 def achar_canal(token, guild_id, nome):
     """Procura o ID do canal pelo nome, quando a variável não foi criada."""
+    def norm(s):
+        s = unicodedata.normalize("NFD", s or "").encode("ascii", "ignore").decode()
+        return re.sub(r"[^a-z0-9]", "", s.lower())
+
     try:
         for c in discord_get(f"/guilds/{guild_id}/channels", token):
-            n = c.get("name", "")
-            if n == nome or re.sub(r"[^a-z0-9]", "", n.lower()).endswith(re.sub(r"[^a-z0-9]", "", nome)):
+            if c.get("type") in (0, 5) and norm(c.get("name")).endswith(norm(nome)):
                 return c["id"]
     except (urllib.error.URLError, ValueError, KeyError, TypeError):
         pass
