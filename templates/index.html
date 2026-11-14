@@ -220,10 +220,10 @@ function detail(s,m){const N={informacoes:"Informações",novidades:"Novidades",
  $("cb").innerHTML=`<p>${x(m.d)}</p><h3>Como funciona</h3><ul>${m.p.map(i=>`<li>${x(i)}</li>`).join("")}</ul>${m.tb.map(t=>`<h3>${x(t[0])}</h3><div class="tw"><table class="tb">${t[1].map(r=>`<tr>${r.map((c,i)=>i?`<td>${x(c)}</td>`:`<th>${x(c)}</th>`).join("")}</tr>`).join("")}</table></div>`).join("")}<p class="note">Os detalhes completos ficam no canal do Discord.${u?" Você precisa já estar no servidor para abrir o canal.":""}</p><div class="acts"><a class="btn" href="${x(u||DL)}" target="_blank" rel="noopener">${u?"Abrir canal no Discord":"Entrar no Discord"}</a><a class="btn alt" href="#${m.sec}">Voltar para ${N[m.sec]}</a></div>`;
  const TG={anuncios:"ANÚNCIO","sub-anuncios":"SUB-ANÚNCIO",eventos:"EVENTO","videos-novos":"VÍDEO"};
  if(TG[s]){const L=DATA.news.filter(n=>slug(n.tag||"")===slug(TG[s]));$("cb").querySelector("p").insertAdjacentHTML("afterend",`<h3>${({anuncios:"Últimos anúncios","sub-anuncios":"Últimos avisos",eventos:"Últimos eventos","videos-novos":"Últimos vídeos"})[s]}</h3><div class="list">${L.length?L.map(T.news).join(""):`<div class="empty">${s==="videos-novos"?"Nenhum vídeo recente.":"Nada recente por aqui."}</div>`}</div>`)}
- if(s==="requisitos")loadReq().then(r=>{if(!r||!r.html||location.hash!=="#canal-requisitos")return;const a=$("cb").querySelector(".acts");if(r.link)a.querySelector(".btn").href=r.link,a.querySelector(".btn").textContent="Abrir canal no Discord";$("cb").innerHTML=`<div class="dc">${r.html}</div><p class="note">Conteúdo atualizado automaticamente a partir do canal # req-cc do Discord.</p>`+a.outerHTML});
+ if(ESP.includes(s))loadCanal(s).then(r=>{if(!r||!r.html||location.hash!=="#canal-"+s)return;const a=$("cb").querySelector(".acts");if(r.link)a.querySelector(".btn").href=r.link,a.querySelector(".btn").textContent="Abrir canal no Discord";$("cb").innerHTML=`<div class="dc">${r.html}</div><p class="note">Conteúdo atualizado automaticamente a partir do canal ${x(m.ch)} do Discord.</p>`+a.outerHTML});
  document.title=m.t+" — Kyzen SA"}
-/* Requisitos do Discord (bot) -> /api/requisitos (HTML já sanitizado no servidor) */
-let REQ=null;const loadReq=()=>REQ??=fetch("/api/requisitos").then(r=>r.json()).catch(()=>null);
+/* Canais espelhados do Discord (bot) -> /api/canal/<slug> (HTML já sanitizado no servidor) */
+const ESP=["requisitos","niveis"],CAN={};const loadCanal=s=>CAN[s]??=fetch("/api/canal/"+s).then(r=>r.json()).catch(()=>null);
 function renderLists(){document.querySelectorAll("[data-list]").forEach(l=>{const k=l.dataset.list,d=DATA[k];l.innerHTML=d.length?d.slice(0,6).map(T[k]).join(""):`<div class="empty">${E[k]}</div>`})}
 renderLists();
 /* Anúncios do Discord (bot) -> /api/novidades */

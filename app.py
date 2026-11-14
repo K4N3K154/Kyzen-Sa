@@ -172,10 +172,11 @@ def novidades():
 
 
 # ---------------------------------------------------------------------------
-# Canal de requisitos -> página "Requisitos" do site, com visual do Discord
-#   REQUISITOS_CHANNEL -> ID do canal de requisitos
+# Canais do Discord -> páginas do site, com visual do Discord (/api/canal/<slug>)
+#   REQUISITOS_CHANNEL -> ID do canal de requisitos (# req-cc)
+#   NIVEIS_CHANNEL     -> ID do canal de níveis (# leveis-embed); opcional, o bot acha pelo nome
 # ---------------------------------------------------------------------------
-_req_cache = {"t": 0, "data": None}
+_req_cache = {}
 _TOKEN_RE = re.compile(
     r"<(a?):(\w+):(\d+)>"                    # 1-3 emoji custom
     r"|<@&(\d+)>"                            # 4 cargo
@@ -363,7 +364,8 @@ def contexto(token, guild_id, msgs):
     if guild_id:
         try:
             for r in discord_get(f"/guilds/{guild_id}/roles", token):
-                ctx["roles"][r["id"]] = (r.get("name", "cargo"), cor_hex(r.get("color")))
+                cor = cor_hex((r.get("colors") or {}).get("primary_color")) or cor_hex(r.get("color"))
+                ctx["roles"][r["id"]] = (r.get("name", "cargo"), cor)
         except (urllib.error.URLError, ValueError, KeyError, TypeError):
             pass
         try:
@@ -377,15 +379,40 @@ def contexto(token, guild_id, msgs):
     return ctx
 
 
-def buscar_requisitos(diag=None):
+# Páginas do site que espelham um canal do Discord.
+#   slug -> (variável de ambiente com o ID do canal, nome do canal para achar sozinho)
+PAGINAS = {
+    "requisitos": ("REQUISITOS_CHANNEL", "req-cc"),
+    "niveis": ("NIVEIS_CHANNEL", "leveis-embed"),
+}
+
+
+def achar_canal(token, guild_id, nome):
+    """Procura o ID do canal pelo nome, quando a variável não foi criada."""
+    try:
+        for c in discord_get(f"/guilds/{guild_id}/channels", token):
+            n = c.get("name", "")
+            if n == nome or re.sub(r"[^a-z0-9]", "", n.lower()).endswith(re.sub(r"[^a-z0-9]", "", nome)):
+                return c["id"]
+    except (urllib.error.URLError, ValueError, KeyError, TypeError):
+        pass
+    return ""
+
+
+def buscar_canal(slug, diag=None):
+    var, nome = PAGINAS[slug]
     token = os.environ.get("DISCORD_BOT_TOKEN", "").strip()
-    canal = os.environ.get("REQUISITOS_CHANNEL", "").strip()
+    guild_id = os.environ.get("DISCORD_GUILD_ID", "").strip()
+    canal = os.environ.get(var, "").strip()
+    if not canal and token and guild_id:
+        canal = achar_canal(token, guild_id, nome)
+        if diag is not None:
+            diag["canal_achado_pelo_nome"] = bool(canal)
     if diag is not None:
         diag["token_configurado"] = bool(token)
         diag["canal_configurado"] = bool(canal)
     if not token or not canal:
         return None
-    guild_id = os.environ.get("DISCORD_GUILD_ID", "").strip()
     try:
         if not guild_id:
             guild_id = str(discord_get(f"/channels/{canal}", token).get("guild_id", ""))
@@ -395,8 +422,8 @@ def buscar_requisitos(diag=None):
             diag["erro_http"] = e.code
             diag["significa"] = {
                 401: "Token do bot inválido.",
-                403: "Bot sem permissão no canal de requisitos (Ver canal + Ler histórico de mensagens).",
-                404: "ID do canal de requisitos errado.",
+                403: f"Bot sem permissão no canal #{nome} (Ver canal + Ler histórico de mensagens).",
+                404: f"ID do canal errado na variável {var}.",
             }.get(e.code, "Erro do Discord.")
         return {"html": "", "link": ""}
     except (urllib.error.URLError, ValueError, KeyError) as e:
@@ -414,27 +441,35 @@ def buscar_requisitos(diag=None):
     return {"html": html, "link": link}
 
 
-@app.route("/api/requisitos")
-def requisitos():
+@app.route("/api/canal/<slug>")
+def canal_api(slug):
+    if slug not in PAGINAS:
+        return jsonify({"configured": False, "html": "", "link": ""}), 404
     if request.args.get("debug") == "1":
         diag = {}
-        dados = buscar_requisitos(diag)
+        dados = buscar_canal(slug, diag)
         resp = jsonify({"configured": dados is not None, "tamanho_html": len((dados or {}).get("html", "")),
                         "diagnostico": diag})
         resp.headers["Cache-Control"] = "no-store"
         return resp
+    cache = _req_cache.setdefault(slug, {"t": 0, "data": None})
     agora = time.time()
-    if agora - _req_cache["t"] > CACHE_SECONDS or _req_cache["data"] is None:
-        dados = buscar_requisitos()
+    if agora - cache["t"] > CACHE_SECONDS or cache["data"] is None:
+        dados = buscar_canal(slug)
         if dados is None:
             resp = jsonify({"configured": False, "html": "", "link": ""})
             resp.headers["Cache-Control"] = "no-store"
             return resp
-        if dados["html"] or not _req_cache["data"]:
-            _req_cache.update(t=agora, data=dados)
-    resp = jsonify({"configured": True, **_req_cache["data"]})
+        if dados["html"] or not cache["data"]:
+            cache.update(t=agora, data=dados)
+    resp = jsonify({"configured": True, **cache["data"]})
     resp.headers["Cache-Control"] = "public, s-maxage=60, stale-while-revalidate=300"
     return resp
+
+
+@app.route("/api/requisitos")
+def requisitos():  # endereço antigo, mantido por compatibilidade
+    return canal_api("requisitos")
 
 
 @app.route("/")
