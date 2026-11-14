@@ -255,7 +255,7 @@ function detail(s,m){const N={informacoes:"Informações",novidades:"Novidades",
  if(ESP.includes(s))loadCanal(s).then(r=>{if(!r||!r.html||location.hash!=="#canal-"+s)return;const a=$("cb").querySelector(".acts");if(r.link)a.querySelector(".btn").href=r.link,a.querySelector(".btn").textContent="Abrir canal no Discord";$("cb").innerHTML=`<div class="dc">${r.html}</div><p class="note">Conteúdo atualizado automaticamente a partir do canal ${x(m.ch)} do Discord.</p>`+a.outerHTML});
  document.title=m.t+" — Kyzen SA"}
 /* Canais espelhados do Discord (bot) -> /api/canal/<slug> (HTML já sanitizado no servidor) */
-const ESP=["requisitos","niveis","regras","convites","aliados","inimigos","titulos"],CAN={};
+const ESP=["requisitos","niveis","regras","aliados","inimigos","titulos"],CAN={};
 /* Placar das wars -> /api/wars */
 fetch("/api/wars").then(r=>r.json()).then(j=>{const R=j.ranking||[],P=j.partidas||[];
  $("placar").innerHTML=R.length?`<div class="panel tw"><table class="tb rk"><tr><th>#</th><th>Crew</th><th>V</th><th>E</th><th>D</th><th>Pts</th></tr>${R.map((c,i)=>`<tr><td>${i+1}</td><th>${i<3?["🥇","🥈","🥉"][i]+" ":""}${x(c.crew)}</th><td>${c.v}</td><td>${c.e}</td><td>${c.d}</td><td><b>${c.pts}</b></td></tr>`).join("")}</table></div>${P.length?`<h3 style="margin:26px 0 12px">Últimas wars</h3><div class="list">${P.map(p=>`<a class="ev" href="${x(p.link)}" target="_blank" rel="noopener"><span class="tag">WAR</span><h3>${x(p.a)} ${p.ga} x ${p.gb} ${x(p.b)}</h3><p>${x(p.data)}</p></a>`).join("")}</div>`:""}`

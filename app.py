@@ -420,7 +420,6 @@ PAGINAS = {
     "niveis": ("NIVEIS_CHANNEL", "leveis-embed"),
     "jornal": ("JORNAL_CHANNEL", "jornal"),
     "regras": ("REGRAS_CHANNEL", "regras"),
-    "convites": ("CONVITES_CHANNEL", "invites"),
     "aliados": ("ALIADOS_CHANNEL", "aliados"),
     "inimigos": ("INIMIGOS_CHANNEL", "inimigos"),
     "titulos": ("TITULOS_CHANNEL", "titulos"),
