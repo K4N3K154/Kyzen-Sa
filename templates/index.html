@@ -115,6 +115,27 @@ a.card{display:block}.panel.dt{max-width:760px;margin:0 auto;padding:28px}.dt p{
 .dc .efs{display:flex;flex-wrap:wrap;gap:8px 16px;margin-top:8px}.dc .ef{flex:1 1 100%}.dc .ef.il{flex:1 1 150px}.dc .en{font-weight:700;margin-bottom:2px}
 .dc .ei,.dc .att{display:block;max-width:100%;max-height:420px;border-radius:6px;margin-top:12px}.dc .eth{width:80px;height:80px;object-fit:cover;border-radius:6px;flex:none}
 .dc .eft{font-size:.75rem;color:var(--dm);margin-top:8px}
+/* ===================== Avaliação do site ===================== */
+.fab{position:fixed;right:18px;bottom:calc(18px + env(safe-area-inset-bottom,0px));z-index:80;display:flex;align-items:center;gap:8px;padding:12px 18px;border:1px solid rgba(227,179,109,.6);border-radius:99px;background:color-mix(in srgb,var(--surface) 88%,transparent);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);color:var(--text);font:600 .9rem system-ui,sans-serif;cursor:pointer;box-shadow:0 12px 30px -14px rgba(0,0,0,.8);transition:transform .25s,border-color .25s}
+.fab:hover{transform:translateY(-3px);border-color:var(--accent)}
+@media (max-width:560px){.fab{padding:12px 14px}.fab span{display:none}}
+.av{width:min(460px,calc(100% - 32px));border:1px solid var(--border);border-radius:20px;padding:0;background:var(--surface);color:var(--text);box-shadow:0 30px 80px -20px rgba(0,0,0,.85)}
+.av::backdrop{background:rgba(5,9,10,.7);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}
+.av[open]{animation:pop .35s cubic-bezier(.2,.9,.3,1.2)}@keyframes pop{from{opacity:0;transform:translateY(16px) scale(.96)}}
+.av form{padding:26px 24px 24px;position:relative}.av h2{margin:0 0 4px;font-size:1.3rem}.av-s{margin:0 0 16px;color:var(--muted);font-size:.9rem}
+.av-x{position:absolute;top:14px;right:14px;width:34px;height:34px;border-radius:50%;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;font-size:.9rem}
+.stars{border:0;margin:0 0 14px;padding:0;min-width:0}.stars .sr{display:flex;flex-direction:row-reverse;justify-content:flex-end;gap:4px}
+.stars legend{font-weight:600;font-size:.9rem;margin-bottom:6px;padding:0}
+.stars input{position:absolute;opacity:0;width:1px;height:1px}
+.stars label{font-size:2.1rem;line-height:1;color:var(--border);cursor:pointer;transition:transform .15s,color .15s}
+.stars label:hover,.stars label:hover~label,.stars input:checked~label{color:#f2c27a}
+.stars label:hover{transform:scale(1.15)}.stars input:focus-visible+label{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
+.av-l{display:block;font-weight:600;font-size:.9rem;margin:10px 0 6px}.av-l small{color:var(--muted);font-weight:400}
+.av textarea,.av input:not([type=radio]){width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:12px;background:var(--bg);color:var(--text);padding:11px 13px;font:inherit;font-size:.95rem;resize:vertical}
+.av textarea:focus,.av input:focus{outline:2px solid var(--accent);outline-offset:0;border-color:transparent}
+.av .hp{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
+.av-msg{min-height:1.4em;margin:12px 0;font-size:.9rem}.av-msg.ok{color:#3ba55d}.av-msg.err{color:var(--accent2)}
+.av .btn{width:100%;font-size:1rem}.av .btn:disabled{opacity:.6;cursor:wait}
 /* ===================== Visual de lançamento: animações ===================== */
 .hero,.ph{position:relative;overflow:hidden;isolation:isolate}.hero{padding-bottom:120px}.ph{padding-bottom:86px}
 .hero .wrap,.ph .wrap{position:relative;z-index:2}
@@ -240,6 +261,28 @@ a.card{display:block}.panel.dt{max-width:760px;margin:0 auto;padding:28px}.dt p{
  <div><h4>Links rápidos</h4><ul><li><a href="#inicio">Início</a></li><li><a href="#informacoes">Informações</a></li><li><a href="#novidades">Novidades</a></li><li><a href="#crews">Crews</a></li><li><a href="#comunidade">Comunidade</a></li><li><a href="#suporte">Suporte</a></li></ul></div>
  <div><h4>Suporte</h4><ul><li><a href="https://discord.gg/DNZrYHRXU5" target="_blank" rel="noopener">Contato</a></li><li><a href="#suporte">Regras</a></li><li><a href="#suporte">Abrir ticket</a></li><li><a href="#suporte">Apply</a></li></ul></div>
 </div><div class="cp">© 2026 Kyzen SA. Não afiliado ao Roblox nem aos criadores de Vox Seas.</div></div></footer>
+<button class="fab" type="button" id="av-abrir" aria-haspopup="dialog">⭐ <span>Avaliar o site</span></button>
+<dialog class="av" id="av" aria-labelledby="av-t">
+ <form id="av-f" method="dialog" novalidate>
+  <button class="av-x" type="button" id="av-fechar" aria-label="Fechar">✕</button>
+  <h2 id="av-t">O que achou do site?</h2>
+  <p class="av-s">Sua avaliação vai direto para a staff da Kyzen SA.</p>
+  <fieldset class="stars"><legend>Sua nota</legend><div class="sr">
+   <input type="radio" name="nota" id="n5" value="5"><label for="n5" title="Excelente">★</label>
+   <input type="radio" name="nota" id="n4" value="4"><label for="n4" title="Muito bom">★</label>
+   <input type="radio" name="nota" id="n3" value="3"><label for="n3" title="Bom">★</label>
+   <input type="radio" name="nota" id="n2" value="2"><label for="n2" title="Ruim">★</label>
+   <input type="radio" name="nota" id="n1" value="1"><label for="n1" title="Muito ruim">★</label>
+  </div></fieldset>
+  <label class="av-l" for="av-txt">Sugestão <small>(opcional)</small></label>
+  <textarea id="av-txt" name="texto" maxlength="1000" rows="4" placeholder="O que podemos melhorar? Alguma ideia para o site ou para o servidor?"></textarea>
+  <label class="av-l" for="av-nome">Seu nome no Discord <small>(opcional)</small></label>
+  <input id="av-nome" name="nome" maxlength="60" autocomplete="nickname" placeholder="Ex.: Kaneki">
+  <input class="hp" name="site" tabindex="-1" autocomplete="off" aria-hidden="true">
+  <p class="av-msg" id="av-msg" role="status"></p>
+  <button class="btn" type="submit" id="av-env">Enviar avaliação</button>
+ </form>
+</dialog>
 <script>
 const DL="https://discord.gg/DNZrYHRXU5";
 /* Preencha aqui: news {titulo,data,tag,link} · crews {nome,lider} */
@@ -346,6 +389,21 @@ document.addEventListener("click",e=>{const a=e.target.closest('a[href^="https:/
  addEventListener("blur",sair,{once:true});document.addEventListener("visibilitychange",sair,{once:true});
  location.href=app;
  setTimeout(()=>{removeEventListener("blur",sair);document.removeEventListener("visibilitychange",sair);if(!saiu)window.open(a.href,"_blank","noopener")},2500)});
+/* ===================== Avaliação do site -> /api/avaliacao (bot manda no privado) ===================== */
+(()=>{const dlg=$("av"),f=$("av-f"),msg=$("av-msg"),env=$("av-env");let t0=0;
+ const abrir=()=>{msg.textContent="";msg.className="av-msg";t0=Date.now();dlg.showModal?dlg.showModal():dlg.setAttribute("open","")};
+ const fechar=()=>{dlg.close?dlg.close():dlg.removeAttribute("open")};
+ $("av-abrir").addEventListener("click",abrir);$("av-fechar").addEventListener("click",fechar);
+ dlg.addEventListener("click",e=>{if(e.target===dlg)fechar()});
+ f.addEventListener("submit",async e=>{e.preventDefault();const nota=+(f.nota.value||0);
+  if(!nota){msg.textContent="Escolha de 1 a 5 estrelas.";msg.className="av-msg err";return}
+  env.disabled=true;env.textContent="Enviando…";msg.textContent="";msg.className="av-msg";
+  try{const r=await fetch("/api/avaliacao",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({nota,texto:f.texto.value,nome:f.nome.value,site:f.site.value,t:(Date.now()-t0)/1000})});
+   const j=await r.json().catch(()=>({}));
+   if(j.ok){msg.textContent="Valeu! Sua avaliação foi enviada para a staff. 💛";msg.className="av-msg ok";f.reset();setTimeout(fechar,2200)}
+   else{msg.textContent=j.erro||"Não foi possível enviar agora. Tente mais tarde.";msg.className="av-msg err"}}
+  catch{msg.textContent="Sem conexão. Tente de novo.";msg.className="av-msg err"}
+  env.disabled=false;env.textContent="Enviar avaliação"})})();
 /* ===================== Visual de lançamento: animações ===================== */
 (()=>{if(/[?&]anim=1/.test(location.search))document.documentElement.classList.add("anim");
  const calm=matchMedia("(prefers-reduced-motion:reduce)").matches&&!document.documentElement.classList.contains("anim");

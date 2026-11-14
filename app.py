@@ -48,6 +48,18 @@ def discord_get(path, token):
         return json.loads(r.read().decode("utf-8"))
 
 
+def discord_post(path, token, dados):
+    req = urllib.request.Request(
+        API + path,
+        data=json.dumps(dados).encode("utf-8"),
+        method="POST",
+        headers={"Authorization": f"Bot {token}", "User-Agent": "KyzenSA-Site (1.0)",
+                 "Content-Type": "application/json"},
+    )
+    with urllib.request.urlopen(req, timeout=8) as r:
+        return json.loads(r.read().decode("utf-8") or "{}")
+
+
 def limpar(txt):
     txt = txt or ""
     txt = re.sub(r"<a?:\w+:\d+>", "", txt)              # emojis custom
@@ -728,6 +740,76 @@ def staff():
     resp = jsonify({"configured": _staff_cache["data"] is not None, "grupos": _staff_cache["data"] or []})
     resp.headers["Cache-Control"] = "public, s-maxage=600, stale-while-revalidate=1200"
     return resp
+
+
+# ---------------------------------------------------------------------------
+# Avaliação do site -> o bot manda no privado (DM) do dono
+#   OWNER_DISCORD_ID -> ID da conta do Discord que recebe as avaliações
+# ---------------------------------------------------------------------------
+_envios = {}           # ip -> [horários]  (por instância do servidor)
+_envios_global = []    # horários de todos os envios (por instância)
+
+
+def _ip():
+    return (request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
+            or request.remote_addr or "?")
+
+
+@app.route("/api/avaliacao", methods=["POST"])
+def avaliacao():
+    token = os.environ.get("DISCORD_BOT_TOKEN", "").strip()
+    dono = os.environ.get("OWNER_DISCORD_ID", "").strip()
+    if not token or not dono.isdigit():
+        return jsonify({"ok": False, "erro": "As avaliações ainda não estão ativas."}), 503
+    d = request.get_json(silent=True) or {}
+    if d.get("site"):  # campo invisível: só robô preenche
+        return jsonify({"ok": True})
+    try:
+        nota = int(d.get("nota", 0))
+        tempo = float(d.get("t", 0))
+    except (TypeError, ValueError):
+        nota, tempo = 0, 0
+    texto = str(d.get("texto") or "").strip()[:1000]
+    nome = re.sub(r"\s+", " ", str(d.get("nome") or "")).strip()[:60]
+    if not 1 <= nota <= 5:
+        return jsonify({"ok": False, "erro": "Escolha de 1 a 5 estrelas."}), 400
+    if tempo < 3:
+        return jsonify({"ok": False, "erro": "Calma! Tente de novo em alguns segundos."}), 429
+    agora = time.time()
+    ip = _ip()
+    meus = [t for t in _envios.get(ip, []) if agora - t < 600]
+    _envios_global[:] = [t for t in _envios_global if agora - t < 3600]
+    if len(meus) >= 3 or len(_envios_global) >= 40:
+        return jsonify({"ok": False, "erro": "Você já enviou avaliações recentemente. Tente mais tarde."}), 429
+
+    def sem_mencao(s):
+        s = re.sub(r"@(everyone|here)", "@​\\1", s)
+        return re.sub(r"<(@[!&]?|#)(\d+)>", "<\\1​\\2>", s)
+
+    estrelas = "★" * nota + "☆" * (5 - nota)
+    embed = {
+        "title": "⭐ Nova avaliação do site",
+        "color": [0xE0574B, 0xE67E22, 0xF1C40F, 0x9ACD32, 0x3BA55D][nota - 1],
+        "fields": [
+            {"name": "Nota", "value": f"{estrelas}  ({nota}/5)", "inline": True},
+            {"name": "Quem enviou", "value": sem_mencao(nome) or "Anônimo", "inline": True},
+            {"name": "Sugestão", "value": sem_mencao(texto) or "—"},
+        ],
+        "footer": {"text": "kyzensaofc.vercel.app"},
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+    try:
+        dm = discord_post("/users/@me/channels", token, {"recipient_id": dono})
+        discord_post(f"/channels/{dm['id']}/messages", token,
+                     {"embeds": [embed], "allowed_mentions": {"parse": []}})
+    except urllib.error.HTTPError as e:
+        app.logger.error("avaliacao: Discord respondeu %s", e.code)
+        return jsonify({"ok": False, "erro": "Não foi possível enviar agora. Tente mais tarde."}), 502
+    except (urllib.error.URLError, KeyError, ValueError):
+        return jsonify({"ok": False, "erro": "Não foi possível enviar agora. Tente mais tarde."}), 502
+    _envios[ip] = meus + [agora]
+    _envios_global.append(agora)
+    return jsonify({"ok": True})
 
 
 @app.route("/api/requisitos")
