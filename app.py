@@ -189,6 +189,27 @@ _TOKEN_RE = re.compile(
 )
 
 
+EMOJIS = dict(zip(
+    "sparkles star star2 dizzy fire boom zap tada confetti_ball trophy medal first_place second_place third_place "
+    "crown gem moneybag money_with_wings coin rocket crossed_swords dagger shield bow_and_arrow anchor ship "
+    "sailboat ocean pirate_flag skull skull_and_crossbones crossbones warning no_entry x white_check_mark "
+    "heavy_check_mark ballot_box_with_check check exclamation question bangbang red_circle orange_circle "
+    "yellow_circle green_circle blue_circle purple_circle black_circle white_circle heart orange_heart "
+    "yellow_heart green_heart blue_heart purple_heart black_heart white_heart sparkling_heart pushpin "
+    "round_pushpin paperclip link memo pencil pencil2 clipboard scroll page_facing_up bookmark books book "
+    "bell loudspeaker mega speech_balloon calendar date alarm_clock hourglass stopwatch gift balloon "
+    "video_camera movie_camera camera tv film_frames clapper microphone headphones musical_note notes "
+    "video_game joystick game_die dart chart_with_upwards_trend bar_chart arrow_right arrow_left arrow_up "
+    "arrow_down point_right point_left point_up point_down wave clap thumbsup thumbsdown pray muscle eyes "
+    "100 new up cool free ok sos id lock unlock key gear tools hammer wrench mag rotating_light "
+    "busts_in_silhouette bust_in_silhouette sunglasses smile smiley grin joy wink heart_eyes".split(),
+    "✨ ⭐ 🌟 💫 🔥 💥 ⚡ 🎉 🎊 🏆 🏅 🥇 🥈 🥉 👑 💎 💰 💸 🪙 🚀 ⚔️ 🗡️ 🛡️ 🏹 ⚓ 🚢 ⛵ 🌊 🏴‍☠️ 💀 ☠️ ☠️ ⚠️ ⛔ ❌ ✅ "
+    "✔️ ☑️ ✔️ ❗ ❓ ‼️ 🔴 🟠 🟡 🟢 🔵 🟣 ⚫ ⚪ ❤️ 🧡 💛 💚 💙 💜 🖤 🤍 💖 📌 📍 📎 🔗 📝 ✏️ ✏️ 📋 📜 📄 🔖 📚 📖 "
+    "🔔 📢 📣 💬 📅 📆 ⏰ ⏳ ⏱️ 🎁 🎈 📹 🎥 📷 📺 🎞️ 🎬 🎤 🎧 🎵 🎶 🎮 🕹️ 🎲 🎯 📈 📊 ➡️ ⬅️ ⬆️ ⬇️ 👉 👈 ☝️ 👇 "
+    "👋 👏 👍 👎 🙏 💪 👀 💯 🆕 🆙 🆒 🆓 🆗 🆘 🆔 🔒 🔓 🔑 ⚙️ 🛠️ 🔨 🔧 🔍 🚨 👥 👤 😎 😄 😃 😁 😂 😉 😍".split(),
+))
+
+
 def esc(s):
     return (str(s or "").replace("&", "&amp;").replace("<", "&lt;")
             .replace(">", "&gt;").replace('"', "&quot;"))
@@ -240,6 +261,7 @@ def inline_md(txt, ctx):
         return m.group(0)
 
     s = esc(_TOKEN_RE.sub(troca, txt))
+    s = re.sub(r":([a-z0-9_+-]+):", lambda m: EMOJIS.get(m.group(1), m.group(0)), s)
     s = re.sub(r"\*\*\*(.+?)\*\*\*", r"<b><i>\1</i></b>", s)
     s = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", s)
     s = re.sub(r"__(.+?)__", r"<u>\1</u>", s)
