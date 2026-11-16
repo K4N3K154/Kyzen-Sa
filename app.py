@@ -3265,6 +3265,24 @@ def interacao_extras(d, tipo, dados, nome, opcoes, uid):
     return None
 
 
+@app.route("/api/diag-cargos")
+def diag_cargos():
+    """Temporário (staff, DEBUG_KEY): cargos do servidor com posição e permissões."""
+    if not debug_ok():
+        return jsonify({"ok": False}), 404
+    gid = os.environ.get("DISCORD_GUILD_ID", "").strip()
+    nomes = {0: "convidar", 1: "expulsar", 2: "banir", 3: "ADMIN", 4: "ger_canais", 5: "ger_servidor", 7: "auditoria",
+             13: "ger_msgs", 17: "everyone", 22: "mutar_call", 23: "ensurdecer", 24: "mover", 27: "ger_apelidos",
+             28: "ger_cargos", 29: "webhooks", 30: "ger_expressoes", 33: "ger_eventos", 34: "ger_topicos",
+             40: "castigar"}
+    out = []
+    for r in sorted(discord_req("GET", f"/guilds/{gid}/roles"), key=lambda r: -r.get("position", 0)):
+        p = int(r.get("permissions") or 0)
+        out.append(f"{r.get('position'):>3} | {r['id']} | {r.get('name')} | {'bot' if r.get('managed') else ''} | "
+                   + ",".join(n for b, n in nomes.items() if p >> b & 1))
+    return privado(jsonify(out))
+
+
 def interacao_moderacao(d, tipo, dados, nome, opcoes, uid):
     """Comandos de moderação e denúncia. Devolve None se não for um deles."""
     gid = str(d.get("guild_id") or os.environ.get("DISCORD_GUILD_ID", "")).strip()
