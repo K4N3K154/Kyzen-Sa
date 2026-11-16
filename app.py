@@ -3867,7 +3867,10 @@ def aplicar_layout(gid, simular=False):
     if simular:
         return {"ok": True, "simulado": True, "backup_canais": len(backup["canais"]),
                 "backup_cargos": [r["name"] for r in backup["cargos_apagados"]]}
-    discord_arquivo(f"/channels/{canal_staff('bot')}/messages", {"embeds": [{
+    ja_tem = any((e.get("footer") or {}).get("text") == "backup-layout"
+                 for m in req_lento("GET", f"/channels/{canal_staff('bot')}/messages?limit=50") for e in m.get("embeds") or [])
+    if not ja_tem:
+      discord_arquivo(f"/channels/{canal_staff('bot')}/messages", {"embeds": [{
         "title": "💾 Backup do layout do servidor", "color": 0x6C757D,
         "description": "Categorias, canais, ordem e permissões antes da reorganização, e os cargos apagados.",
         "footer": {"text": "backup-layout"}}], "allowed_mentions": {"parse": []}},
@@ -3899,10 +3902,19 @@ def aplicar_layout(gid, simular=False):
         for pos, item in enumerate(lst):
             cid, sinc = (item, False) if isinstance(item, str) else item
             lote.append({"id": cid, "parent_id": cat, "position": pos, "lock_permissions": sinc})
-    for i in range(0, len(lote), 25):
-        req_lento("PATCH", f"/guilds/{gid}/channels", lote[i:i + 25], "Reorganização do servidor")
-        out["movidos"] += len(lote[i:i + 25])
-        time.sleep(0.5)
+    out["erros"] = {}
+    atual = {c["id"]: c for c in req_lento("GET", f"/guilds/{gid}/channels")}
+    for item in lote:
+        c = atual.get(item["id"]) or {}
+        if c.get("parent_id") == item["parent_id"] and c.get("position") == item["position"] and not item["lock_permissions"]:
+            continue
+        try:
+            req_lento("PATCH", f"/channels/{item['id']}", {k: v for k, v in item.items() if k != "id"},
+                      "Reorganização do servidor")
+            out["movidos"] += 1
+        except urllib.error.HTTPError as e:
+            out["erros"][item["id"]] = f"{e.code} {e.read().decode('utf-8', 'replace')[:160]}"
+        time.sleep(0.3)
     restantes = [c for c in req_lento("GET", f"/guilds/{gid}/channels") if c.get("parent_id") == CATEGORIA_VAZIA]
     if not restantes:
         req_lento("DELETE", f"/channels/{CATEGORIA_VAZIA}", motivo="Categoria juntada com Informações")
