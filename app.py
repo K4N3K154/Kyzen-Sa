@@ -2559,6 +2559,34 @@ def diag_app():
                             "banco_ok": banco, "banco_erro": "" if banco else _db_erro["msg"]}))
 
 
+@app.route("/api/diag-bots")
+def diag_bots():
+    """Staff (com a DEBUG_KEY): bots instalados no servidor, com cargo e comandos, para achar repetidos."""
+    if not debug_ok():
+        return jsonify({"ok": False}), 404
+    gid = os.environ.get("DISCORD_GUILD_ID", "").strip()
+    bots = {}
+    try:
+        for i in discord_req("GET", f"/guilds/{gid}/integrations"):
+            a = i.get("application") or {}
+            bot = a.get("bot") or {}
+            if i.get("type") == "discord" and bot.get("id"):
+                bots[str(bot["id"])] = {"nome": a.get("name") or bot.get("username"),
+                                        "descricao": cortar(a.get("description") or "", 200),
+                                        "desde": i.get("synced_at") or "", "escopos": i.get("scopes") or []}
+    except urllib.error.HTTPError as e:
+        return privado(jsonify({"ok": False, "erro": e.code}))
+    for r in discord_req("GET", f"/guilds/{gid}/roles"):
+        b = str((r.get("tags") or {}).get("bot_id") or "")
+        if b in bots:
+            p = int(r.get("permissions") or 0)
+            bots[b]["cargo"] = r.get("name")
+            bots[b]["perms"] = [n for n, bit in (("admin", PERM_ADMIN), ("banir", PERM_BAN), ("expulsar", PERM_KICK),
+                                                 ("castigar", PERM_MODERAR), ("gerenciar_cargos", 1 << 28),
+                                                 ("gerenciar_msgs", 1 << 13)) if p & bit]
+    return privado(jsonify({"ok": True, "total": len(bots), "bots": bots}))
+
+
 @app.route("/api/registrar-comandos", methods=["POST"])
 def registrar_comandos():
     """Cadastra os comandos no servidor (staff, com a DEBUG_KEY)."""
