@@ -2612,27 +2612,6 @@ def diag_bots():
     return privado(jsonify({"ok": True, "total": len(bots), "bots": bots}))
 
 
-@app.route("/api/bot-nome", methods=["POST"])
-def bot_nome():
-    """Temporário: troca o nome do bot (staff, com a DEBUG_KEY). Será removido depois de usado."""
-    if not debug_ok():
-        return jsonify({"ok": False}), 404
-    out = {}
-    try:
-        out["nome"] = discord_req("PATCH", "/users/@me", {"username": "Kyzen Bot"}).get("username")
-    except urllib.error.HTTPError as e:
-        out["erro_nome"] = f"{e.code} {e.read().decode('utf-8', 'replace')[:200]}"
-    try:
-        reg = canal_registro()
-        if reg:
-            discord_req("PATCH", f"/channels/{reg}", {"topic": "Registro automático das advertências do Kyzen Bot. "
-                        "Não apague as mensagens daqui: é por elas que o bot conta os warns de cada membro."})
-            out["topico"] = "ok"
-    except urllib.error.URLError as e:
-        out["erro_topico"] = str(e)[:120]
-    return privado(jsonify(out))
-
-
 @app.route("/api/registrar-comandos", methods=["POST"])
 def registrar_comandos():
     """Cadastra os comandos no servidor (staff, com a DEBUG_KEY)."""
