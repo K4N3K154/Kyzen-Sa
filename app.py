@@ -3794,6 +3794,38 @@ DIRETRIZES_CARGOS = [
 ]
 
 
+@app.route("/api/liberar-call-staff", methods=["POST"])
+def liberar_call_staff():
+    """Temporário (staff): Helper e Junior Staff entram no Call STAFF."""
+    if not debug_ok():
+        return jsonify({"ok": False}), 404
+    canal = "1400267016748662834"
+    voz = PERM_VER | (1 << 20) | (1 << 21) | (1 << 25)
+    info = discord_req("GET", f"/channels/{canal}")
+    ows = {str(o["id"]): o for o in info.get("permission_overwrites") or []}
+    out = {}
+    for n, nome, rid in RANKS:
+        if n not in (1, 2):
+            continue
+        o = ows.get(rid) or {}
+        for _ in range(5):
+            try:
+                discord_req("PUT", f"/channels/{canal}/permissions/{rid}",
+                            {"type": 0, "allow": str(int(o.get("allow") or 0) | voz),
+                             "deny": str(int(o.get("deny") or 0) & ~voz)}, "Call STAFF para toda a staff")
+                out[nome] = "liberado"
+                break
+            except urllib.error.HTTPError as e:
+                if e.code != 429:
+                    out[nome] = f"erro {e.code}"
+                    break
+                time.sleep(2)
+    depois = {str(o["id"]): o for o in discord_req("GET", f"/channels/{canal}").get("permission_overwrites") or []}
+    out["confere"] = {nome: bool(int((depois.get(rid) or {}).get("allow") or 0) & (1 << 20))
+                      for n, nome, rid in RANKS if n in (1, 2)}
+    return privado(jsonify(out))
+
+
 def interacao_moderacao(d, tipo, dados, nome, opcoes, uid):
     """Comandos de moderação e denúncia. Devolve None se não for um deles."""
     gid = str(d.get("guild_id") or os.environ.get("DISCORD_GUILD_ID", "")).strip()
