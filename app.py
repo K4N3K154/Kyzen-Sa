@@ -3795,24 +3795,6 @@ DIRETRIZES_CARGOS = [
 ]
 
 
-ORDEM_ORIGINAL = ["1398765024075321465", "1383964924274937998", "1572017923520856105", "1383949340669775954",
-                  "1383947381032095844", "1504914443421618266", "1383999611580186644", "1386798026286432276",
-                  "1383947381032095845", "1572017924389077163"]
-
-
-@app.route("/api/ordem-categorias", methods=["POST"])
-def ordem_categorias():
-    """Temporário (staff): volta as categorias para a ordem original do servidor."""
-    if not debug_ok():
-        return jsonify({"ok": False}), 404
-    gid = os.environ.get("DISCORD_GUILD_ID", "").strip()
-    discord_req("PATCH", f"/guilds/{gid}/channels", [{"id": c, "position": i} for i, c in enumerate(ORDEM_ORIGINAL)],
-                "Volta a ordem original das categorias")
-    cats = sorted((c for c in discord_req("GET", f"/guilds/{gid}/channels") if c.get("type") == 4),
-                  key=lambda c: c.get("position", 0))
-    return privado(jsonify([c.get("name") for c in cats]))
-
-
 def interacao_moderacao(d, tipo, dados, nome, opcoes, uid):
     """Comandos de moderação e denúncia. Devolve None se não for um deles."""
     gid = str(d.get("guild_id") or os.environ.get("DISCORD_GUILD_ID", "")).strip()
