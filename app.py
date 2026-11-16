@@ -3337,6 +3337,7 @@ def saude_bots(gid):
     out = {}
     for bid, nome in sorted(bots.items(), key=lambda x: x[1].lower()):
         membro = None
+        time.sleep(0.25)
         for _ in range(4):
             try:
                 membro = discord_req("GET", f"/guilds/{gid}/members/{bid}")
@@ -3345,7 +3346,7 @@ def saude_bots(gid):
                 if e.code != 429:
                     out[nome] = f"❌ não está no servidor ({e.code})"
                     break
-                time.sleep(1.5)
+                time.sleep(float(e.headers.get("Retry-After") or 2) + 0.2)
         if membro is None:
             out.setdefault(nome, "❓ o Discord pediu para esperar, não deu para conferir")
             continue
@@ -3406,7 +3407,10 @@ def diag_saude():
         return jsonify({"ok": False}), 404
     gid = os.environ.get("DISCORD_GUILD_ID", "").strip()
     out = {}
-    for nome, f in (("kyzen_bot", saude_kyzen), ("bots", saude_bots)):
+    partes = (("kyzen_bot", saude_kyzen), ("bots", saude_bots))
+    if request.args.get("parte"):
+        partes = [x for x in partes if x[0] == request.args.get("parte")]
+    for nome, f in partes:
         try:
             out[nome] = f(gid)
         except Exception as e:  # noqa: BLE001
