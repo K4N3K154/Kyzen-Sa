@@ -3120,8 +3120,8 @@ def registrar_comandos():
         return privado(jsonify({"ok": False, "erro": e.code, "discord": e.read().decode("utf-8", "replace")[:300]}), 502)
     try:
         registro = canal_registro(criar=True)
-        canal_staff("bot", criar=True)
-        canal_staff("forms", criar=True)
+        registro = {"punicoes": registro, "bot": canal_staff("bot", criar=True),
+                    "formularios": canal_staff("forms", criar=True)}
     except (urllib.error.URLError, KeyError, ValueError) as e:
         registro = f"erro: {str(e)[:120]}"
     return privado(jsonify({"ok": True, "comandos": [c.get("name") for c in feitos], "registro_punicoes": registro}))
