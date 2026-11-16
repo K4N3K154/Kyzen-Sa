@@ -3726,6 +3726,112 @@ def interacao_cargos(d, tipo, dados, nome, opcoes, uid):
     return cmd_expulsar_banir(gid, uid, alvo_id, motivo, nome == "banir", int(opcoes.get("apagar") or 0))
 
 
+# ----- Diretrizes oficiais da staff (temporário: cria o canal e posta) ------
+DIRETRIZES_INTRO = {
+    "title": "📜 Diretrizes oficiais da Staff Kyzen", "color": 0xC9954F,
+    "description": "A partir de hoje, **cada cargo da staff tem funções e poderes próprios**, no Discord e no "
+                   "**Kyzen Bot**. Este comunicado é **oficial** e vale para toda a equipe.\n"
+                   "Leiam com atenção. Dúvidas? Falem com um **Adm ou acima**.",
+    "fields": [
+        {"name": "⚖️ Regra de ouro", "inline": False,
+         "value": "Toda punição é feita pelo **Kyzen Bot**: clique direito no membro ou na mensagem → **Apps** → "
+                  "**Advertir**, ou `/advertir`. Assim ela fica registrada, o membro é avisado na DM e entra no "
+                  "relatório. **Não usem o castigo/ban manual do Discord.**"},
+        {"name": "🪜 Hierarquia", "inline": False,
+         "value": "Helper → Junior Staff → Staff → Senior Staff → Mod → Senior Mod → Adm → Head Admin → "
+                  "Dev / Co-Owner / Owner"},
+        {"name": "📋 Tabela de punições", "inline": False,
+         "value": "🗣️ Aviso verbal → sem punição\n1º warn → mute 15 min\n2º warn → mute 1 h\n"
+                  "3º warn → mute 1 dia\n4º warn → mute 3 dias\n5º warn → **ban**"},
+        {"name": "✋ Passou do seu cargo?", "inline": False,
+         "value": "O bot **não aplica**: ele manda um **pedido de aprovação** no #registro-punições e marca o cargo "
+                  "necessário. Quem estiver desse cargo pra cima aprova ou recusa com um clique."},
+        {"name": "📨 Contestações", "inline": False,
+         "value": "O membro punido pode **contestar** pela DM. Senior Staff ou acima analisa e decide: tirar a "
+                  "punição ou manter. Tratem com respeito: contestar é um direito."},
+        {"name": "🚫 Proibido para a staff", "inline": False,
+         "value": "• Punir alguém de cargo **igual ou maior** que o seu\n• Punir **sem motivo** ou sem prova\n"
+                  "• Usar punição em **briga pessoal**\n• Apagar mensagens do #registro-punições\n"
+                  "• Expor denúncias ou tickets fora da staff"},
+        {"name": "📊 Relatório semanal", "inline": False,
+         "value": "Todo **domingo às 19h** o bot posta quantas ações cada um fez (warns, castigos, tickets, "
+                  "formulários). Ele é usado para avaliar **promoções**."},
+    ],
+    "footer": {"text": "Kyzen SA · Diretrizes da Staff"},
+}
+DIRETRIZES_CARGOS = [
+    ("🟢 Helper", 0x2ECC71,
+     "Receber quem chega, tirar dúvidas no chat, **atender tickets** e **avaliar formulários** da crew. "
+     "Orientar com conversa e aviso verbal antes de qualquer punição.",
+     "🗣️ Aviso verbal · 🔎 `/historico` · 🎫 fechar tickets · 📝 aprovar/recusar formulários · 🔊 mover membros "
+     "em call\nPara warns: pedido de aprovação."),
+    ("🔵 Junior Staff", 0x3498DB,
+     "Moderar o chat no **dia a dia**: spam, flood e desrespeito leve. Dar as **primeiras advertências**.",
+     "Tudo do Helper + ⚠️ **1º e 2º warn** · 🧹 `/limpar` (até 20) · apagar mensagens · mutar em call · "
+     "gerenciar tópicos"),
+    ("🟣 Staff", 0x9B59B6,
+     "Manter a ordem nos **chats e calls**, lidar com **reincidentes** e aprovar os pedidos de Helpers e "
+     "Juniors.",
+     "Tudo do Junior + ⚠️ **até o 3º warn** (mute 1 dia) · 🐢 `/lento` · 🔇 `/castigo` (até 1 h) · mudar "
+     "apelidos · ensurdecer em call · vê o #registro-punições"),
+    ("🟠 Senior Staff", 0xE67E22,
+     "Cuidar dos **casos sérios**, revisar **contestações** e **orientar** Helpers e Juniors.",
+     "Tudo do Staff + ⚠️ **até o 4º warn** (mute 3 dias) · 🕊️ `/perdoar` · 📨 decidir contestações · "
+     "🔇 `/castigo` (até 1 dia) · status das sugestões"),
+    ("🔴 Mod", 0xE74C3C,
+     "Tomar as **decisões finais** de punição e agir em **emergências** (raids, brigas, spam em massa).",
+     "Tudo do Senior Staff + ⚠️ **5º warn (ban)** · 🔨 `/banir` · 👢 `/expulsar` · 🔒 `/trancar` / `/destrancar` · "
+     "🧹 `/limpar` (até 100) · 🔇 `/castigo` (até 7 dias)"),
+    ("🟥 Senior Mod", 0xC0392B,
+     "**Coordenar** a equipe de moderação, os **eventos**, as **wars** da crew e os **sorteios**.",
+     "Tudo do Mod + 🎉 `/sorteio` · ⚔️ `/war` · gerenciar eventos · banir pelo Discord · mencionar @everyone"),
+    ("👑 Adm", 0xF1C40F,
+     "**Gestão do servidor**: canais, cargos, painéis e avisos oficiais. Acompanhar e **avaliar a staff**.",
+     "Tudo do Senior Mod + 🎫 painéis (`/painel-ticket`, `/painel-formulario`, `/painel-cargos`) · 📢 `/agendar` · "
+     "🕊️ `/desbanir` · 🔇 `/castigo` (até 28 dias) · gerenciar canais e cargos"),
+    ("💎 Head Admin · Dev · Co-Owner · Owner", 0x1ABC9C,
+     "**Direção geral** da Kyzen: promoções, rebaixamentos e a palavra final em qualquer caso.",
+     "Todos os poderes · 📊 relatório semanal da staff"),
+]
+
+
+@app.route("/api/oficializar-staff", methods=["POST"])
+def oficializar_staff():
+    """Temporário (staff, DEBUG_KEY): cria o #diretrizes-staff e posta o comunicado oficial fixado."""
+    if not debug_ok():
+        return jsonify({"ok": False}), 404
+    gid = os.environ.get("DISCORD_GUILD_ID", "").strip()
+    cid = achar_canal(os.environ.get("DISCORD_BOT_TOKEN", "").strip(), gid, "diretrizes-staff")
+    if not cid:
+        ler = PERM_VER | PERM_HIST | (1 << 6)
+        ow = [{"id": gid, "type": 0, "allow": "0", "deny": str(PERM_VER)}]
+        ow += [{"id": rid, "type": 0, "allow": str(ler | (PERM_ENVIAR if n >= 7 else 0)),
+                "deny": "0" if n >= 7 else str(PERM_ENVIAR | (1 << 35) | (1 << 36) | (1 << 38))} for n, _, rid in RANKS]
+        corpo = {"name": "📜・diretrizes-staff", "type": 0, "permission_overwrites": ow,
+                 "topic": "Diretrizes oficiais da staff: o que cada cargo faz e pode fazer. Só Adm+ escreve aqui."}
+        for c in discord_req("GET", f"/guilds/{gid}/channels"):
+            if c.get("type") == 4 and "staff" in norm_nome(c.get("name")):
+                corpo["parent_id"] = c["id"]
+                break
+        cid = discord_req("POST", f"/guilds/{gid}/channels", corpo, "Diretrizes da staff")["id"]
+        _canais_cache["t"] = 0
+    cargos = [rid for n, _, rid in RANKS if n <= 8]
+    m1 = discord_req("POST", f"/channels/{cid}/messages", {
+        "content": " ".join(f"<@&{r}>" for r in cargos) + "\n**Comunicado oficial: nova divisão de funções da staff.**",
+        "embeds": [DIRETRIZES_INTRO], "allowed_mentions": {"roles": cargos}})
+    m2 = discord_req("POST", f"/channels/{cid}/messages", {"embeds": [
+        {"title": t, "color": cor, "fields": [{"name": "📌 Responsável por", "value": resp, "inline": False},
+                                              {"name": "🛠️ Pode usar", "value": pode, "inline": False}]}
+        for t, cor, resp, pode in DIRETRIZES_CARGOS], "allowed_mentions": {"parse": []}})
+    for m in (m2, m1):
+        try:
+            discord_req("PUT", f"/channels/{cid}/pins/{m['id']}", motivo="Diretrizes da staff")
+        except urllib.error.URLError:
+            pass
+    return privado(jsonify({"ok": True, "canal": cid,
+                            "link": f"https://discord.com/channels/{gid}/{cid}/{m1['id']}"}))
+
+
 def interacao_moderacao(d, tipo, dados, nome, opcoes, uid):
     """Comandos de moderação e denúncia. Devolve None se não for um deles."""
     gid = str(d.get("guild_id") or os.environ.get("DISCORD_GUILD_ID", "")).strip()
