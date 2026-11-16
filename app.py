@@ -1157,28 +1157,43 @@ DIVULGAR_JANELA_H = 12         # ...e pelo menos uma nas últimas horas
 DIVULGAR_MIN_RECENTES = 1
 HORARIOS_UTC = (3, 15, 22)     # 00h, 12h e 19h de Brasília
 DIVULGACOES = [
-    {"titulo": "🗺️ Perdido no Vox Seas? O Trello do jogo tá no nosso site!",
-     "texto": "Frutas, espadas, ilhas, chefes e drops: o **Trello oficial do Vox Seas** está dentro do site da Kyzen, "
-              "organizado em abas e **com busca**. Bem mais fácil do que caçar card por card.",
-     "botao": ("Abrir o Trello", "#trello")},
-    {"titulo": "🎯 Onde dropa aquela fruta?",
-     "texto": "No **Guia** do site tem o **\"Onde dropa?\"** (chefe, ilha e chance de drop) e a **tier list** de frutas "
-              "e espadas com comparador. Tudo puxado do Trello oficial, atualizado sozinho.\n"
-              "-# Dica: aqui no Discord dá pra usar **/drop** e **/fruta** também.",
-     "botao": ("Ver o Guia", "#guia")},
-    {"titulo": "⚓ Qual ilha é a sua agora?",
-     "texto": "O site tem um **mapa das ilhas** em ordem de nível: digita o seu nível e ele mostra **para onde navegar** "
-              "e o que tem em cada ilha. Perfeito pra quem tá upando e não sabe o próximo destino.",
-     "botao": ("Abrir o mapa", "#guia")},
-    {"titulo": "🗝️ Tem um tesouro escondido no nosso site…",
-     "texto": "Cinco **fragmentos de mapa** estão escondidos pelo site da Kyzen. Quem achar todos e entrar com o Discord "
-              "ganha o cargo **🗝️ Caçador de Tesouros**. Ninguém vai te dar dica. 👀",
-     "botao": ("Começar a caça", "#inicio")},
-    {"titulo": "🌊 Você já conhece o site da Kyzen?",
-     "texto": "Status do **Vox Seas ao vivo**, **eventos** do servidor, quem está **em call**, **Hall da Fama**, "
-              "galeria do #mídias e o **Trello do jogo** num lugar só. Dá até pra instalar como app no celular.",
-     "botao": ("Abrir o site", "#inicio")},
+    {"titulo": "🗺️ O Trello do Vox Seas, do jeito fácil",
+     "texto": "Cansou de abrir card por card? No site da Kyzen o **Trello oficial do jogo** fica organizado em abas e "
+              "**com busca**: frutas, espadas, ilhas, chefes e drops num lugar só.\n\n"
+              "📖 Quer ir direto ao ponto? O **Guia** já mastiga tudo pra você: **onde dropa** cada item e **tier list** "
+              "de frutas e espadas.\n"
+              "🌊 E na **Comunidade** tem o resumo do jogo com os **números ao vivo** do Roblox e o **mapa das ilhas**.",
+     "ancora": "#trello"},
+    {"titulo": "📖 Guias do Vox Seas feitos pra te poupar tempo",
+     "texto": "No **Guia** do site da Kyzen você encontra:\n"
+              "🎯 **Onde dropa?** Busque o item e veja qual **chefe** solta, em qual **ilha** e a **chance de drop**\n"
+              "🏆 **Tier list** de frutas e espadas, com **comparador** lado a lado\n"
+              "👹 O que **cada chefe** solta, pra farmar sem perder tempo\n\n"
+              "Tudo puxado do **Trello oficial** e atualizado sozinho.\n"
+              "-# Aqui no Discord também dá: use **/drop** e **/fruta** no #comandos.",
+     "ancora": "#guia"},
+    {"titulo": "⚓ Não sabe pra onde ir agora?",
+     "texto": "Na aba **Comunidade** do site tem o **mapa das ilhas** do Vox Seas em ordem de nível: digite o seu nível "
+              "e ele mostra **para onde navegar** e o que tem em cada ilha.\n\n"
+              "Lá também ficam o **resumo do jogo** com jogadores **ao vivo**, os nossos **canais e calls** e a "
+              "**galeria** com os melhores prints do #mídias.\n"
+              "📖 Depois é só abrir o **Guia** pra ver os drops da ilha, ou o **Trello** completo.",
+     "ancora": "#comunidade"},
+    {"titulo": "🎯 Qual fruta vale a pena? Qual espada pegar?",
+     "texto": "Antes de gastar tempo farmando, dá uma olhada no **Guia** do site da Kyzen: **tier list** de frutas e "
+              "espadas, **comparador** e o **\"Onde dropa?\"** com chefe, ilha e chance de cada item.\n\n"
+              "🗺️ Quer o detalhe completo? O **Trello oficial** está lá dentro, com busca.\n"
+              "🌊 E a aba **Comunidade** junta o mapa das ilhas, a galeria e tudo do nosso servidor.",
+     "ancora": "#guia"},
+    {"titulo": "🌊 Tudo do Vox Seas e da Kyzen num site só",
+     "texto": "📖 **Guia**: onde dropa cada item, o que cada chefe solta e tier list de frutas e espadas\n"
+              "🗺️ **Trello oficial** do jogo, organizado e com busca\n"
+              "🌊 **Comunidade**: mapa das ilhas por nível, jogadores ao vivo, canais, calls e galeria\n"
+              "🏆 **Hall da Fama**, eventos do servidor e uma 🗝️ **caça ao tesouro** escondida\n\n"
+              "Dá até pra instalar como app no celular. Passa lá! 👇",
+     "ancora": "#inicio"},
 ]
+BOTOES = [("📖 Guia", "#guia"), ("🌊 Comunidade", "#comunidade"), ("🗺️ Trello", "#trello")]
 
 
 def cron_ok():
@@ -1218,7 +1233,10 @@ def montar_divulgacao(agora):
     hora = int(agora // 3600) % 24
     turno = min(range(len(HORARIOS_UTC)), key=lambda i: abs(HORARIOS_UTC[i] - hora))
     d = DIVULGACOES[(int(agora // 86400) * len(HORARIOS_UTC) + turno) % len(DIVULGACOES)]
-    rotulo, ancora = d["botao"]
+    ancora = d["ancora"]
+    botoes = sorted(BOTOES, key=lambda x: x[1] != ancora)  # o tema do texto vem primeiro
+    if ancora == "#inicio":
+        botoes = [("⚓ Abrir o site", "#inicio")] + BOTOES
     return {
         "embeds": [{
             "title": d["titulo"], "url": SITE + "/" + ancora, "color": 0xC9A227,
@@ -1227,12 +1245,7 @@ def montar_divulgacao(agora):
             "footer": {"text": "Kyzen SA • kyzensaofc.vercel.app"},
         }],
         "components": [{"type": 1, "components": [
-            {"type": 2, "style": 5, "label": rotulo, "url": SITE + "/" + ancora},
-            {"type": 2, "style": 5, "label": "Trello do jogo", "url": SITE + "/#trello"},
-        ] if ancora != "#trello" else [
-            {"type": 2, "style": 5, "label": rotulo, "url": SITE + "/" + ancora},
-            {"type": 2, "style": 5, "label": "Abrir o site", "url": SITE + "/"},
-        ]}],
+            {"type": 2, "style": 5, "label": r, "url": SITE + "/" + a} for r, a in botoes]}],
         "allowed_mentions": {"parse": []},
     }
 
