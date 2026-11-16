@@ -1144,6 +1144,122 @@ def avaliacao():
     return jsonify({"ok": True})
 
 
+# ---------------------------------------------------------------------------
+# Divulgação automática do site no #chat-geral (cron da Vercel, 1x por dia)
+# Para não ficar chato: no máximo 1 a cada ~2 dias, só com o chat movimentado,
+# nunca em cima de outra divulgação, sem pings e com textos que se revezam.
+# ---------------------------------------------------------------------------
+CANAL_GERAL = "1383947381032095846"
+SITE = "https://kyzensaofc.vercel.app"
+DIVULGAR_INTERVALO_H = 44      # tempo mínimo entre duas divulgações
+DIVULGAR_MIN_MSGS = 15         # mensagens de membros desde a última divulgação
+DIVULGAR_JANELA_H = 3          # ...e pelo menos algumas nas últimas horas
+DIVULGAR_MIN_RECENTES = 4
+DIVULGACOES = [
+    {"titulo": "🗺️ Perdido no Vox Seas? O Trello do jogo tá no nosso site!",
+     "texto": "Frutas, espadas, ilhas, chefes e drops: o **Trello oficial do Vox Seas** está dentro do site da Kyzen, "
+              "organizado em abas e **com busca**. Bem mais fácil do que caçar card por card.",
+     "botao": ("Abrir o Trello", "#trello")},
+    {"titulo": "🎯 Onde dropa aquela fruta?",
+     "texto": "No **Guia** do site tem o **\"Onde dropa?\"** (chefe, ilha e chance de drop) e a **tier list** de frutas "
+              "e espadas com comparador. Tudo puxado do Trello oficial, atualizado sozinho.\n"
+              "-# Dica: aqui no Discord dá pra usar **/drop** e **/fruta** também.",
+     "botao": ("Ver o Guia", "#guia")},
+    {"titulo": "⚓ Qual ilha é a sua agora?",
+     "texto": "O site tem um **mapa das ilhas** em ordem de nível: digita o seu nível e ele mostra **para onde navegar** "
+              "e o que tem em cada ilha. Perfeito pra quem tá upando e não sabe o próximo destino.",
+     "botao": ("Abrir o mapa", "#guia")},
+    {"titulo": "🗝️ Tem um tesouro escondido no nosso site…",
+     "texto": "Cinco **fragmentos de mapa** estão escondidos pelo site da Kyzen. Quem achar todos e entrar com o Discord "
+              "ganha o cargo **🗝️ Caçador de Tesouros**. Ninguém vai te dar dica. 👀",
+     "botao": ("Começar a caça", "#inicio")},
+    {"titulo": "🌊 Você já conhece o site da Kyzen?",
+     "texto": "Status do **Vox Seas ao vivo**, **eventos** do servidor, quem está **em call**, **Hall da Fama**, "
+              "galeria do #mídias e o **Trello do jogo** num lugar só. Dá até pra instalar como app no celular.",
+     "botao": ("Abrir o site", "#inicio")},
+]
+
+
+def cron_ok():
+    """Só a Vercel (Authorization: Bearer CRON_SECRET) ou a staff com a DEBUG_KEY."""
+    chave = os.environ.get("CRON_SECRET", "")
+    vercel = len(chave) >= 16 and hmac.compare_digest(request.headers.get("Authorization", ""), f"Bearer {chave}")
+    return vercel or debug_ok()
+
+
+def snowflake_ts(sid):
+    return ((int(sid) >> 22) + 1420070400000) / 1000
+
+
+def decidir_divulgacao(msgs, bot_id, agora):
+    """Decide se é hora de divulgar, olhando só as últimas mensagens do canal (sem banco)."""
+    humanas, recentes = 0, 0
+    for m in msgs:  # da mais nova para a mais antiga
+        autor = m.get("author") or {}
+        if str(autor.get("id")) == bot_id and m.get("embeds") and \
+                any(SITE in (e.get("url") or "") for e in m["embeds"]):
+            if agora - snowflake_ts(m["id"]) < DIVULGAR_INTERVALO_H * 3600:
+                return False, "divulgou há pouco tempo"
+            break  # a contagem de mensagens vale só desde a última divulgação
+        if autor.get("bot"):
+            continue
+        humanas += 1
+        if agora - snowflake_ts(m["id"]) < DIVULGAR_JANELA_H * 3600:
+            recentes += 1
+    if humanas < DIVULGAR_MIN_MSGS:
+        return False, f"pouca conversa desde a última divulgação ({humanas})"
+    if recentes < DIVULGAR_MIN_RECENTES:
+        return False, f"chat parado agora ({recentes} nas últimas {DIVULGAR_JANELA_H}h)"
+    return True, "ok"
+
+
+def montar_divulgacao(agora):
+    d = DIVULGACOES[int(agora // 86400 // 2) % len(DIVULGACOES)]
+    rotulo, ancora = d["botao"]
+    return {
+        "embeds": [{
+            "title": d["titulo"], "url": SITE + "/" + ancora, "color": 0xC9A227,
+            "description": d["texto"],
+            "thumbnail": {"url": SITE + "/img/icon-192.png"},
+            "footer": {"text": "Kyzen SA • kyzensaofc.vercel.app"},
+        }],
+        "components": [{"type": 1, "components": [
+            {"type": 2, "style": 5, "label": rotulo, "url": SITE + "/" + ancora},
+            {"type": 2, "style": 5, "label": "Trello do jogo", "url": SITE + "/#trello"},
+        ] if ancora != "#trello" else [
+            {"type": 2, "style": 5, "label": rotulo, "url": SITE + "/" + ancora},
+            {"type": 2, "style": 5, "label": "Abrir o site", "url": SITE + "/"},
+        ]}],
+        "allowed_mentions": {"parse": []},
+    }
+
+
+@app.route("/api/divulgar")
+def divulgar():
+    if not cron_ok():
+        return jsonify({"ok": False}), 404
+    token = os.environ.get("DISCORD_BOT_TOKEN", "").strip()
+    canal = os.environ.get("CANAL_GERAL", CANAL_GERAL).strip()
+    agora = time.time()
+    try:
+        bot_id = str(discord_get("/users/@me", token)["id"])
+        msgs = discord_get(f"/channels/{canal}/messages?limit=100", token)
+    except (urllib.error.URLError, ValueError, KeyError, TypeError):
+        return jsonify({"ok": False, "motivo": "discord indisponível"}), 502
+    vai, motivo = decidir_divulgacao(msgs, bot_id, agora)
+    previa = request.args.get("previa") == "1"
+    if previa or not vai:
+        return jsonify({"ok": True, "enviou": False, "enviaria": vai, "motivo": motivo,
+                        "mensagem": montar_divulgacao(agora)["embeds"][0]["title"]})
+    try:
+        r = discord_post(f"/channels/{canal}/messages", token, montar_divulgacao(agora))
+    except urllib.error.HTTPError as e:
+        return jsonify({"ok": False, "motivo": f"discord recusou ({e.code})"}), 502
+    except (urllib.error.URLError, ValueError):
+        return jsonify({"ok": False, "motivo": "discord indisponível"}), 502
+    return jsonify({"ok": True, "enviou": True, "id": r.get("id")})
+
+
 @app.route("/api/requisitos")
 def requisitos():  # endereço antigo, mantido por compatibilidade
     return canal_api("requisitos")
