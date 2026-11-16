@@ -3795,6 +3795,63 @@ DIRETRIZES_CARGOS = [
 ]
 
 
+ARQUIVO_CAT = "1572017924389077163"
+ARQUIVO_TEXTO = {"1401330506586525706", "1383965189778702336", "1408473829529092136"}
+ARQUIVO_VOZ = {"1384001861425561671", "1384002255769833493", "1384002386590171227"}
+
+
+def copia_canal(cid, nome, paginas=30):
+    linhas, antes, total = [], "", 0
+    for _ in range(paginas):
+        lote = discord_req("GET", f"/channels/{cid}/messages?limit=100" + (f"&before={antes}" if antes else ""))
+        for m in lote:
+            a = m.get("author") or {}
+            quando = datetime.fromtimestamp(snowflake_ts(m["id"]), timezone.utc) - timedelta(hours=3)
+            txt = m.get("content") or ""
+            txt += "".join(f"\n    [anexo] {x.get('url')}" for x in m.get("attachments") or [])
+            txt += "".join(f"\n    [embed] {x.get('title') or ''} {x.get('description') or ''}" for x in m.get("embeds") or [])
+            linhas.append(f"[{quando:%d/%m/%Y %H:%M}] {a.get('global_name') or a.get('username')}: {txt}")
+        total += len(lote)
+        if len(lote) < 100:
+            break
+        antes = lote[-1]["id"]
+        time.sleep(0.2)
+    else:
+        linhas.append("... (parou aqui: canal muito grande)")
+    return f"#{nome}\n\n" + "\n".join(reversed(linhas)), total
+
+
+@app.route("/api/apagar-arquivo", methods=["POST"])
+def apagar_arquivo():
+    """Temporário (staff): salva cópia das mensagens e apaga os canais do Arquivo."""
+    if not debug_ok():
+        return jsonify({"ok": False}), 404
+    gid = os.environ.get("DISCORD_GUILD_ID", "").strip()
+    canais = {c["id"]: c for c in discord_req("GET", f"/guilds/{gid}/channels")}
+    filhos = [c for c in canais.values() if c.get("parent_id") == ARQUIVO_CAT]
+    inesperados = [c.get("name") for c in filhos if c["id"] not in ARQUIVO_TEXTO | ARQUIVO_VOZ]
+    if inesperados:
+        return privado(jsonify({"ok": False, "erro": "tem canal a mais no Arquivo", "canais": inesperados}))
+    out = {"copias": {}, "apagados": []}
+    for cid in ARQUIVO_TEXTO:
+        if cid not in canais:
+            continue
+        nome = canais[cid].get("name")
+        texto, total = copia_canal(cid, nome)
+        discord_arquivo(f"/channels/{canal_staff('bot')}/messages", {"embeds": [{
+            "title": f"🗃️ Cópia do canal apagado #{nome}", "color": 0x6C757D,
+            "description": f"{total} mensagens salvas antes de apagar o canal do Arquivo.",
+            "footer": {"text": "copia-arquivo"}}], "allowed_mentions": {"parse": []}},
+            f"{slug_py(nome) or cid}.txt", texto.encode("utf-8"))
+        out["copias"][nome] = total
+    for cid in list(ARQUIVO_TEXTO | ARQUIVO_VOZ) + [ARQUIVO_CAT]:
+        if cid in canais:
+            discord_req("DELETE", f"/channels/{cid}", motivo="Limpeza do Arquivo (cópia salva no #registro-bot)")
+            out["apagados"].append(canais[cid].get("name"))
+            time.sleep(0.4)
+    return privado(jsonify(dict(out, ok=True)))
+
+
 def interacao_moderacao(d, tipo, dados, nome, opcoes, uid):
     """Comandos de moderação e denúncia. Devolve None se não for um deles."""
     gid = str(d.get("guild_id") or os.environ.get("DISCORD_GUILD_ID", "")).strip()
