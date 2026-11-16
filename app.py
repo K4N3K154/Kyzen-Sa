@@ -3265,6 +3265,155 @@ def interacao_extras(d, tipo, dados, nome, opcoes, uid):
     return None
 
 
+# ----- Diagnóstico de saúde dos bots (temporário, staff) ---------------------
+def perms_no_canal(gid, uid, cargos, roles, canal):
+    """Permissões efetivas de alguém num canal (mesma conta do Discord)."""
+    perm = {str(r["id"]): int(r.get("permissions") or 0) for r in roles}
+    base = perm.get(gid, 0)
+    for r in cargos:
+        base |= perm.get(r, 0)
+    if base & PERM_ADMIN:
+        return -1
+    ows = {str(o["id"]): o for o in (canal or {}).get("permission_overwrites") or []}
+    p = base
+    o = ows.get(gid)
+    if o:
+        p = (p & ~int(o.get("deny") or 0)) | int(o.get("allow") or 0)
+    a = d = 0
+    for r in cargos:
+        o = ows.get(r)
+        if o:
+            a |= int(o.get("allow") or 0)
+            d |= int(o.get("deny") or 0)
+    p = (p & ~d) | a
+    o = ows.get(uid)
+    if o:
+        p = (p & ~int(o.get("deny") or 0)) | int(o.get("allow") or 0)
+    return p
+
+
+NOMES_PERM = {PERM_VER: "ver", PERM_ENVIAR: "enviar", PERM_LINKS: "embeds", PERM_HIST: "histórico",
+              1 << 6: "reagir", 1 << 20: "conectar", 1 << 21: "falar", 1 << 24: "mover membros",
+              1 << 4: "gerenciar canais", 1 << 28: "gerenciar cargos", 1 << 13: "gerenciar mensagens",
+              PERM_GERENCIAR_SERVIDOR: "gerenciar servidor", 1 << 29: "webhooks"}
+TEXTO = PERM_VER | PERM_ENVIAR | PERM_LINKS
+VOZ = PERM_VER | (1 << 20) | (1 << 21)
+C_CALLS = ("1383947381032095847", "1447387287154331648", "1570632727097643028")
+SAUDE = {  # bot: (canais que precisa e o que precisa neles, permissões no servidor)
+    "432610292342587392": ({"1390162037878947860": TEXTO | (1 << 13)}, 0),                # Mudae
+    "487328045275938828": ({"1386798132599460011": TEXTO}, 0),                            # GarticBOT
+    "470684281102925844": ({"1407867442428121230": TEXTO}, 0),                            # Jibril
+    "411916947773587456": ({c: VOZ for c in C_CALLS}, 0),                                 # Jockie Music
+    "412347257233604609": ({c: VOZ for c in C_CALLS}, 0),                                 # Jockie Music (1)
+    "823651749037473833": ({c: VOZ for c in C_CALLS}, 0),                                 # Musico Prime
+    "235088799074484224": ({c: VOZ for c in C_CALLS}, 0),                                 # Rythm
+    "472911936951156740": ({"1386862556743733249": VOZ | (1 << 24)}, (1 << 4) | (1 << 24)),  # VoiceMaster
+    "297153970613387264": ({"1400508652510777354": TEXTO}, 1 << 28),                      # Loritta (níveis)
+    "853327905357561948": ({"1398726258157949148": TEXTO}, 0),                            # Appy
+    "710034409214181396": ({"1398749616832254002": TEXTO}, 1 << 4),                       # Ticket King
+    "720351927581278219": ({}, PERM_GERENCIAR_SERVIDOR),                                  # Invite Tracker
+    "1387642831497334934": ({"1383947381032095846": TEXTO}, 0),                           # Tellonym
+    "948242943595147325": ({"1383947381032095846": TEXTO}, 0),                            # QuickVids
+    "235148962103951360": ({}, 1 << 28),                                                  # carl-bot
+    "1571195084391587990": ({}, PERM_ADMIN),                                              # Kyzen Bot
+}
+
+
+def falta(p, precisa):
+    if p == -1:
+        return []
+    return [n for bit, n in NOMES_PERM.items() if precisa & bit and not p & bit] + \
+           (["admin"] if precisa & PERM_ADMIN and not p & PERM_ADMIN else [])
+
+
+def saude_bots(gid):
+    roles = discord_req("GET", f"/guilds/{gid}/roles")
+    canais = {c["id"]: c for c in discord_req("GET", f"/guilds/{gid}/channels")}
+    bots = {}
+    for i in discord_req("GET", f"/guilds/{gid}/integrations"):
+        b = ((i.get("application") or {}).get("bot") or {})
+        if i.get("type") == "discord" and b.get("id"):
+            bots[str(b["id"])] = (i.get("application") or {}).get("name") or b.get("username")
+    out = {}
+    for bid, nome in sorted(bots.items(), key=lambda x: x[1].lower()):
+        membro = None
+        for _ in range(4):
+            try:
+                membro = discord_req("GET", f"/guilds/{gid}/members/{bid}")
+                break
+            except urllib.error.HTTPError as e:
+                if e.code != 429:
+                    out[nome] = f"❌ não está no servidor ({e.code})"
+                    break
+                time.sleep(1.5)
+        if membro is None:
+            out.setdefault(nome, "❓ o Discord pediu para esperar, não deu para conferir")
+            continue
+        cargos = [str(r) for r in membro.get("roles") or []]
+        base = perms_no_canal(gid, bid, cargos, roles, None)
+        problemas = []
+        admin = base == -1
+        regras = SAUDE.get(bid)
+        if regras:
+            canais_req, guild_req = regras
+            problemas += [f"servidor: falta {', '.join(falta(base, guild_req))}"] if falta(base, guild_req) else []
+            for cid, precisa in canais_req.items():
+                if cid not in canais:
+                    problemas.append(f"canal {cid} não existe mais")
+                    continue
+                f = falta(perms_no_canal(gid, bid, cargos, roles, canais[cid]), precisa)
+                if f:
+                    problemas.append(f"#{canais[cid].get('name')}: falta {', '.join(f)}")
+        else:
+            f = falta(perms_no_canal(gid, bid, cargos, roles, canais.get("1383957562696929342")), TEXTO)
+            if f:
+                problemas.append(f"#comandos: falta {', '.join(f)}")
+        if membro.get("communication_disabled_until"):
+            problemas.append("está de castigo (timeout)")
+        out[nome] = ("✅ ok" if not problemas else "⚠️ " + " | ".join(problemas)) + (" · admin" if admin else "")
+    return out
+
+
+def saude_kyzen(gid):
+    out = {}
+    info = discord_req("GET", "/oauth2/applications/@me")
+    out["endpoint_de_comandos"] = info.get("interactions_endpoint_url")
+    cmds = discord_req("GET", f"/applications/{info['id']}/guilds/{gid}/commands")
+    out["comandos_cadastrados"] = len(cmds)
+    out["comandos_faltando"] = sorted({c["name"] for c in COMANDOS} - {c["name"] for c in cmds})
+    for chave, cid in (("registro_punicoes", canal_registro()), ("registro_bot", canal_staff("bot")),
+                       ("formularios", canal_staff("forms"))):
+        try:
+            m = discord_req("POST", f"/channels/{cid}/messages", {"content": "🔧 teste automático do Kyzen Bot (apagando)"})
+            discord_req("DELETE", f"/channels/{cid}/messages/{m['id']}")
+            out[chave] = "✅ envia e apaga"
+        except (urllib.error.URLError, KeyError) as e:
+            out[chave] = f"❌ {str(e)[:80]}"
+    regras = discord_req("GET", f"/guilds/{gid}/auto-moderation/rules")
+    out["automod"] = [f"{'✅' if r.get('enabled') else '⏸️'} {r.get('name')}" for r in regras]
+    fix = discord_req("GET", "/channels/1383957562696929342/pins")
+    out["guia_fixado"] = any(any((e.get("title") or "").startswith("🧭") for e in m.get("embeds") or []) for m in fix)
+    g = discord_req("GET", f"/guilds/{gid}?with_counts=true")
+    out["membros_agora"] = g.get("approximate_member_count")
+    out["online_agora"] = g.get("approximate_presence_count")
+    return out
+
+
+@app.route("/api/diag-saude")
+def diag_saude():
+    """Temporário (staff, DEBUG_KEY): confere se cada bot tem o que precisa e se o Kyzen Bot está inteiro."""
+    if not debug_ok():
+        return jsonify({"ok": False}), 404
+    gid = os.environ.get("DISCORD_GUILD_ID", "").strip()
+    out = {}
+    for nome, f in (("kyzen_bot", saude_kyzen), ("bots", saude_bots)):
+        try:
+            out[nome] = f(gid)
+        except Exception as e:  # noqa: BLE001
+            out[nome] = f"erro: {str(e)[:150]}"
+    return privado(jsonify(out))
+
+
 def interacao_moderacao(d, tipo, dados, nome, opcoes, uid):
     """Comandos de moderação e denúncia. Devolve None se não for um deles."""
     gid = str(d.get("guild_id") or os.environ.get("DISCORD_GUILD_ID", "")).strip()
