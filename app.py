@@ -2126,6 +2126,367 @@ def cmd_frota(uid):
                     privada=True)
 
 
+# ---------------------------------------------------------------------------
+# Moderação (staff): clique direito no membro/mensagem -> "Advertir", ou /advertir.
+#   O bot aplica sozinho a tabela das regras (1 warn = mute 15 min ... 5 warns = ban),
+#   avisa o membro na DM e registra tudo no canal privado #registro-punições.
+#   Os warns são contados pelas mensagens desse canal (não precisa de banco).
+# ---------------------------------------------------------------------------
+PERM_ADMIN, PERM_KICK, PERM_BAN = 1 << 3, 1 << 1, 1 << 2
+PERM_VER, PERM_HIST, PERM_MODERAR = 1 << 10, 1 << 16, 1 << 40
+CANAL_TICKET = "1398749616832254002"
+NOME_REGISTRO = "🛡️・registro-punições"
+LIMITE_BAN = 5
+PUNICOES = {1: (15 * 60, "Mute de 15 minutos"), 2: (3600, "Mute de 1 hora"),
+            3: (86400, "Mute de 1 dia"), 4: (3 * 86400, "Mute de 3 dias")}
+ST_WARN, ST_VERBAL, ST_PERDOADA, ST_PERDAO = "advertência", "aviso verbal", "advertência perdoada", "perdão"
+_registro = {"id": ""}
+
+COMANDOS += [
+    {"type": 2, "name": "Advertir membro", "default_member_permissions": str(PERM_MODERAR)},
+    {"type": 3, "name": "Advertir autor", "default_member_permissions": str(PERM_MODERAR)},
+    {"name": "advertir", "description": "Dar uma advertência (o bot aplica a punição da tabela)",
+     "default_member_permissions": str(PERM_MODERAR),
+     "options": [{"type": 6, "name": "membro", "description": "Quem levou a advertência", "required": True},
+                 {"type": 3, "name": "motivo", "description": "O que a pessoa fez", "required": True,
+                  "max_length": 500},
+                 {"type": 3, "name": "tipo", "description": "Advertência normal ou só aviso verbal",
+                  "choices": [{"name": "Advertência (conta na tabela)", "value": "warn"},
+                              {"name": "Aviso verbal (sem punição)", "value": "verbal"}]},
+                 {"type": 3, "name": "prova", "description": "Link da mensagem ou do print", "max_length": 1000}]},
+    {"name": "historico", "description": "Ver as advertências de um membro",
+     "default_member_permissions": str(PERM_MODERAR),
+     "options": [{"type": 6, "name": "membro", "description": "Membro", "required": True}]},
+    {"name": "perdoar", "description": "Tirar a última advertência de um membro (e o mute atual)",
+     "default_member_permissions": str(PERM_MODERAR),
+     "options": [{"type": 6, "name": "membro", "description": "Membro", "required": True},
+                 {"type": 3, "name": "motivo", "description": "Por que está perdoando", "max_length": 300}]},
+    {"name": "denunciar", "description": "Como denunciar alguém para a staff"},
+    {"type": 3, "name": "Denunciar mensagem"},
+]
+
+
+def discord_req(metodo, path, dados=None, motivo=""):
+    h = {"Authorization": f"Bot {os.environ.get('DISCORD_BOT_TOKEN', '').strip()}",
+         "User-Agent": "KyzenSA-Site (1.0)", "Content-Type": "application/json"}
+    if motivo:
+        h["X-Audit-Log-Reason"] = urllib.parse.quote(cortar(motivo, 400))
+    req = urllib.request.Request(API + path, method=metodo, headers=h,
+                                 data=None if dados is None else json.dumps(dados).encode("utf-8"))
+    with urllib.request.urlopen(req, timeout=4) as r:
+        corpo = r.read().decode("utf-8")
+        return json.loads(corpo) if corpo else {}
+
+
+def tem_perm(membro, bits):
+    p = int((membro or {}).get("permissions") or 0)
+    return bool(p & PERM_ADMIN or p & bits)
+
+
+def canal_registro(criar=False):
+    if _registro["id"]:
+        return _registro["id"]
+    token = os.environ.get("DISCORD_BOT_TOKEN", "").strip()
+    gid = os.environ.get("DISCORD_GUILD_ID", "").strip()
+    cid = os.environ.get("CANAL_PUNICOES", "").strip() or achar_canal(token, gid, "registro-punicoes")
+    if not cid and criar:
+        cid = criar_registro(gid)
+    _registro["id"] = cid
+    return cid
+
+
+def criar_registro(gid):
+    """Cria o #registro-punições visível só para quem modera (admin, moderar, expulsar ou banir)."""
+    def norm(s):
+        return re.sub(r"[^a-z]", "", unicodedata.normalize("NFD", s or "").encode("ascii", "ignore").decode().lower())
+
+    ow = [{"id": gid, "type": 0, "allow": "0", "deny": str(PERM_VER)}]
+    for r in discord_req("GET", f"/guilds/{gid}/roles"):
+        if r["id"] != gid and not r.get("managed") and \
+                int(r.get("permissions") or 0) & (PERM_ADMIN | PERM_MODERAR | PERM_KICK | PERM_BAN):
+            ow.append({"id": r["id"], "type": 0, "allow": str(PERM_VER | PERM_HIST), "deny": "0"})
+    corpo = {"name": NOME_REGISTRO, "type": 0, "permission_overwrites": ow,
+             "topic": "Registro automático das advertências do KyzenSite. Não apague as mensagens daqui: "
+                      "é por elas que o bot conta os warns de cada membro."}
+    for c in discord_req("GET", f"/guilds/{gid}/channels"):
+        if c.get("type") == 4 and any(p in norm(c.get("name")) for p in ("staff", "adm", "moder")):
+            corpo["parent_id"] = c["id"]
+            break
+    canal = discord_req("POST", f"/guilds/{gid}/channels", corpo, "Registro de punições do KyzenSite")
+    guia = discord_req("POST", f"/channels/{canal['id']}/messages", {"embeds": [GUIA_STAFF], "allowed_mentions": {"parse": []}})
+    try:
+        discord_req("PUT", f"/channels/{canal['id']}/pins/{guia['id']}", motivo="Guia da staff")
+    except urllib.error.URLError:
+        pass
+    _canais_cache["t"] = 0
+    return canal["id"]
+
+
+GUIA_STAFF = {
+    "title": "🛡️ Como advertir alguém (guia rápido da staff)", "color": 0xC9954F,
+    "description":
+        "**Jeito mais fácil:** clique com o botão direito no **membro** (ou na **mensagem** dele) → "
+        "**Apps** → **Advertir membro** / **Advertir autor**. Escreva o motivo e pronto.\n"
+        "No celular: segure o dedo em cima do nome ou da mensagem → **Apps**.\n\n"
+        "**Ou pelo comando:** `/advertir membro motivo` (dá pra escolher *aviso verbal* e colar a prova).\n\n"
+        "**O bot faz o resto sozinho:** conta os warns, aplica a punição certa, avisa o membro na DM "
+        "e registra aqui neste canal.",
+    "fields": [
+        {"name": "📋 Tabela de punições", "inline": False,
+         "value": "Aviso verbal → sem punição\n1º warn → mute de 15 minutos\n2º warn → mute de 1 hora\n"
+                  "3º warn → mute de 1 dia\n4º warn → mute de 3 dias\n5º warn → **ban**"},
+        {"name": "🔎 Outros comandos", "inline": False,
+         "value": "`/historico membro` → ver os warns de alguém\n"
+                  "`/perdoar membro` → tirar o último warn (e o mute atual)"},
+        {"name": "⚠️ Importante", "inline": False,
+         "value": "Não apague as mensagens deste canal: o bot conta os warns por elas."},
+    ],
+}
+
+
+def registros(uid, paginas=2):
+    """Registros do membro no #registro-punições, do mais novo para o mais antigo."""
+    reg = canal_registro()
+    if not reg:
+        raise ValueError("sem canal de registro")
+    out, antes = [], ""
+    for _ in range(paginas):
+        lote = discord_req("GET", f"/channels/{reg}/messages?limit=100" + (f"&before={antes}" if antes else ""))
+        for m in lote:
+            if not (m.get("author") or {}).get("bot"):
+                continue
+            for e in m.get("embeds") or []:
+                ach = re.match(r"^Membro (\d{5,25}) · (.+)$", ((e.get("footer") or {}).get("text") or ""))
+                if ach and ach.group(1) == uid:
+                    out.append({"status": ach.group(2), "msg": m, "embed": e})
+        if len(lote) < 100:
+            break
+        antes = lote[-1]["id"]
+    return out
+
+
+def campo(e, nome):
+    return next((f.get("value", "") for f in e.get("fields") or [] if f.get("name", "").endswith(nome)), "")
+
+
+def ticket_link():
+    gid = os.environ.get("DISCORD_GUILD_ID", "").strip()
+    return f"https://discord.com/channels/{gid}/{CANAL_TICKET}"
+
+
+def advertir(gid, staff_id, alvo_id, alvo_nome, motivo, prova="", verbal=False):
+    ativos = [r for r in registros(alvo_id) if r["status"] == ST_WARN]
+    n = len(ativos) + (0 if verbal else 1)
+    if verbal:
+        punicao, segundos = "Nenhuma (aviso verbal)", 0
+    elif n >= LIMITE_BAN:
+        punicao, segundos = "Banimento", -1
+    else:
+        segundos, punicao = PUNICOES[n]
+    motivo_audit = f"{'Aviso verbal' if verbal else f'Warn {n}/{LIMITE_BAN}'} por {staff_id}: {motivo}"
+
+    # 1) avisa na DM antes (depois de um ban o bot não consegue mais falar com a pessoa)
+    dm_ok = True
+    try:
+        dm = discord_req("POST", "/users/@me/channels", {"recipient_id": alvo_id})
+        discord_req("POST", f"/channels/{dm['id']}/messages", {"embeds": [{
+            "title": "🗣️ Você recebeu um aviso na Kyzen SA" if verbal else
+                     f"⚠️ Você recebeu uma advertência na Kyzen SA ({n}/{LIMITE_BAN})",
+            "color": 0xE0A800 if verbal else 0xD9534F,
+            "description": f"**Motivo:** {cortar(motivo, 900)}\n**Punição:** {punicao}\n\n"
+                           + ("" if verbal or n >= LIMITE_BAN else
+                              f"Com **{LIMITE_BAN} advertências** a punição é banimento. Leia as regras para evitar novas.\n")
+                           + f"Se achar que foi injusto, abra um ticket: {ticket_link()}",
+        }], "allowed_mentions": {"parse": []}})
+    except (urllib.error.URLError, KeyError, ValueError):
+        dm_ok = False
+
+    # 2) aplica a punição
+    aplicada, erro = True, ""
+    try:
+        if segundos > 0:
+            ate = (datetime.now(timezone.utc) + timedelta(seconds=segundos)).isoformat()
+            discord_req("PATCH", f"/guilds/{gid}/members/{alvo_id}", {"communication_disabled_until": ate}, motivo_audit)
+        elif segundos < 0:
+            discord_req("PUT", f"/guilds/{gid}/bans/{alvo_id}", {"delete_message_seconds": 0}, motivo_audit)
+    except urllib.error.HTTPError as e:
+        aplicada, erro = False, ("o cargo da pessoa está acima do bot" if e.code == 403 else
+                                 "a pessoa não está mais no servidor" if e.code == 404 else f"erro {e.code}")
+    except urllib.error.URLError:
+        aplicada, erro = False, "o Discord não respondeu"
+
+    # 3) registra
+    reg = canal_registro()
+    titulo = "🗣️ Aviso verbal" if verbal else f"⚠️ Advertência {n}/{LIMITE_BAN}"
+    log = {"title": titulo, "color": 0xE0A800 if verbal else (0x8B0000 if segundos < 0 else 0xD9534F),
+           "fields": [{"name": "👤 Membro", "value": f"<@{alvo_id}>" + (f" ({cortar(alvo_nome, 60)})" if alvo_nome != alvo_id else ""), "inline": True},
+                      {"name": "🛡️ Staff", "value": f"<@{staff_id}>", "inline": True},
+                      {"name": "⚖️ Punição", "value": punicao + ("" if aplicada else f" ❌ não aplicada: {erro}"),
+                       "inline": True},
+                      {"name": "📝 Motivo", "value": cortar(motivo, 1000), "inline": False}],
+           "footer": {"text": f"Membro {alvo_id} · {ST_VERBAL if verbal else ST_WARN}"},
+           "timestamp": datetime.now(timezone.utc).isoformat()}
+    if prova:
+        log["fields"].append({"name": "📎 Prova", "value": cortar(prova, 1000), "inline": False})
+    try:
+        discord_req("POST", f"/channels/{reg}/messages", {"embeds": [log], "allowed_mentions": {"parse": []}})
+    except urllib.error.URLError:
+        erro = erro or "não consegui registrar no #registro-punições"
+
+    linhas = [f"**Membro:** <@{alvo_id}>", f"**Punição:** {punicao}" + ("" if aplicada else f" ❌ ({erro})")]
+    if not verbal:
+        prox = "—" if n >= LIMITE_BAN else ("Banimento" if n + 1 >= LIMITE_BAN else PUNICOES[n + 1][1])
+        linhas.append(f"**Advertências:** {n}/{LIMITE_BAN} · próxima punição: {prox}")
+    linhas.append("📩 Avisado na DM" if dm_ok else "📪 Não consegui avisar na DM (DM fechada)")
+    linhas.append(f"🗂️ Registrado em <#{reg}>")
+    return resposta({"title": ("✅ Pronto: " if aplicada else "⚠️ Registrado, mas a punição falhou: ") + titulo,
+                     "description": "\n".join(linhas)}, privada=True, componentes=[])
+
+
+def cmd_historico(uid):
+    regs = registros(uid)
+    ativos = [r for r in regs if r["status"] == ST_WARN]
+    if not regs:
+        return resposta({"title": "🗂️ Histórico", "description": f"<@{uid}> não tem nenhum registro. 😇"},
+                        privada=True, componentes=[])
+    icone = {ST_WARN: "⚠️", ST_VERBAL: "🗣️", ST_PERDOADA: "~~⚠️~~", ST_PERDAO: "✅"}
+    linhas = []
+    for r in regs[:12]:
+        ts = int(snowflake_ts(r["msg"]["id"]))
+        motivo = cortar(campo(r["embed"], "Motivo").replace("\n", " "), 90)
+        linhas.append(f"{icone.get(r['status'], '•')} <t:{ts}:d> · {r['status']} · {motivo} · por {campo(r['embed'], 'Staff')}")
+    n = len(ativos)
+    prox = "Banimento" if n + 1 >= LIMITE_BAN else PUNICOES[n + 1][1]
+    return resposta({"title": "🗂️ Histórico de punições",
+                     "description": f"<@{uid}> · **{n}/{LIMITE_BAN} advertências ativas** · próxima: {prox}\n\n"
+                                    + "\n".join(linhas)}, privada=True, componentes=[])
+
+
+def cmd_perdoar(gid, staff_id, uid, motivo):
+    ativos = [r for r in registros(uid) if r["status"] == ST_WARN]
+    if not ativos:
+        return resposta(texto=f"<@{uid}> não tem advertência ativa para perdoar.", privada=True, componentes=[])
+    alvo = ativos[0]
+    e = dict(alvo["embed"])
+    e["title"] = f"~~{e.get('title', 'Advertência')}~~ (perdoada)"
+    e["color"] = 0x6C757D
+    e["footer"] = {"text": f"Membro {uid} · {ST_PERDOADA}"}
+    reg = canal_registro()
+    discord_req("PATCH", f"/channels/{reg}/messages/{alvo['msg']['id']}", {"embeds": [e]})
+    try:
+        discord_req("PATCH", f"/guilds/{gid}/members/{uid}", {"communication_disabled_until": None},
+                    f"Perdão por {staff_id}: {motivo}")
+    except urllib.error.URLError:
+        pass
+    discord_req("POST", f"/channels/{reg}/messages", {"embeds": [{
+        "title": "✅ Advertência perdoada", "color": 0x28A745,
+        "fields": [{"name": "👤 Membro", "value": f"<@{uid}>", "inline": True},
+                   {"name": "🛡️ Staff", "value": f"<@{staff_id}>", "inline": True},
+                   {"name": "📝 Motivo", "value": cortar(motivo or "Sem motivo informado", 1000), "inline": False}],
+        "footer": {"text": f"Membro {uid} · {ST_PERDAO}"},
+        "timestamp": datetime.now(timezone.utc).isoformat()}], "allowed_mentions": {"parse": []}})
+    return resposta({"title": "✅ Advertência perdoada",
+                     "description": f"<@{uid}> agora tem **{len(ativos) - 1}/{LIMITE_BAN}** advertências ativas. "
+                                    "Se estava mutado, o mute foi tirado."}, privada=True, componentes=[])
+
+
+def cmd_denunciar(link_msg=""):
+    passos = ("**1.** Tire **print** do que aconteceu\n"
+              + (f"**2.** Copie o link da mensagem: {link_msg}\n" if link_msg else
+                 "**2.** Se for uma mensagem, segure/clique com o botão direito → **Copiar link da mensagem**\n")
+              + f"**3.** Abra um ticket em <#{CANAL_TICKET}> e escolha **Denúncia**\n"
+                "**4.** Cole o link, mande o print e diga quem foi e o que aconteceu\n\n"
+                "A staff analisa e você recebe a resposta no ticket. Sua denúncia **não é pública**. 🤝")
+    return resposta({"title": "🚩 Como denunciar alguém", "description": passos},
+                    privada=True, componentes=[{"type": 1, "components": [
+                        {"type": 2, "style": 5, "label": "Abrir ticket", "url": ticket_link()}]}])
+
+
+def modal_advertir(alvo_id, alvo_nome, prova=""):
+    caixas = [{"type": 4, "custom_id": "motivo", "label": "Motivo (o que a pessoa fez?)", "style": 2,
+               "required": True, "max_length": 500, "placeholder": "Ex.: ofendeu outro membro no #chat-geral"},
+              {"type": 4, "custom_id": "prova", "label": "Prova: link da mensagem ou do print", "style": 2,
+               "required": False, "max_length": 1000, "placeholder": "Opcional"},
+              {"type": 4, "custom_id": "verbal", "label": "Só aviso verbal, sem punição? (sim/não)", "style": 1,
+               "required": False, "max_length": 3, "placeholder": "Deixe vazio para advertência normal"}]
+    if prova:
+        caixas[1]["value"] = cortar(prova, 1000)
+    return jsonify({"type": 9, "data": {"custom_id": f"adv:{alvo_id}", "title": cortar(f"Advertir {alvo_nome}", 45),
+                                        "components": [{"type": 1, "components": [c]} for c in caixas]}})
+
+
+def checar_alvo(staff_id, alvo, membro_alvo):
+    if not alvo or not alvo.get("id"):
+        return "Não encontrei esse membro."
+    if alvo.get("bot"):
+        return "Não dá para advertir um bot."
+    if str(alvo["id"]) == staff_id:
+        return "Você não pode advertir a si mesmo. 😅"
+    if membro_alvo and tem_perm(membro_alvo, PERM_MODERAR):
+        return "Essa pessoa é da staff. Fale com um owner/admin."
+    return ""
+
+
+def interacao_moderacao(d, tipo, dados, nome, opcoes, uid):
+    """Comandos de moderação e denúncia. Devolve None se não for um deles."""
+    gid = str(d.get("guild_id") or os.environ.get("DISCORD_GUILD_ID", "")).strip()
+    membro = d.get("member") or {}
+    resolv = dados.get("resolved") or {}
+
+    if tipo == 2 and nome == "denunciar":
+        return cmd_denunciar()
+    if tipo == 2 and nome == "Denunciar mensagem":
+        m = (resolv.get("messages") or {}).get(str(dados.get("target_id"))) or {}
+        return cmd_denunciar(f"https://discord.com/channels/{gid}/{m.get('channel_id')}/{m.get('id')}" if m else "")
+
+    staff_cmd = (tipo == 2 and nome in ("Advertir membro", "Advertir autor", "advertir", "historico", "perdoar")) or \
+                (tipo == 5 and str(dados.get("custom_id", "")).startswith("adv:"))
+    if not staff_cmd:
+        return None
+    if not tem_perm(membro, PERM_MODERAR):
+        return resposta(texto="Só a staff pode usar isso.", privada=True, componentes=[])
+
+    if tipo == 2 and nome == "Advertir membro":
+        alvo_id = str(dados.get("target_id"))
+        alvo = (resolv.get("users") or {}).get(alvo_id)
+        erro = checar_alvo(uid, alvo, (resolv.get("members") or {}).get(alvo_id))
+        if erro:
+            return resposta(texto=erro, privada=True, componentes=[])
+        return modal_advertir(alvo_id, alvo.get("global_name") or alvo.get("username") or "membro")
+    if tipo == 2 and nome == "Advertir autor":
+        m = (resolv.get("messages") or {}).get(str(dados.get("target_id"))) or {}
+        alvo = m.get("author") or {}
+        erro = checar_alvo(uid, alvo, (resolv.get("members") or {}).get(str(alvo.get("id"))))
+        if erro:
+            return resposta(texto=erro, privada=True, componentes=[])
+        prova = f"https://discord.com/channels/{gid}/{m.get('channel_id')}/{m.get('id')}"
+        if m.get("content"):
+            prova += "\n> " + cortar(m["content"].replace("\n", " "), 400)
+        return modal_advertir(str(alvo["id"]), alvo.get("global_name") or alvo.get("username") or "membro", prova)
+    if tipo == 5:
+        alvo_id = str(dados["custom_id"]).split(":", 1)[1]
+        valores = {c.get("custom_id"): (c.get("value") or "").strip()
+                   for linha in dados.get("components") or [] for c in linha.get("components") or []}
+        if not re.fullmatch(r"\d{5,25}", alvo_id) or not valores.get("motivo"):
+            return resposta(texto="Faltou o motivo.", privada=True, componentes=[])
+        verbal = slug_py(valores.get("verbal", "")).startswith("s")
+        return advertir(gid, uid, alvo_id, alvo_id, valores["motivo"], valores.get("prova", ""), verbal)
+
+    alvo_id = str(opcoes.get("membro") or "")
+    alvo = (resolv.get("users") or {}).get(alvo_id)
+    if nome == "advertir":
+        erro = checar_alvo(uid, alvo, (resolv.get("members") or {}).get(alvo_id))
+        if erro:
+            return resposta(texto=erro, privada=True, componentes=[])
+        return advertir(gid, uid, alvo_id, alvo.get("global_name") or alvo.get("username") or alvo_id,
+                        str(opcoes.get("motivo") or ""), str(opcoes.get("prova") or ""), opcoes.get("tipo") == "verbal")
+    if nome == "historico":
+        return cmd_historico(alvo_id)
+    if nome == "perdoar":
+        return cmd_perdoar(gid, uid, alvo_id, str(opcoes.get("motivo") or ""))
+    return None
+
+
 @app.route("/api/interacoes", methods=["POST"])
 def interacoes():
     try:
@@ -2153,6 +2514,14 @@ def interacoes():
         else:
             lista = []
         return jsonify({"type": 8, "data": {"choices": [{"name": n[:100], "value": n[:100]} for n in lista]}})
+    try:
+        mod = interacao_moderacao(d, tipo, dados, nome, opcoes, uid)
+        if mod is not None:
+            return mod
+    except Exception as e:  # noqa: BLE001
+        app.logger.error("moderação %s: %s", nome, str(e)[:160])
+        return resposta(texto="Não consegui concluir agora. Confira o #registro-punições e tente de novo.",
+                        privada=True, componentes=[])
     try:
         if nome == "codigos":
             return cmd_codigos()
@@ -2207,7 +2576,11 @@ def registrar_comandos():
             feitos = json.loads(r.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
         return privado(jsonify({"ok": False, "erro": e.code, "discord": e.read().decode("utf-8", "replace")[:300]}), 502)
-    return privado(jsonify({"ok": True, "comandos": [c.get("name") for c in feitos]}))
+    try:
+        registro = canal_registro(criar=True)
+    except (urllib.error.URLError, KeyError, ValueError) as e:
+        registro = f"erro: {str(e)[:120]}"
+    return privado(jsonify({"ok": True, "comandos": [c.get("name") for c in feitos], "registro_punicoes": registro}))
 
 
 # ---------------------------------------------------------------------------
