@@ -3886,8 +3886,12 @@ def corrigir_escada():
                         break
                     except urllib.error.HTTPError as e:
                         if e.code != 429:
-                            raise
+                            mudancas.append(f"   ERRO {e.code}: {e.read().decode('utf-8', 'replace')[:150]}")
+                            break
                         time.sleep(2)
+                    except urllib.error.URLError as e:
+                        mudancas.append(f"   ERRO rede: {e}")
+                        break
                 time.sleep(0.25)
     return privado(jsonify({"ok": True, "simulado": simular, "mudancas": mudancas}))
 
