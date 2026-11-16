@@ -1,5 +1,7 @@
 {
   "crons": [
+    { "path": "/api/divulgar", "schedule": "0 3 * * *" },
+    { "path": "/api/divulgar", "schedule": "0 15 * * *" },
     { "path": "/api/divulgar", "schedule": "0 22 * * *" }
   ]
 }

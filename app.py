@@ -1145,16 +1145,17 @@ def avaliacao():
 
 
 # ---------------------------------------------------------------------------
-# Divulgação automática do site no #chat-geral (cron da Vercel, 1x por dia)
-# Para não ficar chato: no máximo 1 a cada ~2 dias, só com o chat movimentado,
-# nunca em cima de outra divulgação, sem pings e com textos que se revezam.
+# Divulgação automática do site no #chat-geral (cron da Vercel às 00h, 12h e 19h
+# de Brasília). Para não ficar chato: nunca em cima de outra divulgação (precisa
+# ter conversa no meio), sem pings e com textos que se revezam.
 # ---------------------------------------------------------------------------
 CANAL_GERAL = "1383947381032095846"
 SITE = "https://kyzensaofc.vercel.app"
-DIVULGAR_INTERVALO_H = 44      # tempo mínimo entre duas divulgações
-DIVULGAR_MIN_MSGS = 15         # mensagens de membros desde a última divulgação
-DIVULGAR_JANELA_H = 3          # ...e pelo menos algumas nas últimas horas
-DIVULGAR_MIN_RECENTES = 4
+DIVULGAR_INTERVALO_H = 6       # tempo mínimo entre duas divulgações
+DIVULGAR_MIN_MSGS = 5          # mensagens de membros desde a última divulgação
+DIVULGAR_JANELA_H = 12         # ...e pelo menos uma nas últimas horas
+DIVULGAR_MIN_RECENTES = 1
+HORARIOS_UTC = (3, 15, 22)     # 00h, 12h e 19h de Brasília
 DIVULGACOES = [
     {"titulo": "🗺️ Perdido no Vox Seas? O Trello do jogo tá no nosso site!",
      "texto": "Frutas, espadas, ilhas, chefes e drops: o **Trello oficial do Vox Seas** está dentro do site da Kyzen, "
@@ -1214,7 +1215,9 @@ def decidir_divulgacao(msgs, bot_id, agora):
 
 
 def montar_divulgacao(agora):
-    d = DIVULGACOES[int(agora // 86400 // 2) % len(DIVULGACOES)]
+    hora = int(agora // 3600) % 24
+    turno = min(range(len(HORARIOS_UTC)), key=lambda i: abs(HORARIOS_UTC[i] - hora))
+    d = DIVULGACOES[(int(agora // 86400) * len(HORARIOS_UTC) + turno) % len(DIVULGACOES)]
     rotulo, ancora = d["botao"]
     return {
         "embeds": [{
