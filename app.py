@@ -3795,43 +3795,6 @@ DIRETRIZES_CARGOS = [
 ]
 
 
-@app.route("/api/oficializar-staff", methods=["POST"])
-def oficializar_staff():
-    """Temporário (staff, DEBUG_KEY): cria o #diretrizes-staff e posta o comunicado oficial fixado."""
-    if not debug_ok():
-        return jsonify({"ok": False}), 404
-    gid = os.environ.get("DISCORD_GUILD_ID", "").strip()
-    cid = achar_canal(os.environ.get("DISCORD_BOT_TOKEN", "").strip(), gid, "diretrizes-staff")
-    if not cid:
-        ler = PERM_VER | PERM_HIST | (1 << 6)
-        ow = [{"id": gid, "type": 0, "allow": "0", "deny": str(PERM_VER)}]
-        ow += [{"id": rid, "type": 0, "allow": str(ler | (PERM_ENVIAR if n >= 7 else 0)),
-                "deny": "0" if n >= 7 else str(PERM_ENVIAR | (1 << 35) | (1 << 36) | (1 << 38))} for n, _, rid in RANKS]
-        corpo = {"name": "📜・diretrizes-staff", "type": 0, "permission_overwrites": ow,
-                 "topic": "Diretrizes oficiais da staff: o que cada cargo faz e pode fazer. Só Adm+ escreve aqui."}
-        for c in discord_req("GET", f"/guilds/{gid}/channels"):
-            if c.get("type") == 4 and "staff" in norm_nome(c.get("name")):
-                corpo["parent_id"] = c["id"]
-                break
-        cid = discord_req("POST", f"/guilds/{gid}/channels", corpo, "Diretrizes da staff")["id"]
-        _canais_cache["t"] = 0
-    cargos = [rid for n, _, rid in RANKS if n <= 8]
-    m1 = discord_req("POST", f"/channels/{cid}/messages", {
-        "content": " ".join(f"<@&{r}>" for r in cargos) + "\n**Comunicado oficial: nova divisão de funções da staff.**",
-        "embeds": [DIRETRIZES_INTRO], "allowed_mentions": {"roles": cargos}})
-    m2 = discord_req("POST", f"/channels/{cid}/messages", {"embeds": [
-        {"title": t, "color": cor, "fields": [{"name": "📌 Responsável por", "value": resp, "inline": False},
-                                              {"name": "🛠️ Pode usar", "value": pode, "inline": False}]}
-        for t, cor, resp, pode in DIRETRIZES_CARGOS], "allowed_mentions": {"parse": []}})
-    for m in (m2, m1):
-        try:
-            discord_req("PUT", f"/channels/{cid}/pins/{m['id']}", motivo="Diretrizes da staff")
-        except urllib.error.URLError:
-            pass
-    return privado(jsonify({"ok": True, "canal": cid,
-                            "link": f"https://discord.com/channels/{gid}/{cid}/{m1['id']}"}))
-
-
 def interacao_moderacao(d, tipo, dados, nome, opcoes, uid):
     """Comandos de moderação e denúncia. Devolve None se não for um deles."""
     gid = str(d.get("guild_id") or os.environ.get("DISCORD_GUILD_ID", "")).strip()
