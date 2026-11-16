@@ -3817,6 +3817,131 @@ def diag_layout():
     return privado(jsonify(out))
 
 
+# ----- Novo layout do servidor (temporário, staff) ---------------------------
+#   Ordem das categorias e dos canais. None = categoria nova (criada pelo nome).
+#   ("id", True) = sincroniza com as permissões da categoria (some para quem não pode ver).
+LAYOUT = [
+    ("1398765024075321465", None, ["1398765028307505323", "1398765040315793550"]),
+    ("1383949340669775954", None, ["1383949963846877244", "1383990514701041836", "1383990876703031307",
+                                   "1503249256427950141", "1399457745907744959", "1400524473563873300"]),
+    ("1383947381032095844", None, ["1383947381032095846", "1383957309071560725", "1383957562696929342",
+                                   "1384921966254882958", "1400508652510777354"]),
+    ("1386798026286432276", None, ["1386798132599460011", "1390162037878947860", "1407867442428121230"]),
+    ("1383947381032095845", None, ["1386862556743733249", "1383947381032095847", "1447387287154331648",
+                                   "1570632727097643028"]),
+    ("1504914443421618266", None, ["1504916382981034044", "1504916689916264519", "1506180112977100882",
+                                   "1504919502914195496", "1504919749069635765", "1506178713430003773",
+                                   "1506179013922525287", "1504915310892024018", "1504918208644255894",
+                                   "1506515645725020243", "1504915894693007500", "1504916097726414989"]),
+    ("1383999611580186644", None, ["1398749616832254002", "1398726258157949148", "1400120211516162220"]),
+    ("1383964924274937998", None, ["1572012304327770183", "1383965059113418802", "1400873610129838130",
+                                   "1383965118668214333", "1571018845706002525", "1400069976278302750",
+                                   "1400603077471633418", "1399886760284127474", "1400267016748662834"]),
+    (None, "🗂️ | Registros", ["1571993250158608464", "1571998661557096629", "1571998680972656680",
+                              "1383989829590585404", "1511447116265033808", "1406310960276439180",
+                              "1398733203698880532", "1496857035591909457", "1571135541049688084",
+                              "1570849129800929431", ("1384013116194558092", True)]),
+    (None, "📦 | Arquivo", [("1401330506586525706", True), ("1383965189778702336", True),
+                           ("1384001861425561671", True), ("1384002255769833493", True),
+                           ("1384002386590171227", True), ("1408473829529092136", True)]),
+]
+CATEGORIA_VAZIA = "1399467371214672005"   # Novidades: os canais foram para Informações
+CARGOS_APAGAR = ["1571205364727414874", "1571188894307844228", "1514792512995332238", "1570828937507115129",
+                 "1570800795404730528", "1570800553087340554", "1570800098068398204", "1570799714679390339",
+                 "1448718893542543563"]
+
+
+def aplicar_layout(gid, simular=False):
+    out = {"criadas": {}, "movidos": 0, "cargos_apagados": [], "categoria_removida": ""}
+    canais = req_lento("GET", f"/guilds/{gid}/channels")
+    roles = req_lento("GET", f"/guilds/{gid}/roles")
+    por_id = {c["id"]: c for c in canais}
+    faltando = [x if isinstance(x, str) else x[0] for _, _, lst in LAYOUT for x in lst
+                if (x if isinstance(x, str) else x[0]) not in por_id]
+    if faltando:
+        return {"ok": False, "erro": "canais não encontrados", "ids": faltando}
+    backup = {"canais": [{k: c.get(k) for k in ("id", "name", "type", "parent_id", "position", "permission_overwrites")}
+                         for c in canais],
+              "cargos_apagados": [{k: r.get(k) for k in ("id", "name", "color", "permissions", "position", "hoist")}
+                                  for r in roles if r["id"] in CARGOS_APAGAR]}
+    if simular:
+        return {"ok": True, "simulado": True, "backup_canais": len(backup["canais"]),
+                "backup_cargos": [r["name"] for r in backup["cargos_apagados"]]}
+    discord_arquivo(f"/channels/{canal_staff('bot')}/messages", {"embeds": [{
+        "title": "💾 Backup do layout do servidor", "color": 0x6C757D,
+        "description": "Categorias, canais, ordem e permissões antes da reorganização, e os cargos apagados.",
+        "footer": {"text": "backup-layout"}}], "allowed_mentions": {"parse": []}},
+        "backup-layout.json", json.dumps(backup, ensure_ascii=False, indent=1).encode("utf-8"))
+    ler = PERM_VER | PERM_HIST
+    regras_cat = {
+        "🗂️ | Registros": [{"id": gid, "type": 0, "allow": "0", "deny": str(PERM_VER)}]
+                          + [{"id": rid, "type": 0, "allow": str(ler), "deny": "0"} for rid in cargos_staff(gid, 3)],
+        "📦 | Arquivo": [{"id": gid, "type": 0, "allow": "0", "deny": str(PERM_VER)}]
+                       + [{"id": rid, "type": 0, "allow": str(ler), "deny": str(PERM_ENVIAR | (1 << 20))}
+                          for rid in cargos_staff(gid, 7)],
+    }
+    ids_cat = []
+    for cat_id, nome, _ in LAYOUT:
+        if cat_id:
+            ids_cat.append(cat_id)
+            continue
+        existente = next((c["id"] for c in canais if c.get("type") == 4 and c.get("name") == nome), None)
+        if not existente:
+            existente = req_lento("POST", f"/guilds/{gid}/channels",
+                                  {"name": nome, "type": 4, "permission_overwrites": regras_cat[nome]},
+                                  "Reorganização do servidor")["id"]
+            out["criadas"][nome] = existente
+        ids_cat.append(existente)
+    req_lento("PATCH", f"/guilds/{gid}/channels", [{"id": c, "position": i} for i, c in enumerate(ids_cat)],
+              "Reorganização do servidor")
+    lote = []
+    for cat, (_, _, lst) in zip(ids_cat, LAYOUT):
+        for pos, item in enumerate(lst):
+            cid, sinc = (item, False) if isinstance(item, str) else item
+            lote.append({"id": cid, "parent_id": cat, "position": pos, "lock_permissions": sinc})
+    for i in range(0, len(lote), 25):
+        req_lento("PATCH", f"/guilds/{gid}/channels", lote[i:i + 25], "Reorganização do servidor")
+        out["movidos"] += len(lote[i:i + 25])
+        time.sleep(0.5)
+    restantes = [c for c in req_lento("GET", f"/guilds/{gid}/channels") if c.get("parent_id") == CATEGORIA_VAZIA]
+    if not restantes:
+        req_lento("DELETE", f"/channels/{CATEGORIA_VAZIA}", motivo="Categoria juntada com Informações")
+        out["categoria_removida"] = "Novidades"
+    else:
+        out["categoria_removida"] = f"não removida: ainda tem {len(restantes)} canal(is)"
+    for rid in CARGOS_APAGAR:
+        r = next((x for x in roles if x["id"] == rid), None)
+        if not r:
+            continue
+        try:
+            req_lento("DELETE", f"/guilds/{gid}/roles/{rid}", motivo="Limpeza de cargos")
+            out["cargos_apagados"].append(r.get("name"))
+        except urllib.error.HTTPError as e:
+            out["cargos_apagados"].append(f"{r.get('name')}: erro {e.code}")
+        time.sleep(0.3)
+    _canais_cache["t"] = 0
+    return dict(out, ok=True)
+
+
+def req_lento(metodo, path, dados=None, motivo=""):
+    for _ in range(5):
+        try:
+            return discord_req(metodo, path, dados, motivo)
+        except urllib.error.HTTPError as e:
+            if e.code != 429:
+                raise
+            time.sleep(float(e.headers.get("Retry-After") or 2) + 0.3)
+    return discord_req(metodo, path, dados, motivo)
+
+
+@app.route("/api/aplicar-layout", methods=["POST"])
+def aplicar_layout_rota():
+    if not debug_ok():
+        return jsonify({"ok": False}), 404
+    gid = os.environ.get("DISCORD_GUILD_ID", "").strip()
+    return privado(jsonify(aplicar_layout(gid, simular=request.args.get("simular") == "1")))
+
+
 def interacao_moderacao(d, tipo, dados, nome, opcoes, uid):
     """Comandos de moderação e denúncia. Devolve None se não for um deles."""
     gid = str(d.get("guild_id") or os.environ.get("DISCORD_GUILD_ID", "")).strip()
