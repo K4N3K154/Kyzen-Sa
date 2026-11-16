@@ -1283,6 +1283,24 @@ def divulgar():
     return jsonify({"ok": True, "enviou": True, "id": r.get("id")})
 
 
+CANAL_ANUNCIOS = "1383990514701041836"
+
+
+@app.route("/api/anunciar", methods=["POST"])
+def anunciar():
+    chave = os.environ.get("ANUNCIO_KEY", "")
+    if len(chave) < 32 or not hmac.compare_digest(request.headers.get("X-Chave", ""), chave):
+        return jsonify({"ok": False}), 404
+    dados = request.get_json(silent=True) or {}
+    texto = str(dados.get("texto") or "").strip()
+    if not texto or len(texto) > 2000:
+        return jsonify({"ok": False, "erro": "texto"}), 400
+    token = os.environ.get("DISCORD_BOT_TOKEN", "").strip()
+    r = discord_post(f"/channels/{CANAL_ANUNCIOS}/messages", token,
+                     {"content": texto, "allowed_mentions": {"parse": ["everyone"]}})
+    return jsonify({"ok": True, "id": r.get("id"), "mention_everyone": r.get("mention_everyone")})
+
+
 @app.route("/api/requisitos")
 def requisitos():  # endereço antigo, mantido por compatibilidade
     return canal_api("requisitos")
