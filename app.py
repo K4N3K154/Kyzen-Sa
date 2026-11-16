@@ -2207,13 +2207,13 @@ def criar_registro(gid):
                 int(r.get("permissions") or 0) & (PERM_ADMIN | PERM_MODERAR | PERM_KICK | PERM_BAN):
             ow.append({"id": r["id"], "type": 0, "allow": str(PERM_VER | PERM_HIST), "deny": "0"})
     corpo = {"name": NOME_REGISTRO, "type": 0, "permission_overwrites": ow,
-             "topic": "Registro automático das advertências do KyzenSite. Não apague as mensagens daqui: "
+             "topic": "Registro automático das advertências do Kyzen Bot. Não apague as mensagens daqui: "
                       "é por elas que o bot conta os warns de cada membro."}
     for c in discord_req("GET", f"/guilds/{gid}/channels"):
         if c.get("type") == 4 and any(p in norm(c.get("name")) for p in ("staff", "adm", "moder")):
             corpo["parent_id"] = c["id"]
             break
-    canal = discord_req("POST", f"/guilds/{gid}/channels", corpo, "Registro de punições do KyzenSite")
+    canal = discord_req("POST", f"/guilds/{gid}/channels", corpo, "Registro de punições do Kyzen Bot")
     guia = discord_req("POST", f"/channels/{canal['id']}/messages", {"embeds": [GUIA_STAFF], "allowed_mentions": {"parse": []}})
     try:
         discord_req("PUT", f"/channels/{canal['id']}/pins/{guia['id']}", motivo="Guia da staff")
@@ -2429,7 +2429,7 @@ def checar_alvo(staff_id, alvo, membro_alvo):
 
 
 AJUDA = [
-    ("🗺️ Vox Seas", "**KyzenSite**: `/codigos` `/fruta` `/ilha` `/drop` `/evento` `/site`"),
+    ("🗺️ Vox Seas", "**Kyzen Bot**: `/codigos` `/fruta` `/ilha` `/drop` `/evento` `/site`"),
     ("⚔️ Entrar na crew", "Formulário no <#1398726258157949148> (bot **Appy**, as perguntas chegam na DM)"),
     ("🎫 Ajuda e denúncias", "Abra um ticket no <#1398749616832254002> · `/denunciar` mostra o passo a passo"),
     ("🎵 Música", "Entre numa call e use **/play** do **Jockie Music**"),
@@ -2610,6 +2610,27 @@ def diag_bots():
                                                  ("castigar", PERM_MODERAR), ("gerenciar_cargos", 1 << 28),
                                                  ("gerenciar_msgs", 1 << 13)) if p & bit]
     return privado(jsonify({"ok": True, "total": len(bots), "bots": bots}))
+
+
+@app.route("/api/bot-nome", methods=["POST"])
+def bot_nome():
+    """Temporário: troca o nome do bot (staff, com a DEBUG_KEY). Será removido depois de usado."""
+    if not debug_ok():
+        return jsonify({"ok": False}), 404
+    out = {}
+    try:
+        out["nome"] = discord_req("PATCH", "/users/@me", {"username": "Kyzen Bot"}).get("username")
+    except urllib.error.HTTPError as e:
+        out["erro_nome"] = f"{e.code} {e.read().decode('utf-8', 'replace')[:200]}"
+    try:
+        reg = canal_registro()
+        if reg:
+            discord_req("PATCH", f"/channels/{reg}", {"topic": "Registro automático das advertências do Kyzen Bot. "
+                        "Não apague as mensagens daqui: é por elas que o bot conta os warns de cada membro."})
+            out["topico"] = "ok"
+    except urllib.error.URLError as e:
+        out["erro_topico"] = str(e)[:120]
+    return privado(jsonify(out))
 
 
 @app.route("/api/registrar-comandos", methods=["POST"])
