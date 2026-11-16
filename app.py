@@ -2162,6 +2162,7 @@ COMANDOS += [
      "options": [{"type": 6, "name": "membro", "description": "Membro", "required": True},
                  {"type": 3, "name": "motivo", "description": "Por que está perdoando", "max_length": 300}]},
     {"name": "denunciar", "description": "Como denunciar alguém para a staff"},
+    {"name": "ajuda", "description": "Qual bot usar para cada coisa no servidor"},
     {"type": 3, "name": "Denunciar mensagem"},
 ]
 
@@ -2427,6 +2428,28 @@ def checar_alvo(staff_id, alvo, membro_alvo):
     return ""
 
 
+AJUDA = [
+    ("🗺️ Vox Seas", "**KyzenSite**: `/codigos` `/fruta` `/ilha` `/drop` `/evento` `/site`"),
+    ("⚔️ Entrar na crew", "Formulário no <#1398726258157949148> (bot **Appy**, as perguntas chegam na DM)"),
+    ("🎫 Ajuda e denúncias", "Abra um ticket no <#1398749616832254002> · `/denunciar` mostra o passo a passo"),
+    ("🎵 Música", "Entre numa call e use **/play** do **Jockie Music**"),
+    ("🔊 Criar sua call", "Entre em **➕│Criar Call** e a sua sala aparece sozinha (bot **VoiceMaster**)"),
+    ("📈 Níveis", "XP conversando, com a **Loritta** · tabela no <#1400524473563873300>"),
+    ("🎮 Jogos", "**Mudae** no <#1390162037878947860> · **Gartic** no <#1386798132599460011> · "
+                "**Jibril** (rinha) no <#1407867442428121230>"),
+    ("🤖 Onde usar comandos", "Use os comandos no <#1383957562696929342> para não poluir o chat"),
+]
+AJUDA_STAFF = ("🛡️ Staff", "**Advertir:** clique direito no membro/mensagem → **Apps** → **Advertir** "
+                         "(ou `/advertir`) · `/historico` · `/perdoar` · tudo registrado no #registro-punições")
+
+
+def cmd_ajuda(staff=False):
+    campos = [{"name": n, "value": v, "inline": False} for n, v in AJUDA + ([AJUDA_STAFF] if staff else [])]
+    return resposta({"title": "🧭 Qual bot usar para cada coisa",
+                     "description": "Digite **/** e escolha o bot pelo ícone na lista. Aqui está o principal:",
+                     "fields": campos}, privada=True)
+
+
 def interacao_moderacao(d, tipo, dados, nome, opcoes, uid):
     """Comandos de moderação e denúncia. Devolve None se não for um deles."""
     gid = str(d.get("guild_id") or os.environ.get("DISCORD_GUILD_ID", "")).strip()
@@ -2435,6 +2458,8 @@ def interacao_moderacao(d, tipo, dados, nome, opcoes, uid):
 
     if tipo == 2 and nome == "denunciar":
         return cmd_denunciar()
+    if tipo == 2 and nome == "ajuda":
+        return cmd_ajuda(tem_perm(membro, PERM_MODERAR))
     if tipo == 2 and nome == "Denunciar mensagem":
         m = (resolv.get("messages") or {}).get(str(dados.get("target_id"))) or {}
         return cmd_denunciar(f"https://discord.com/channels/{gid}/{m.get('channel_id')}/{m.get('id')}" if m else "")
