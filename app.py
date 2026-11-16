@@ -2434,7 +2434,7 @@ AJUDA = [
     ("🎵 Música", "Entre numa call e use **/play** do **Jockie Music**"),
     ("🔊 Criar sua call", "Entre em **➕│Criar Call** e a sua sala aparece sozinha (bot **VoiceMaster**)"),
     ("📈 Níveis", "XP conversando, com a **Loritta** · tabela no <#1400524473563873300>"),
-    ("🏙️ Alfacusa (jogo de cidade)", "Jogue no **#alfacusa**: comece com `++trabalhar` · guia no **#guia-alfacusa**"),
+    ("🏙️ Alfacusa (jogo de cidade)", "Jogue no <#1572032026339446824>: comece com `++trabalhar` · guia no <#1572032027560120490>"),
     ("🤖 Onde usar comandos", "Use os comandos no <#1383957562696929342> para não poluir o chat"),
 ]
 AJUDA_STAFF = ("🛡️ Staff (cada cargo tem os seus poderes)",
@@ -3956,6 +3956,15 @@ def alfacusa_rota():
             rq("PUT", f"/channels/{jogo}/permissions/{cargo['id']}", {"type": 0, "allow": str(libera), "deny": "0"},
                "Alfacusa no canal do jogo")
             return privado(jsonify({"ok": True, "cargo": cargo.get("name"), "canais_travados": travados}))
+        if passo == "ajuda":
+            for m in rq("GET", "/channels/1383957562696929342/pins"):
+                if any((e.get("title") or "").startswith("🧭") for e in m.get("embeds") or []):
+                    rq("PATCH", f"/channels/1383957562696929342/messages/{m['id']}", {"embeds": [{
+                        "title": "🧭 Qual bot usar para cada coisa", "color": COR,
+                        "fields": [{"name": n, "value": v, "inline": False} for n, v in AJUDA],
+                        "description": "Digite **/** e escolha o bot pelo ícone. Dica: `/ajuda` mostra isto em qualquer canal."}]})
+                    return privado(jsonify({"ok": True, "guia": "atualizado"}))
+            return privado(jsonify({"ok": False, "erro": "guia fixado não encontrado"}))
         return privado(jsonify({"ok": False, "erro": "passo inválido"}))
     except Exception as e:  # noqa: BLE001  (temporário: mostrar onde parou)
         corpo = e.read().decode("utf-8", "replace")[:200] if hasattr(e, "read") else ""
