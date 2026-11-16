@@ -3906,11 +3906,13 @@ def aplicar_layout(gid, simular=False):
     atual = {c["id"]: c for c in req_lento("GET", f"/guilds/{gid}/channels")}
     for item in lote:
         c = atual.get(item["id"]) or {}
-        if c.get("parent_id") == item["parent_id"] and c.get("position") == item["position"] and not item["lock_permissions"]:
+        corpo = {"parent_id": item["parent_id"], "position": item["position"]}
+        if item["lock_permissions"]:  # copia as permissões da categoria (fica escondido como ela)
+            corpo["permission_overwrites"] = (atual.get(item["parent_id"]) or {}).get("permission_overwrites") or []
+        elif c.get("parent_id") == item["parent_id"] and c.get("position") == item["position"]:
             continue
         try:
-            req_lento("PATCH", f"/channels/{item['id']}", {k: v for k, v in item.items() if k != "id"},
-                      "Reorganização do servidor")
+            req_lento("PATCH", f"/channels/{item['id']}", corpo, "Reorganização do servidor")
             out["movidos"] += 1
         except urllib.error.HTTPError as e:
             out["erros"][item["id"]] = f"{e.code} {e.read().decode('utf-8', 'replace')[:160]}"
