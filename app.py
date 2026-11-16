@@ -1256,7 +1256,7 @@ def divulgar():
         return jsonify({"ok": False}), 404
     if request.args.get("previa") != "1":
         try:
-            app.logger.info("sorteios encerrados: %s", processar_sorteios())
+            app.logger.info("agenda: %s", processar_agenda())
         except Exception as e:  # noqa: BLE001  (o sorteio não pode travar a divulgação)
             app.logger.error("sorteios: %s", str(e)[:160])
     token = os.environ.get("DISCORD_BOT_TOKEN", "").strip()
@@ -2417,6 +2417,7 @@ AJUDA = [
     ("🗺️ Vox Seas", "**Kyzen Bot**: `/codigos` `/fruta` `/ilha` `/drop` `/evento` `/site`"),
     ("⚔️ Entrar na crew", "Formulário no <#1398726258157949148>"),
     ("🎉 Sorteios", "Reaja com 🎉 na mensagem do sorteio para participar"),
+    ("💡 Sugestões", "Use `/sugerir` e a galera vota com 👍 / 👎 no <#1384921966254882958>"),
     ("🎫 Ajuda e denúncias", "Abra um ticket no <#1398749616832254002> · `/denunciar` mostra o passo a passo"),
     ("🎵 Música", "Entre numa call e use **/play** do **Jockie Music**"),
     ("🔊 Criar sua call", "Entre em **➕│Criar Call** e a sua sala aparece sozinha (bot **VoiceMaster**)"),
@@ -2427,7 +2428,8 @@ AJUDA = [
 ]
 AJUDA_STAFF = ("🛡️ Staff", "**Advertir:** clique direito no membro/mensagem → **Apps** → **Advertir** "
                          "(ou `/advertir`) · `/historico` · `/perdoar`\n**Painéis:** `/painel-ticket` · "
-                         "`/painel-formulario` · `/painel-cargos` · **Sorteio:** `/sorteio`")
+                         "`/painel-formulario` · `/painel-cargos` · **Sorteio:** `/sorteio`\n"
+                         "**War:** `/war` (a crew confirma presença) · **Aviso agendado:** `/agendar`")
 
 
 def cmd_ajuda(staff=False):
@@ -2937,6 +2939,415 @@ def interacao_paineis(d, tipo, dados, nome, opcoes, uid):
     return None
 
 
+# ---------------------------------------------------------------------------
+# Kyzen Bot: sugestões com votação, escala de war, contadores e avisos agendados
+# ---------------------------------------------------------------------------
+PERM_EVENTOS = 1 << 33
+CANAL_SUGESTOES = "1384921966254882958"
+CONTADORES = {"CANAL_CONTADOR_MEMBROS": ("1398765028307505323", "approximate_member_count"),
+              "CANAL_CONTADOR_BOOSTS": ("1398765040315793550", "premium_subscription_count")}
+BRT = timezone(timedelta(hours=-3))
+STATUS_SUGESTAO = {"ok": ("✅ Aprovada", 0x28A745), "no": ("❌ Recusada", 0xD9534F), "feita": ("🚀 Já foi feita", 0x8E44AD)}
+WAR_OPCOES = (("sim", "✅ Vão", "Vou", 3), ("talvez", "🤔 Talvez", "Talvez", 2), ("nao", "❌ Não vão", "Não vou", 4))
+
+COMANDOS += [
+    {"name": "sugerir", "description": "Mandar uma sugestão para o servidor (a galera vota)",
+     "options": [{"type": 3, "name": "sugestao", "description": "Sua ideia", "required": True,
+                  "min_length": 10, "max_length": 1000}]},
+    {"name": "war", "description": "Marcar uma war e pedir confirmação da crew",
+     "default_member_permissions": str(PERM_EVENTOS),
+     "options": [{"type": 3, "name": "titulo", "description": "Ex.: War contra a crew X", "required": True,
+                  "max_length": 100},
+                 {"type": 3, "name": "dia", "description": "Dia, ex.: 25/11", "required": True, "max_length": 10},
+                 {"type": 3, "name": "hora", "description": "Hora de Brasília, ex.: 20:30", "required": True,
+                  "max_length": 5},
+                 {"type": 3, "name": "detalhes", "description": "Ponto de encontro, regras etc.", "max_length": 800}]},
+    {"name": "agendar", "description": "Agendar um aviso para sair às 00h, 12h ou 19h",
+     "default_member_permissions": str(PERM_GERENCIAR_SERVIDOR),
+     "options": [{"type": 7, "name": "canal", "description": "Onde postar", "required": True, "channel_types": [0, 5]},
+                 {"type": 3, "name": "mensagem", "description": "O texto do aviso", "required": True, "max_length": 2000},
+                 {"type": 3, "name": "horario", "description": "Horário de Brasília", "required": True,
+                  "choices": [{"name": "00h", "value": "0"}, {"name": "12h", "value": "12"},
+                              {"name": "19h", "value": "19"}]},
+                 {"type": 3, "name": "dia", "description": "Dia, ex.: 25/11 (vazio = o próximo)", "max_length": 10},
+                 {"type": 3, "name": "marcar", "description": "Marcar alguém junto",
+                  "choices": [{"name": "Ninguém", "value": "nada"}, {"name": "@everyone", "value": "everyone"},
+                              {"name": "@here", "value": "here"}]}]},
+]
+
+
+def ler_data(dia, hora="00:00"):
+    """'25/11' + '20:30' (Brasília) -> timestamp; None se for inválido."""
+    a = re.fullmatch(r"\s*(\d{1,2})[/.-](\d{1,2})(?:[/.-](\d{2,4}))?\s*", dia or "")
+    h = re.fullmatch(r"\s*(\d{1,2})(?:[:h](\d{2}))?h?\s*", hora or "")
+    if not a or not h:
+        return None
+    agora = datetime.now(BRT)
+    ano = int(a.group(3)) if a.group(3) else agora.year
+    ano += 2000 if ano < 100 else 0
+    try:
+        quando = datetime(ano, int(a.group(2)), int(a.group(1)), int(h.group(1)), int(h.group(2) or 0), tzinfo=BRT)
+    except ValueError:
+        return None
+    if not a.group(3) and quando < agora - timedelta(days=1):
+        quando = quando.replace(year=ano + 1)
+    return int(quando.timestamp())
+
+
+def registros_bot(prefixo):
+    reg = canal_staff("bot")
+    if not reg:
+        return []
+    out = []
+    for m in discord_req("GET", f"/channels/{reg}/messages?limit=100"):
+        if not (m.get("author") or {}).get("bot"):
+            continue
+        for e in m.get("embeds") or []:
+            partes = ((e.get("footer") or {}).get("text") or "").split(" · ")
+            if partes[0] == prefixo:
+                out.append((m, e, partes))
+    return out
+
+
+def marcar_registro(m, e, partes, status, extra=""):
+    e = dict(e, footer={"text": " · ".join(partes[:-1] + [status])}, color=0x6C757D)
+    if extra:
+        e["description"] = (e.get("description") or "") + "\n" + extra
+    discord_req("PATCH", f"/channels/{canal_staff('bot')}/messages/{m['id']}", {"embeds": [e], "components": []})
+
+
+# ----- Sugestões -------------------------------------------------------------
+def cmd_sugerir(d, uid, texto):
+    canal = os.environ.get("CANAL_SUGESTOES", CANAL_SUGESTOES).strip()
+    u = (d.get("member") or {}).get("user") or {}
+    nome = u.get("global_name") or u.get("username") or "membro"
+    msg = discord_req("POST", f"/channels/{canal}/messages", {
+        "embeds": [{"author": {"name": f"Sugestão de {nome}"}, "color": 0xF1C40F,
+                    "description": cortar(texto, 1000) + "\n\nVote com 👍 ou 👎 e comente no tópico abaixo.",
+                    "footer": {"text": f"Sugestão de {uid} · em votação"},
+                    "timestamp": datetime.now(timezone.utc).isoformat()}],
+        "components": [{"type": 1, "components": [
+            {"type": 2, "style": 3, "label": "Aprovar", "custom_id": "sg:ok"},
+            {"type": 2, "style": 4, "label": "Recusar", "custom_id": "sg:no"},
+            {"type": 2, "style": 2, "label": "Já foi feita", "custom_id": "sg:feita"}]}],
+        "allowed_mentions": {"parse": []}})
+    for emo in ("👍", "👎"):
+        try:
+            discord_req("PUT", f"/channels/{canal}/messages/{msg['id']}/reactions/{urllib.parse.quote(emo)}/@me")
+        except urllib.error.URLError:
+            pass
+    try:
+        discord_req("POST", f"/channels/{canal}/messages/{msg['id']}/threads",
+                    {"name": cortar(f"💬 {texto}", 90), "auto_archive_duration": 4320})
+    except urllib.error.URLError:
+        pass
+    gid = d.get("guild_id")
+    return resposta(texto=f"✅ Sugestão enviada! https://discord.com/channels/{gid}/{canal}/{msg['id']}",
+                    privada=True, componentes=[])
+
+
+def status_sugestao(d, uid, chave):
+    if not tem_perm(d.get("member"), PERM_MODERAR | PERM_GERENCIAR_SERVIDOR):
+        return resposta(texto="Só a staff muda o status. Para votar, use 👍 ou 👎.", privada=True, componentes=[])
+    msg = d.get("message") or {}
+    e = dict((msg.get("embeds") or [{}])[0])
+    rotulo, cor = STATUS_SUGESTAO[chave]
+    autor = re.match(r"^Sugestão de (\d{5,25})", (e.get("footer") or {}).get("text") or "")
+    e["color"] = cor
+    e["footer"] = {"text": f"Sugestão de {autor.group(1) if autor else '0'} · {rotulo}"}
+    e["fields"] = [f for f in e.get("fields") or [] if f.get("name") != "Status"] + \
+                  [{"name": "Status", "value": f"{rotulo} por <@{uid}>", "inline": False}]
+    if autor:
+        avisar_dm(autor.group(1), {"title": f"Sua sugestão na Kyzen: {rotulo}", "color": cor,
+                                   "description": cortar((e.get("description") or "").split("\n\nVote com")[0], 500)})
+    return atualizar(e, msg.get("components") or [])
+
+
+# ----- War -------------------------------------------------------------------
+def cmd_war(d, uid, opcoes):
+    ts = ler_data(str(opcoes.get("dia") or ""), str(opcoes.get("hora") or ""))
+    if not ts:
+        return resposta(texto="Não entendi a data. Use o dia como **25/11** e a hora como **20:30**.",
+                        privada=True, componentes=[])
+    if ts < time.time():
+        return resposta(texto="Essa data já passou.", privada=True, componentes=[])
+    canal = str(d.get("channel_id"))
+    detalhes = str(opcoes.get("detalhes") or "").strip()
+    msg = discord_req("POST", f"/channels/{canal}/messages", {
+        "embeds": [{"title": f"⚔️ {cortar(str(opcoes.get('titulo')), 100)}", "color": 0xC0392B,
+                    "description": f"📅 **<t:{ts}:F>** (<t:{ts}:R>)\n" + (f"\n{detalhes}\n" if detalhes else "")
+                                   + "\nConfirme a sua presença nos botões abaixo. O bot avisa quem confirmou antes de começar.",
+                    "fields": [{"name": f"{n} (0)", "value": "—", "inline": True} for _, n, _, _ in WAR_OPCOES],
+                    "footer": {"text": f"Marcada por {uid} · Kyzen Bot"}}],
+        "components": [{"type": 1, "components": [
+            {"type": 2, "style": st, "label": lb, "custom_id": f"wr:{k}"} for k, _, lb, st in WAR_OPCOES]}],
+        "allowed_mentions": {"parse": []}})
+    reg = canal_staff("bot", criar=True)
+    discord_req("POST", f"/channels/{reg}/messages", {"embeds": [{
+        "title": f"⚔️ War: {cortar(str(opcoes.get('titulo')), 100)}", "color": 0xC0392B,
+        "description": f"https://discord.com/channels/{d.get('guild_id')}/{canal}/{msg['id']}\n<t:{ts}:F> · marcada por <@{uid}>",
+        "footer": {"text": f"war · {canal} · {msg['id']} · {ts} · aberta"}}], "allowed_mentions": {"parse": []}})
+    return resposta(texto="✅ War marcada! O bot lembra quem confirmou no último horário dele (00h, 12h ou 19h) "
+                          "antes de começar.", privada=True, componentes=[])
+
+
+def listas_war(e):
+    out = {}
+    for (k, _, _, _), f in zip(WAR_OPCOES, (e.get("fields") or [])[:3]):
+        out[k] = re.findall(r"<@(\d{5,25})>", f.get("value") or "")
+    return out
+
+
+def responder_war(d, uid, escolha):
+    msg = d.get("message") or {}
+    e = dict((msg.get("embeds") or [{}])[0])
+    listas = listas_war(e)
+    ja = uid in listas.get(escolha, [])
+    for k in listas:
+        listas[k] = [x for x in listas[k] if x != uid]
+    if not ja:
+        listas.setdefault(escolha, []).append(uid)
+    campos = []
+    for k, n, _, _ in WAR_OPCOES:
+        gente = listas.get(k, [])
+        valor = " ".join(f"<@{x}>" for x in gente) or "—"
+        campos.append({"name": f"{n} ({len(gente)})", "value": cortar(valor, 1024), "inline": True})
+    e["fields"] = campos + list(e.get("fields") or [])[3:]
+    return atualizar(e, msg.get("components") or [])
+
+
+def lembrar_wars(agora):
+    feitos = 0
+    for m, e, p in registros_bot("war"):
+        if len(p) != 5 or p[4] != "aberta":
+            continue
+        canal, msg, ts = p[1], p[2], int(p[3])
+        if ts < agora:
+            marcar_registro(m, e, p, "passou")
+            continue
+        if ts - agora > 12.5 * 3600:
+            continue
+        try:
+            war = discord_req("GET", f"/channels/{canal}/messages/{msg}")
+        except urllib.error.HTTPError:
+            marcar_registro(m, e, p, "apagada")
+            continue
+        ew = (war.get("embeds") or [{}])[0]
+        listas = listas_war(ew)
+        gente = listas.get("sim", []) + listas.get("talvez", [])
+        discord_req("POST", f"/channels/{canal}/messages", {
+            "content": f"⚔️ **{(ew.get('title') or 'War').lstrip('⚔️ ')}** começa <t:{ts}:R> (<t:{ts}:t>)!\n"
+                       + (" ".join(f"<@{x}>" for x in gente) if gente else "Ninguém confirmou ainda. Bora, tripulação!"),
+            "message_reference": {"message_id": msg, "fail_if_not_exists": False},
+            "allowed_mentions": {"users": gente[:100]}})
+        marcar_registro(m, e, p, "avisada", f"🔔 Avisados: {len(gente)}")
+        feitos += 1
+    return feitos
+
+
+# ----- Avisos agendados ------------------------------------------------------
+def cmd_agendar(d, uid, opcoes, dados):
+    canal = str(opcoes.get("canal") or "")
+    hora = int(opcoes.get("horario") or 19)
+    dia = str(opcoes.get("dia") or "").strip()
+    if dia:
+        ts = ler_data(dia, f"{hora}:00")
+        if not ts:
+            return resposta(texto="Não entendi o dia. Use, por exemplo, **25/11**.", privada=True, componentes=[])
+    else:
+        hoje = datetime.now(BRT).replace(hour=hora, minute=0, second=0, microsecond=0)
+        ts = int((hoje if hoje.timestamp() > time.time() else hoje + timedelta(days=1)).timestamp())
+    if ts <= time.time():
+        return resposta(texto="Esse horário já passou.", privada=True, componentes=[])
+    marcar = str(opcoes.get("marcar") or "nada")
+    reg = canal_staff("bot", criar=True)
+    discord_req("POST", f"/channels/{reg}/messages", {
+        "embeds": [{"title": "📢 Aviso agendado", "color": 0x2980B9, "description": str(opcoes.get("mensagem")),
+                    "fields": [{"name": "Canal", "value": f"<#{canal}>", "inline": True},
+                               {"name": "Quando", "value": f"<t:{ts}:F>", "inline": True},
+                               {"name": "Marca", "value": {"nada": "ninguém"}.get(marcar, f"@{marcar}"), "inline": True},
+                               {"name": "Por", "value": f"<@{uid}>", "inline": True}],
+                    "footer": {"text": f"aviso · {canal} · {ts} · {marcar} · agendado"}}],
+        "components": [{"type": 1, "components": [
+            {"type": 2, "style": 4, "label": "Cancelar aviso", "custom_id": "av:cancelar"}]}],
+        "allowed_mentions": {"parse": []}})
+    return resposta(texto=f"✅ Aviso agendado para <t:{ts}:F> em <#{canal}>. Para cancelar, use o botão no "
+                          f"<#{reg}>.", privada=True, componentes=[])
+
+
+def enviar_avisos(agora):
+    feitos = 0
+    for m, e, p in registros_bot("aviso"):
+        if len(p) != 5 or p[4] != "agendado" or int(p[2]) > agora + 300:
+            continue
+        canal, marcar = p[1], p[3]
+        texto = ({"everyone": "@everyone\n", "here": "@here\n"}.get(marcar, "")) + (e.get("description") or "")
+        try:
+            discord_req("POST", f"/channels/{canal}/messages", {
+                "content": texto[:2000],
+                "allowed_mentions": {"parse": ["everyone"] if marcar in ("everyone", "here") else []}})
+            marcar_registro(m, e, p, "enviado")
+            feitos += 1
+        except urllib.error.HTTPError as err:
+            marcar_registro(m, e, p, "falhou", f"❌ O Discord recusou ({err.code})")
+    return feitos
+
+
+def cancelar_aviso(d, uid):
+    if not tem_perm(d.get("member"), PERM_GERENCIAR_SERVIDOR):
+        return resposta(texto="Só a staff pode cancelar.", privada=True, componentes=[])
+    msg = d.get("message") or {}
+    e = dict((msg.get("embeds") or [{}])[0])
+    partes = ((e.get("footer") or {}).get("text") or "").split(" · ")
+    if partes[0] != "aviso" or partes[-1] != "agendado":
+        return resposta(texto="Esse aviso já saiu ou foi cancelado.", privada=True, componentes=[])
+    e["footer"] = {"text": " · ".join(partes[:-1] + ["cancelado"])}
+    e["color"] = 0x6C757D
+    e["title"] = "📢 Aviso cancelado"
+    e["fields"] = list(e.get("fields") or []) + [{"name": "Cancelado por", "value": f"<@{uid}>", "inline": True}]
+    return atualizar(e)
+
+
+# ----- Contadores ------------------------------------------------------------
+def atualizar_contadores():
+    gid = os.environ.get("DISCORD_GUILD_ID", "").strip()
+    info = discord_req("GET", f"/guilds/{gid}?with_counts=true")
+    mudou = 0
+    for var, (padrao, campo_info) in CONTADORES.items():
+        cid = os.environ.get(var, padrao).strip()
+        valor = info.get(campo_info)
+        if not cid or valor is None:
+            continue
+        try:
+            nome = discord_req("GET", f"/channels/{cid}").get("name") or ""
+            novo = re.sub(r"\d[\d.,]*", str(int(valor)), nome, count=1)
+            if novo != nome:
+                discord_req("PATCH", f"/channels/{cid}", {"name": novo}, "Contador do Kyzen Bot")
+                mudou += 1
+        except urllib.error.URLError:
+            pass
+    return mudou
+
+
+def processar_agenda():
+    """Cron (00h, 12h e 19h): sorteios, lembretes de war, avisos agendados e contadores."""
+    agora = time.time()
+    out = {}
+    for nome, f in (("sorteios", processar_sorteios), ("wars", lambda: lembrar_wars(agora)),
+                    ("avisos", lambda: enviar_avisos(agora)), ("contadores", atualizar_contadores)):
+        try:
+            out[nome] = f()
+        except Exception as e:  # noqa: BLE001  (uma parte não pode travar as outras)
+            out[nome] = f"erro: {str(e)[:100]}"
+    return out
+
+
+def interacao_extras(d, tipo, dados, nome, opcoes, uid):
+    membro = d.get("member") or {}
+    if tipo == 2 and nome == "sugerir":
+        return cmd_sugerir(d, uid, str(opcoes.get("sugestao") or ""))
+    if tipo == 2 and nome == "war":
+        if not tem_perm(membro, PERM_EVENTOS | PERM_MODERAR):
+            return resposta(texto="Só quem organiza eventos pode marcar war.", privada=True, componentes=[])
+        return cmd_war(d, uid, opcoes)
+    if tipo == 2 and nome == "agendar":
+        if not tem_perm(membro, PERM_GERENCIAR_SERVIDOR):
+            return resposta(texto="Só a staff pode agendar avisos.", privada=True, componentes=[])
+        return cmd_agendar(d, uid, opcoes, dados)
+    cid = str(dados.get("custom_id") or "")
+    if tipo == 3:
+        if cid.startswith("sg:") and cid[3:] in STATUS_SUGESTAO:
+            return status_sugestao(d, uid, cid[3:])
+        if cid in ("wr:sim", "wr:talvez", "wr:nao"):
+            return responder_war(d, uid, cid[3:])
+        if cid == "av:cancelar":
+            return cancelar_aviso(d, uid)
+    return None
+
+
+# ----- Ajustes do servidor (temporário, staff) -------------------------------
+P_BASE = (PERM_VER | PERM_ENVIAR | PERM_LINKS | PERM_ANEXOS | PERM_HIST | (1 << 6) | (1 << 18) | (1 << 31)
+          | (1 << 37) | (1 << 38))
+P_VOZ = (1 << 20) | (1 << 21) | (1 << 25)
+TIRAR_ADMIN = {  # bot -> permissões extras que ele precisa para continuar funcionando
+    "1387642831497334934": 1 << 29,                                   # Tellonym (webhooks)
+    "235088799074484224": P_VOZ, "411916947773587456": P_VOZ,         # Rythm, Jockie Music
+    "412347257233604609": P_VOZ, "823651749037473833": P_VOZ,         # Jockie Music (1), Musico Prime
+    "432610292342587392": 1 << 13,                                    # Mudae (gerenciar mensagens)
+    "470684281102925844": 0,                                          # Jibril
+    "472911936951156740": P_VOZ | (1 << 4) | (1 << 24) | (1 << 28),   # VoiceMaster (canais, mover, cargos)
+    "720351927581278219": PERM_GERENCIAR_SERVIDOR,                    # Invite Tracker (ler convites)
+    "857633321064595466": P_VOZ | (1 << 4) | (1 << 24) | (1 << 28),   # NeatQueue
+    "948242943595147325": 0,                                          # QuickVids
+}
+
+
+def ajustar_servidor(gid):
+    out = {"bots": {}, "automod": {}, "ajuda": ""}
+    for r in discord_req("GET", f"/guilds/{gid}/roles"):
+        b = str((r.get("tags") or {}).get("bot_id") or "")
+        if b not in TIRAR_ADMIN:
+            continue
+        p = int(r.get("permissions") or 0)
+        if not p & PERM_ADMIN:
+            out["bots"][r.get("name")] = "já sem admin"
+            continue
+        novo = (p & ~PERM_ADMIN) | P_BASE | TIRAR_ADMIN[b]
+        try:
+            discord_req("PATCH", f"/guilds/{gid}/roles/{r['id']}", {"permissions": str(novo)}, "Tirar admin desnecessário")
+            out["bots"][r.get("name")] = "admin removido"
+        except urllib.error.HTTPError as e:
+            out["bots"][r.get("name")] = f"não consegui ({e.code}): cargo acima do Kyzen Bot"
+    staff = cargos_staff(gid)[:20]
+    alerta = canal_staff("bot", criar=True)
+    existentes = discord_req("GET", f"/guilds/{gid}/auto-moderation/rules")
+    tipos = {x.get("trigger_type") for x in existentes}
+    nomes = {x.get("name") for x in existentes}
+    bloquear = {"type": 1, "metadata": {"custom_message": "Mensagem bloqueada pelas regras do servidor."}}
+    avisar = {"type": 2, "metadata": {"channel_id": alerta}}
+    regras = [
+        ("Kyzen · Anti-spam", 3, {}, [bloquear, avisar], []),
+        ("Kyzen · Spam de menções", 5, {"mention_total_limit": 5, "mention_raid_protection_enabled": True},
+         [bloquear, avisar, {"type": 3, "metadata": {"duration_seconds": 600}}], []),
+        ("Kyzen · Convites de outros servidores", 1,
+         {"regex_patterns": [r"(discord\.gg|discord(app)?\.com/invite|dsc\.gg)/[A-Za-z0-9-]+"],
+          "allow_list": ["*DNZrYHRXU5*"]}, [bloquear, avisar], ["1384013116194558092"]),
+        ("Kyzen · Ofensas graves", 4, {"presets": [3]}, [bloquear, avisar], []),
+    ]
+    for nome, tipo, meta, acoes, canais in regras:
+        if nome in nomes or (tipo in (3, 4, 5) and tipo in tipos):
+            out["automod"][nome] = "já existia"
+            continue
+        try:
+            discord_req("POST", f"/guilds/{gid}/auto-moderation/rules", {
+                "name": nome, "event_type": 1, "trigger_type": tipo, "trigger_metadata": meta, "actions": acoes,
+                "enabled": True, "exempt_roles": staff, "exempt_channels": canais}, "AutoMod do Kyzen Bot")
+            out["automod"][nome] = "criada"
+        except urllib.error.HTTPError as e:
+            out["automod"][nome] = f"erro {e.code}: {e.read().decode('utf-8', 'replace')[:150]}"
+    canal_cmd = "1383957562696929342"
+    fixadas = discord_req("GET", f"/channels/{canal_cmd}/pins")
+    if any(any((e.get("title") or "").startswith("🧭") for e in m.get("embeds") or []) for m in fixadas):
+        out["ajuda"] = "já fixada"
+    else:
+        campos = [{"name": n, "value": v, "inline": False} for n, v in AJUDA]
+        m = discord_req("POST", f"/channels/{canal_cmd}/messages", {"embeds": [{
+            "title": "🧭 Qual bot usar para cada coisa", "color": COR, "fields": campos,
+            "description": "Digite **/** e escolha o bot pelo ícone. Dica: `/ajuda` mostra isto em qualquer canal."}],
+            "allowed_mentions": {"parse": []}})
+        discord_req("PUT", f"/channels/{canal_cmd}/pins/{m['id']}", motivo="Guia dos bots")
+        out["ajuda"] = "fixada no #comandos"
+    return out
+
+
+@app.route("/api/ajustar-servidor", methods=["POST"])
+def ajustar_servidor_rota():
+    """Temporário (staff, DEBUG_KEY): tira admin de bots que não precisam, cria o AutoMod e fixa o /ajuda."""
+    if not debug_ok():
+        return jsonify({"ok": False}), 404
+    return privado(jsonify(ajustar_servidor(os.environ.get("DISCORD_GUILD_ID", "").strip())))
+
+
 def interacao_moderacao(d, tipo, dados, nome, opcoes, uid):
     """Comandos de moderação e denúncia. Devolve None se não for um deles."""
     gid = str(d.get("guild_id") or os.environ.get("DISCORD_GUILD_ID", "")).strip()
@@ -3028,6 +3439,8 @@ def interacoes():
         return jsonify({"type": 8, "data": {"choices": [{"name": n[:100], "value": n[:100]} for n in lista]}})
     try:
         mod = interacao_paineis(d, tipo, dados, nome, opcoes, uid)
+        if mod is None:
+            mod = interacao_extras(d, tipo, dados, nome, opcoes, uid)
         if mod is None:
             mod = interacao_moderacao(d, tipo, dados, nome, opcoes, uid)
         if mod is not None:
