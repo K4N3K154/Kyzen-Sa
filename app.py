@@ -3795,6 +3795,28 @@ DIRETRIZES_CARGOS = [
 ]
 
 
+@app.route("/api/diag-layout")
+def diag_layout():
+    """Temporário (staff, DEBUG_KEY): canais por categoria com a última atividade."""
+    if not debug_ok():
+        return jsonify({"ok": False}), 404
+    gid = os.environ.get("DISCORD_GUILD_ID", "").strip()
+    canais = discord_req("GET", f"/guilds/{gid}/channels")
+    cats = {c["id"]: c for c in canais if c.get("type") == 4}
+    tipos = {0: "texto", 2: "voz", 4: "categoria", 5: "anúncios", 13: "palco", 15: "fórum"}
+    out = []
+    for c in sorted(canais, key=lambda c: ((cats.get(c.get("parent_id")) or c if c.get("type") != 4 else c).get("position", 0),
+                                           c.get("type") == 4 and -1 or (c.get("type") in (2, 13)), c.get("position", 0))):
+        ult = c.get("last_message_id")
+        dias = int((time.time() - snowflake_ts(ult)) / 86400) if ult else None
+        publico = not any(str(o["id"]) == gid and int(o.get("deny") or 0) & PERM_VER for o in c.get("permission_overwrites") or [])
+        cat = (cats.get(c.get("parent_id")) or {}).get("name", "(sem categoria)")
+        out.append(f"{'CAT' if c.get('type') == 4 else '   '} | {c['id']} | {c.get('name')} | {tipos.get(c.get('type'), c.get('type'))}"
+                   f" | {'' if c.get('type') == 4 else cat} | {'público' if publico else 'privado'} | "
+                   f"{'' if c.get('type') in (2, 4, 13) else (f'{dias}d' if dias is not None else 'nunca')}")
+    return privado(jsonify(out))
+
+
 def interacao_moderacao(d, tipo, dados, nome, opcoes, uid):
     """Comandos de moderação e denúncia. Devolve None se não for um deles."""
     gid = str(d.get("guild_id") or os.environ.get("DISCORD_GUILD_ID", "")).strip()
