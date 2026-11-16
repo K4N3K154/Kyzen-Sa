@@ -3833,6 +3833,14 @@ def apagar_arquivo():
     if inesperados:
         return privado(jsonify({"ok": False, "erro": "tem canal a mais no Arquivo", "canais": inesperados}))
     out = {"copias": {}, "apagados": []}
+    try:
+        return privado(jsonify(_apagar_arquivo(canais, out)))
+    except Exception as e:  # noqa: BLE001  (temporário: mostrar onde parou)
+        corpo = e.read().decode("utf-8", "replace")[:200] if hasattr(e, "read") else ""
+        return privado(jsonify(dict(out, ok=False, erro=f"{type(e).__name__}: {e} {corpo}")))
+
+
+def _apagar_arquivo(canais, out):
     for cid in ARQUIVO_TEXTO:
         if cid not in canais:
             continue
@@ -3849,7 +3857,7 @@ def apagar_arquivo():
             discord_req("DELETE", f"/channels/{cid}", motivo="Limpeza do Arquivo (cópia salva no #registro-bot)")
             out["apagados"].append(canais[cid].get("name"))
             time.sleep(0.4)
-    return privado(jsonify(dict(out, ok=True)))
+    return dict(out, ok=True)
 
 
 def interacao_moderacao(d, tipo, dados, nome, opcoes, uid):
