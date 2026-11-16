@@ -1263,6 +1263,8 @@ def divulgar():
     except (urllib.error.URLError, ValueError, KeyError, TypeError):
         return jsonify({"ok": False, "motivo": "discord indisponível"}), 502
     vai, motivo = decidir_divulgacao(msgs, bot_id, agora)
+    if request.args.get("forcar") == "1" and debug_ok():  # teste manual da staff
+        vai, motivo = True, "forçado pela staff"
     previa = request.args.get("previa") == "1"
     if previa or not vai:
         return jsonify({"ok": True, "enviou": False, "enviaria": vai, "motivo": motivo,
