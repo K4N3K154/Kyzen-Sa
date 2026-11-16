@@ -1254,6 +1254,11 @@ def montar_divulgacao(agora):
 def divulgar():
     if not cron_ok():
         return jsonify({"ok": False}), 404
+    if request.args.get("previa") != "1":
+        try:
+            app.logger.info("sorteios encerrados: %s", processar_sorteios())
+        except Exception as e:  # noqa: BLE001  (o sorteio não pode travar a divulgação)
+            app.logger.error("sorteios: %s", str(e)[:160])
     token = os.environ.get("DISCORD_BOT_TOKEN", "").strip()
     canal = os.environ.get("CANAL_GERAL", CANAL_GERAL).strip()
     agora = time.time()
@@ -2197,30 +2202,10 @@ def canal_registro(criar=False):
 
 
 def criar_registro(gid):
-    """Cria o #registro-punições visível só para quem modera (admin, moderar, expulsar ou banir)."""
-    def norm(s):
-        return re.sub(r"[^a-z]", "", unicodedata.normalize("NFD", s or "").encode("ascii", "ignore").decode().lower())
-
-    ow = [{"id": gid, "type": 0, "allow": "0", "deny": str(PERM_VER)}]
-    for r in discord_req("GET", f"/guilds/{gid}/roles"):
-        if r["id"] != gid and not r.get("managed") and \
-                int(r.get("permissions") or 0) & (PERM_ADMIN | PERM_MODERAR | PERM_KICK | PERM_BAN):
-            ow.append({"id": r["id"], "type": 0, "allow": str(PERM_VER | PERM_HIST), "deny": "0"})
-    corpo = {"name": NOME_REGISTRO, "type": 0, "permission_overwrites": ow,
-             "topic": "Registro automático das advertências do Kyzen Bot. Não apague as mensagens daqui: "
-                      "é por elas que o bot conta os warns de cada membro."}
-    for c in discord_req("GET", f"/guilds/{gid}/channels"):
-        if c.get("type") == 4 and any(p in norm(c.get("name")) for p in ("staff", "adm", "moder")):
-            corpo["parent_id"] = c["id"]
-            break
-    canal = discord_req("POST", f"/guilds/{gid}/channels", corpo, "Registro de punições do Kyzen Bot")
-    guia = discord_req("POST", f"/channels/{canal['id']}/messages", {"embeds": [GUIA_STAFF], "allowed_mentions": {"parse": []}})
-    try:
-        discord_req("PUT", f"/channels/{canal['id']}/pins/{guia['id']}", motivo="Guia da staff")
-    except urllib.error.URLError:
-        pass
-    _canais_cache["t"] = 0
-    return canal["id"]
+    """Cria o #registro-punições visível só para quem modera."""
+    return criar_canal_staff(gid, NOME_REGISTRO, "Registro automático das advertências do Kyzen Bot. Não apague as "
+                             "mensagens daqui: é por elas que o bot conta os warns de cada membro.", GUIA_STAFF,
+                             "Registro de punições do Kyzen Bot")
 
 
 GUIA_STAFF = {
@@ -2430,7 +2415,8 @@ def checar_alvo(staff_id, alvo, membro_alvo):
 
 AJUDA = [
     ("🗺️ Vox Seas", "**Kyzen Bot**: `/codigos` `/fruta` `/ilha` `/drop` `/evento` `/site`"),
-    ("⚔️ Entrar na crew", "Formulário no <#1398726258157949148> (bot **Appy**, as perguntas chegam na DM)"),
+    ("⚔️ Entrar na crew", "Formulário no <#1398726258157949148>"),
+    ("🎉 Sorteios", "Reaja com 🎉 na mensagem do sorteio para participar"),
     ("🎫 Ajuda e denúncias", "Abra um ticket no <#1398749616832254002> · `/denunciar` mostra o passo a passo"),
     ("🎵 Música", "Entre numa call e use **/play** do **Jockie Music**"),
     ("🔊 Criar sua call", "Entre em **➕│Criar Call** e a sua sala aparece sozinha (bot **VoiceMaster**)"),
@@ -2440,7 +2426,8 @@ AJUDA = [
     ("🤖 Onde usar comandos", "Use os comandos no <#1383957562696929342> para não poluir o chat"),
 ]
 AJUDA_STAFF = ("🛡️ Staff", "**Advertir:** clique direito no membro/mensagem → **Apps** → **Advertir** "
-                         "(ou `/advertir`) · `/historico` · `/perdoar` · tudo registrado no #registro-punições")
+                         "(ou `/advertir`) · `/historico` · `/perdoar`\n**Painéis:** `/painel-ticket` · "
+                         "`/painel-formulario` · `/painel-cargos` · **Sorteio:** `/sorteio`")
 
 
 def cmd_ajuda(staff=False):
@@ -2448,6 +2435,506 @@ def cmd_ajuda(staff=False):
     return resposta({"title": "🧭 Qual bot usar para cada coisa",
                      "description": "Digite **/** e escolha o bot pelo ícone na lista. Aqui está o principal:",
                      "fields": campos}, privada=True)
+
+
+# ---------------------------------------------------------------------------
+# Kyzen Bot: tickets, sorteios, cargos por botão e formulário da crew
+#   Tudo por botões e formulários do Discord (o bot não precisa ficar ligado).
+#   Os registros ficam em canais privados da staff: #registro-bot e #formulários-crew.
+# ---------------------------------------------------------------------------
+PERM_GERENCIAR_SERVIDOR, PERM_GERENCIAR_CARGOS = 1 << 5, 1 << 28
+PERM_ENVIAR, PERM_LINKS, PERM_ANEXOS = 1 << 11, 1 << 14, 1 << 15
+PERIGOSAS = (PERM_ADMIN | PERM_KICK | PERM_BAN | PERM_MODERAR | PERM_GERENCIAR_SERVIDOR | PERM_GERENCIAR_CARGOS
+             | (1 << 4) | (1 << 13) | (1 << 29) | (1 << 34))
+EMOJI_SORTEIO = "🎉"
+CANAIS_STAFF = {
+    "bot": ("CANAL_REGISTRO_BOT", "🗂️・registro-bot", "registro-bot",
+            "Registro do Kyzen Bot: cópias dos tickets fechados e controle dos sorteios. Não apague as mensagens."),
+    "forms": ("CANAL_FORMULARIOS", "📋・formulários-crew", "formularios-crew",
+              "Formulários de alistamento da crew. Clique em Aprovar ou Recusar em cada um."),
+}
+_canais_staff = {}
+TICKETS = {
+    "suporte": ("🎫", "Suporte / dúvida", "Conte a sua dúvida ou problema com detalhes. A staff já vai te atender."),
+    "denuncia": ("🚩", "Denúncia", "Mande o **print**, o **link da mensagem** (botão direito → Copiar link) e diga "
+                                 "**quem foi** e **o que aconteceu**. A sua denúncia fica só entre você e a staff."),
+    "outro": ("🤝", "Outro assunto", "Parcerias, sugestões ou qualquer outro assunto. Pode falar!"),
+}
+DURACOES = {"prox": 0, "1d": 86400, "3d": 3 * 86400, "7d": 7 * 86400}
+
+COMANDOS += [
+    {"name": "painel-ticket", "description": "Postar neste canal o painel de abrir ticket",
+     "default_member_permissions": str(PERM_GERENCIAR_SERVIDOR)},
+    {"name": "sorteio", "description": "Criar um sorteio neste canal", "default_member_permissions": str(PERM_MODERAR),
+     "options": [{"type": 3, "name": "premio", "description": "O que vai ser sorteado", "required": True, "max_length": 200},
+                 {"type": 3, "name": "termina", "description": "Quando sai o resultado", "required": True,
+                  "choices": [{"name": "No próximo horário do bot (00h, 12h ou 19h)", "value": "prox"},
+                              {"name": "Em 1 dia", "value": "1d"}, {"name": "Em 3 dias", "value": "3d"},
+                              {"name": "Em 7 dias", "value": "7d"}]},
+                 {"type": 4, "name": "vencedores", "description": "Quantas pessoas ganham (padrão 1)",
+                  "min_value": 1, "max_value": 20}]},
+    {"name": "painel-cargos", "description": "Postar neste canal botões para pegar cargos",
+     "default_member_permissions": str(PERM_GERENCIAR_CARGOS),
+     "options": [{"type": 3, "name": "titulo", "description": "Título do painel", "required": True, "max_length": 100},
+                 {"type": 8, "name": "cargo1", "description": "Cargo", "required": True}]
+                + [{"type": 8, "name": f"cargo{i}", "description": "Cargo"} for i in range(2, 11)]
+                + [{"type": 3, "name": "descricao", "description": "Texto do painel", "max_length": 1000}]},
+    {"name": "painel-formulario", "description": "Postar neste canal o formulário de alistamento da crew",
+     "default_member_permissions": str(PERM_GERENCIAR_SERVIDOR),
+     "options": [{"type": 8, "name": "cargo", "description": "Cargo dado a quem for aprovado (opcional)"},
+                 {"type": 3, "name": "titulo", "description": "Título do painel", "max_length": 100}]},
+]
+
+
+def norm_nome(s):
+    return re.sub(r"[^a-z]", "", unicodedata.normalize("NFD", s or "").encode("ascii", "ignore").decode().lower())
+
+
+def cargos_staff(gid):
+    return [r["id"] for r in discord_req("GET", f"/guilds/{gid}/roles")
+            if r["id"] != gid and not r.get("managed")
+            and int(r.get("permissions") or 0) & (PERM_ADMIN | PERM_MODERAR | PERM_KICK | PERM_BAN)]
+
+
+def criar_canal_staff(gid, nome, topico, guia=None, motivo="Canal da staff do Kyzen Bot"):
+    """Canal visível só para quem modera (admin, moderar, expulsar ou banir), na categoria da staff."""
+    ow = [{"id": gid, "type": 0, "allow": "0", "deny": str(PERM_VER)}]
+    ow += [{"id": r, "type": 0, "allow": str(PERM_VER | PERM_HIST), "deny": "0"} for r in cargos_staff(gid)]
+    corpo = {"name": nome, "type": 0, "permission_overwrites": ow, "topic": topico}
+    for c in discord_req("GET", f"/guilds/{gid}/channels"):
+        if c.get("type") == 4 and any(p in norm_nome(c.get("name")) for p in ("staff", "adm", "moder")):
+            corpo["parent_id"] = c["id"]
+            break
+    canal = discord_req("POST", f"/guilds/{gid}/channels", corpo, motivo)
+    if guia:
+        msg = discord_req("POST", f"/channels/{canal['id']}/messages", {"embeds": [guia], "allowed_mentions": {"parse": []}})
+        try:
+            discord_req("PUT", f"/channels/{canal['id']}/pins/{msg['id']}", motivo="Guia da staff")
+        except urllib.error.URLError:
+            pass
+    _canais_cache["t"] = 0
+    return canal["id"]
+
+
+def canal_staff(chave, criar=False):
+    if _canais_staff.get(chave):
+        return _canais_staff[chave]
+    var, nome, busca, topico = CANAIS_STAFF[chave]
+    gid = os.environ.get("DISCORD_GUILD_ID", "").strip()
+    cid = os.environ.get(var, "").strip() or achar_canal(os.environ.get("DISCORD_BOT_TOKEN", "").strip(), gid, busca)
+    if not cid and criar:
+        cid = criar_canal_staff(gid, nome, topico)
+    _canais_staff[chave] = cid
+    return cid
+
+
+def discord_arquivo(path, payload, nome_arq, conteudo):
+    """Mensagem com um arquivo anexado (multipart)."""
+    b = "kz" + secrets.token_hex(12)
+    payload = dict(payload, attachments=[{"id": 0, "filename": nome_arq}])
+    corpo = (f"--{b}\r\nContent-Disposition: form-data; name=\"payload_json\"\r\n"
+             f"Content-Type: application/json\r\n\r\n{json.dumps(payload)}\r\n"
+             f"--{b}\r\nContent-Disposition: form-data; name=\"files[0]\"; filename=\"{nome_arq}\"\r\n"
+             f"Content-Type: text/plain; charset=utf-8\r\n\r\n").encode("utf-8") + conteudo + f"\r\n--{b}--\r\n".encode()
+    req = urllib.request.Request(API + path, method="POST", data=corpo, headers={
+        "Authorization": f"Bot {os.environ.get('DISCORD_BOT_TOKEN', '').strip()}",
+        "User-Agent": "KyzenSA-Site (1.0)", "Content-Type": f"multipart/form-data; boundary={b}"})
+    with urllib.request.urlopen(req, timeout=6) as r:
+        return json.loads(r.read().decode("utf-8") or "{}")
+
+
+def postar_painel(canal, corpo):
+    discord_req("POST", f"/channels/{canal}/messages", dict(corpo, allowed_mentions={"parse": []}))
+    return resposta(texto="✅ Painel postado neste canal.", privada=True, componentes=[])
+
+
+def atualizar(embed, componentes=None):
+    """Resposta que edita a mensagem do botão clicado."""
+    return jsonify({"type": 7, "data": {"embeds": [embed], "components": componentes or [],
+                                        "allowed_mentions": {"parse": []}}})
+
+
+# ----- Tickets ---------------------------------------------------------------
+def painel_ticket():
+    return {"embeds": [{"title": "🎫 Central de atendimento da Kyzen", "color": COR,
+                        "description": "Precisa falar com a staff? Escolha o assunto no botão abaixo.\n"
+                                       "Um canal **privado** é criado só para você e a staff.\n\n"
+                                       + "\n".join(f"{e} **{n}**" for e, n, _ in TICKETS.values()),
+                        "footer": {"text": "Kyzen Bot · um ticket aberto por pessoa"}}],
+            "components": [{"type": 1, "components": [
+                {"type": 2, "style": 4 if k == "denuncia" else 2 if k == "outro" else 1, "label": n,
+                 "emoji": {"name": e}, "custom_id": f"tk:abrir:{k}"} for k, (e, n, _) in TICKETS.items()]}]}
+
+
+def topico_ticket(uid, tipo):
+    return f"Ticket de {uid} · {tipo} · aberto em <t:{int(time.time())}:f>"
+
+
+def dono_ticket(topico):
+    ach = re.match(r"^Ticket de (\d{5,25}) · (\w+)", topico or "")
+    return (ach.group(1), ach.group(2)) if ach else ("", "")
+
+
+def abrir_ticket(d, uid, tipo):
+    gid = str(d.get("guild_id"))
+    if tipo not in TICKETS:
+        return resposta(texto="Assunto inválido.", privada=True, componentes=[])
+    for c in discord_req("GET", f"/guilds/{gid}/channels"):
+        if dono_ticket(c.get("topic"))[0] == uid:
+            return resposta(texto=f"Você já tem um ticket aberto: <#{c['id']}>", privada=True, componentes=[])
+    usuario = (d.get("member") or {}).get("user") or {}
+    e, nome, instr = TICKETS[tipo]
+    vis = PERM_VER | PERM_ENVIAR | PERM_HIST | PERM_ANEXOS | PERM_LINKS
+    ow = [{"id": gid, "type": 0, "allow": "0", "deny": str(PERM_VER)},
+          {"id": uid, "type": 1, "allow": str(vis), "deny": "0"}]
+    ow += [{"id": r, "type": 0, "allow": str(vis), "deny": "0"} for r in cargos_staff(gid)]
+    corpo = {"name": f"{tipo}-{slug_py(usuario.get('username') or uid)[:40] or uid}", "type": 0,
+             "topic": topico_ticket(uid, tipo), "permission_overwrites": ow}
+    pai = (d.get("channel") or {}).get("parent_id")
+    if pai:
+        corpo["parent_id"] = pai
+    canal = discord_req("POST", f"/guilds/{gid}/channels", corpo, f"Ticket de {uid}")
+    discord_req("POST", f"/channels/{canal['id']}/messages", {
+        "content": f"<@{uid}>",
+        "embeds": [{"title": f"{e} {nome}", "color": COR,
+                    "description": f"Olá, <@{uid}>! {instr}\n\nQuando terminar, clique em **Fechar ticket**.",
+                    "footer": {"text": "Kyzen Bot · só você e a staff veem este canal"}}],
+        "components": [{"type": 1, "components": [
+            {"type": 2, "style": 4, "label": "Fechar ticket", "emoji": {"name": "🔒"}, "custom_id": "tk:fechar"}]}],
+        "allowed_mentions": {"users": [uid]}})
+    return resposta(texto=f"✅ Seu ticket foi aberto: <#{canal['id']}>", privada=True, componentes=[])
+
+
+def fechar_ticket(d, uid, confirmado):
+    canal = discord_req("GET", f"/channels/{d.get('channel_id')}")
+    dono, tipo = dono_ticket(canal.get("topic"))
+    if not dono:
+        return resposta(texto="Este canal não é um ticket.", privada=True, componentes=[])
+    if dono != uid and not tem_perm(d.get("member"), PERM_MODERAR):
+        return resposta(texto="Só quem abriu o ticket ou a staff pode fechar.", privada=True, componentes=[])
+    if not confirmado:
+        return resposta(texto="Tem certeza? O canal será apagado (a staff guarda uma cópia da conversa).",
+                        privada=True, componentes=[{"type": 1, "components": [
+                            {"type": 2, "style": 4, "label": "Sim, fechar", "custom_id": "tk:sim"}]}])
+    linhas, antes = [], ""
+    for _ in range(5):
+        lote = discord_req("GET", f"/channels/{canal['id']}/messages?limit=100" + (f"&before={antes}" if antes else ""))
+        for m in lote:
+            a = m.get("author") or {}
+            quando = datetime.fromtimestamp(snowflake_ts(m["id"]), timezone.utc) - timedelta(hours=3)
+            txt = m.get("content") or ""
+            txt += "".join(f"\n    [anexo] {x.get('url')}" for x in m.get("attachments") or [])
+            txt += "".join(f"\n    [embed] {x.get('title') or ''} {x.get('description') or ''}" for x in m.get("embeds") or [])
+            linhas.append(f"[{quando:%d/%m %H:%M}] {a.get('global_name') or a.get('username')}: {txt}")
+        if len(lote) < 100:
+            break
+        antes = lote[-1]["id"]
+    copia = (f"Ticket #{canal.get('name')} · {tipo} · aberto por {dono} · fechado por {uid}\n\n"
+             + "\n".join(reversed(linhas))).encode("utf-8")
+    reg = canal_staff("bot")
+    if reg:
+        try:
+            discord_arquivo(f"/channels/{reg}/messages", {"embeds": [{
+                "title": f"🔒 Ticket fechado · {TICKETS.get(tipo, ('', tipo))[1]}", "color": 0x6C757D,
+                "description": f"Aberto por <@{dono}> · fechado por <@{uid}>\nMensagens: {len(linhas)}",
+                "footer": {"text": f"ticket · {dono}"}, "timestamp": datetime.now(timezone.utc).isoformat()}],
+                "allowed_mentions": {"parse": []}}, f"ticket-{canal.get('name')}.txt", copia)
+        except urllib.error.URLError:
+            return resposta(texto="Não consegui salvar a cópia do ticket, então não apaguei. Tente de novo.",
+                            privada=True, componentes=[])
+    discord_req("DELETE", f"/channels/{canal['id']}", motivo=f"Ticket fechado por {uid}")
+    return jsonify({"type": 6})
+
+
+# ----- Sorteios --------------------------------------------------------------
+def proximo_horario(ts):
+    """Primeiro horário do bot (00h, 12h ou 19h de Brasília) a partir de ts."""
+    h = int(ts // 3600) + (1 if ts % 3600 else 0)
+    for _ in range(72):
+        if h % 24 in HORARIOS_UTC:
+            return h * 3600
+        h += 1
+    return int(ts)
+
+
+def rodape_sorteio(canal, msg, fim, n, status):
+    return f"sorteio · {canal} · {msg} · {fim} · {n} · {status}"
+
+
+def ler_sorteio(texto):
+    ach = re.match(r"^sorteio · (\d+) · (\d+) · (\d+) · (\d+) · (\w+)$", texto or "")
+    return ach.groups() if ach else None
+
+
+def criar_sorteio(d, uid, premio, termina, n):
+    canal = str(d.get("channel_id"))
+    fim = proximo_horario(time.time() + DURACOES.get(termina, 0))
+    msg = discord_req("POST", f"/channels/{canal}/messages", {
+        "embeds": [{"title": f"🎉 SORTEIO: {cortar(premio, 200)}", "color": 0xE91E63,
+                    "description": f"Reaja com {EMOJI_SORTEIO} nesta mensagem para participar!\n\n"
+                                   f"🏆 **Vencedores:** {n}\n⏰ **Resultado:** <t:{fim}:f> (<t:{fim}:R>)\n"
+                                   f"👤 **Criado por:** <@{uid}>",
+                    "footer": {"text": "Kyzen Bot · o resultado pode levar alguns minutos para sair"}}],
+        "components": [{"type": 1, "components": [
+            {"type": 2, "style": 2, "label": "Encerrar agora (staff)", "emoji": {"name": "🏁"}, "custom_id": "sr:fim"}]}],
+        "allowed_mentions": {"parse": []}})
+    discord_req("PUT", f"/channels/{canal}/messages/{msg['id']}/reactions/{urllib.parse.quote(EMOJI_SORTEIO)}/@me")
+    reg = canal_staff("bot")
+    discord_req("POST", f"/channels/{reg}/messages", {"embeds": [{
+        "title": f"🎉 Sorteio: {cortar(premio, 200)}", "color": 0xE91E63,
+        "description": f"https://discord.com/channels/{d.get('guild_id')}/{canal}/{msg['id']}\nCriado por <@{uid}>",
+        "footer": {"text": rodape_sorteio(canal, msg["id"], fim, n, "aberto")}}], "allowed_mentions": {"parse": []}})
+    return resposta(texto=f"✅ Sorteio criado! O resultado sai <t:{fim}:R>.", privada=True, componentes=[])
+
+
+def sortear(canal, msg, n, por="", paginas=10):
+    participantes, depois = [], ""
+    for _ in range(paginas):
+        lote = discord_req("GET", f"/channels/{canal}/messages/{msg}/reactions/{urllib.parse.quote(EMOJI_SORTEIO)}"
+                                  f"?limit=100" + (f"&after={depois}" if depois else ""))
+        participantes += [str(u["id"]) for u in lote if not u.get("bot")]
+        if len(lote) < 100:
+            break
+        depois = lote[-1]["id"]
+    ganhadores = secrets.SystemRandom().sample(participantes, min(int(n), len(participantes)))
+    original = discord_req("GET", f"/channels/{canal}/messages/{msg}")
+    e = (original.get("embeds") or [{}])[0]
+    premio = (e.get("title") or "").replace("🎉 SORTEIO: ", "")
+    e["title"] = f"🏁 SORTEIO ENCERRADO: {premio}"
+    e["color"] = 0x6C757D
+    e["description"] = (f"🏆 **Ganhador{'es' if len(ganhadores) > 1 else ''}:** "
+                        + (", ".join(f"<@{g}>" for g in ganhadores) or "ninguém participou 😢")
+                        + f"\n👥 **Participantes:** {len(participantes)}" + (f"\n🏁 Encerrado por <@{por}>" if por else ""))
+    discord_req("PATCH", f"/channels/{canal}/messages/{msg}", {"embeds": [e], "components": []})
+    discord_req("POST", f"/channels/{canal}/messages", {
+        "content": (f"🎉 Parabéns {', '.join(f'<@{g}>' for g in ganhadores)}! "
+                    f"{'Vocês ganharam' if len(ganhadores) > 1 else 'Você ganhou'} **{premio}**! "
+                    "Fale com a staff para receber o prêmio.") if ganhadores else
+                   f"O sorteio de **{premio}** terminou sem participantes. 😢",
+        "message_reference": {"message_id": msg, "fail_if_not_exists": False},
+        "allowed_mentions": {"users": ganhadores}})
+    return ganhadores, len(participantes)
+
+
+def registros_sorteio():
+    reg = canal_staff("bot")
+    if not reg:
+        return []
+    out = []
+    for m in discord_req("GET", f"/channels/{reg}/messages?limit=100"):
+        for e in m.get("embeds") or []:
+            s = ler_sorteio((e.get("footer") or {}).get("text"))
+            if s and (m.get("author") or {}).get("bot"):
+                out.append((m, e, s))
+    return out
+
+
+def fechar_registro_sorteio(m, e, s, ganhadores, total):
+    canal, msg, fim, n, _ = s
+    e = dict(e, color=0x6C757D, footer={"text": rodape_sorteio(canal, msg, fim, n, "encerrado")})
+    e["description"] = (e.get("description") or "") + \
+        f"\n🏆 {', '.join(f'<@{g}>' for g in ganhadores) or 'sem participantes'} · 👥 {total}"
+    discord_req("PATCH", f"/channels/{canal_staff('bot')}/messages/{m['id']}", {"embeds": [e]})
+
+
+def processar_sorteios():
+    """Chamado pelo cron: sorteia tudo que já passou do horário."""
+    feitos = 0
+    for m, e, s in registros_sorteio():
+        if s[4] == "aberto" and int(s[2]) <= time.time() + 300:
+            try:
+                ganhadores, total = sortear(s[0], s[1], s[3])
+            except urllib.error.HTTPError as err:
+                if err.code != 404:
+                    continue
+                ganhadores, total = [], 0  # a mensagem do sorteio foi apagada
+            fechar_registro_sorteio(m, e, s, ganhadores, total)
+            feitos += 1
+    return feitos
+
+
+def encerrar_sorteio(d, uid):
+    if not tem_perm(d.get("member"), PERM_MODERAR):
+        return resposta(texto="Só a staff pode encerrar o sorteio. Para participar, reaja com 🎉.",
+                        privada=True, componentes=[])
+    msg = str((d.get("message") or {}).get("id"))
+    for m, e, s in registros_sorteio():
+        if s[1] == msg and s[4] == "aberto":
+            ganhadores, total = sortear(s[0], s[1], s[3], por=uid, paginas=3)
+            fechar_registro_sorteio(m, e, s, ganhadores, total)
+            return resposta(texto=f"🏁 Sorteio encerrado com {total} participantes.", privada=True, componentes=[])
+    return resposta(texto="Não achei esse sorteio no #registro-bot (ou ele já foi encerrado).",
+                    privada=True, componentes=[])
+
+
+# ----- Cargos por botão ------------------------------------------------------
+def painel_cargos(dados, opcoes):
+    roles = (dados.get("resolved") or {}).get("roles") or {}
+    escolhidos, recusados = [], []
+    for i in range(1, 11):
+        rid = str(opcoes.get(f"cargo{i}") or "")
+        r = roles.get(rid)
+        if not r or rid in [x["id"] for x in escolhidos]:
+            continue
+        if r.get("managed") or int(r.get("permissions") or 0) & PERIGOSAS or r.get("name") == "@everyone":
+            recusados.append(r.get("name"))
+        else:
+            escolhidos.append(r)
+    if recusados:
+        return None, ("Esses cargos têm permissões de staff ou são de bots e não podem ir num painel: "
+                      + ", ".join(recusados))
+    linhas = [{"type": 1, "components": [
+        {"type": 2, "style": 2, "label": cortar(r["name"], 80), "custom_id": f"cg:{r['id']}"}
+        for r in escolhidos[i:i + 5]]} for i in range(0, len(escolhidos), 5)]
+    return {"embeds": [{"title": cortar(str(opcoes.get("titulo")), 100), "color": COR,
+                        "description": (str(opcoes.get("descricao") or "Clique para pegar ou tirar um cargo.")
+                                        + "\n\n" + "\n".join(f"• <@&{r['id']}>" for r in escolhidos)),
+                        "footer": {"text": "Kyzen Bot · clique de novo para tirar o cargo"}}],
+            "components": linhas}, ""
+
+
+def alternar_cargo(d, uid, rid):
+    gid = str(d.get("guild_id"))
+    tem = rid in ((d.get("member") or {}).get("roles") or [])
+    try:
+        discord_req("DELETE" if tem else "PUT", f"/guilds/{gid}/members/{uid}/roles/{rid}", motivo="Painel de cargos")
+    except urllib.error.HTTPError as e:
+        return resposta(texto="Não consegui mexer nesse cargo (ele está acima do meu ou foi apagado). Avise a staff."
+                        if e.code in (403, 404) else "O Discord recusou agora. Tente de novo.", privada=True, componentes=[])
+    return resposta(texto=f"{'➖ Tirei' if tem else '✅ Você ganhou'} o cargo <@&{rid}>.", privada=True, componentes=[])
+
+
+# ----- Formulário da crew ----------------------------------------------------
+PERGUNTAS = [
+    ("nick", "Seu nick no Roblox", 1, True, 40),
+    ("nivel", "Seu nível no Vox Seas", 1, True, 10),
+    ("horario", "Que dias e horários você costuma jogar?", 1, True, 100),
+    ("porque", "Por que você quer entrar na crew da Kyzen?", 2, True, 600),
+    ("extra", "Já foi de outra crew? Algo mais pra contar?", 2, False, 600),
+]
+
+
+def painel_formulario(opcoes):
+    rid = str(opcoes.get("cargo") or "0")
+    return {"embeds": [{"title": cortar(str(opcoes.get("titulo") or "⚔️ Alistamento da Crew Kyzen"), 100), "color": COR,
+                        "description": "Quer navegar com a gente no Vox Seas? É rapidinho:\n\n"
+                                       "**1.** Clique em **Me alistar**\n**2.** Responda as 5 perguntas\n"
+                                       "**3.** A staff analisa e você recebe a resposta na **DM**\n\n"
+                                       "⚠️ Deixe a sua **DM aberta** para receber a resposta.",
+                        "footer": {"text": "Kyzen Bot · um formulário por vez"}}],
+            "components": [{"type": 1, "components": [
+                {"type": 2, "style": 3, "label": "Me alistar", "emoji": {"name": "📝"}, "custom_id": f"fm:abrir:{rid}"}]}]}
+
+
+def modal_formulario(rid):
+    return jsonify({"type": 9, "data": {"custom_id": f"fm:env:{rid}", "title": "Alistamento da Crew Kyzen",
+                                        "components": [{"type": 1, "components": [
+                                            {"type": 4, "custom_id": c, "label": l, "style": st, "required": req,
+                                             "max_length": mx}]} for c, l, st, req, mx in PERGUNTAS]}})
+
+
+def enviar_formulario(d, uid, rid, valores):
+    forms = canal_staff("forms")
+    if not forms:
+        return resposta(texto="O formulário ainda não está configurado. Avise a staff.", privada=True, componentes=[])
+    for m in discord_req("GET", f"/channels/{forms}/messages?limit=100"):
+        if any((e.get("footer") or {}).get("text") == f"Formulário de {uid} · pendente" for e in m.get("embeds") or []):
+            return resposta(texto="Você já tem um formulário em análise. Aguarde a resposta na DM. 🙂",
+                            privada=True, componentes=[])
+    usuario = (d.get("member") or {}).get("user") or {}
+    criado = int(snowflake_ts(uid))
+    discord_req("POST", f"/channels/{forms}/messages", {"embeds": [{
+        "title": f"📝 Novo alistamento: {cortar(valores.get('nick') or '?', 60)}", "color": 0x3498DB,
+        "description": f"<@{uid}> · {usuario.get('username', '')} · conta criada <t:{criado}:R>",
+        "fields": [{"name": l, "value": cortar(valores.get(c) or "—", 1000), "inline": st == 1}
+                   for c, l, st, _, _ in PERGUNTAS],
+        "footer": {"text": f"Formulário de {uid} · pendente"},
+        "timestamp": datetime.now(timezone.utc).isoformat()}],
+        "components": [{"type": 1, "components": [
+            {"type": 2, "style": 3, "label": "Aprovar", "emoji": {"name": "✅"}, "custom_id": f"fm:ok:{uid}:{rid}"},
+            {"type": 2, "style": 4, "label": "Recusar", "emoji": {"name": "❌"}, "custom_id": f"fm:no:{uid}:{rid}"}]}],
+        "allowed_mentions": {"parse": []}})
+    return resposta(texto="✅ Formulário enviado! A staff vai analisar e você recebe a resposta na **DM**. "
+                          "Deixe a DM aberta.", privada=True, componentes=[])
+
+
+def avisar_dm(uid, embed):
+    try:
+        dm = discord_req("POST", "/users/@me/channels", {"recipient_id": uid})
+        discord_req("POST", f"/channels/{dm['id']}/messages", {"embeds": [embed], "allowed_mentions": {"parse": []}})
+        return True
+    except (urllib.error.URLError, KeyError, ValueError):
+        return False
+
+
+def decidir_formulario(d, staff, alvo, rid, aprovado):
+    if not tem_perm(d.get("member"), PERM_MODERAR | PERM_GERENCIAR_CARGOS):
+        return resposta(texto="Só a staff pode aprovar ou recusar.", privada=True, componentes=[])
+    e = dict(((d.get("message") or {}).get("embeds") or [{}])[0])
+    nota = ""
+    if aprovado and rid != "0":
+        try:
+            discord_req("PUT", f"/guilds/{d.get('guild_id')}/members/{alvo}/roles/{rid}", motivo=f"Aprovado por {staff}")
+            nota = f" · cargo <@&{rid}> dado"
+        except urllib.error.HTTPError as err:
+            nota = " · ⚠️ não consegui dar o cargo" + (" (a pessoa saiu do servidor)" if err.code == 404 else "")
+    dm = avisar_dm(alvo, {
+        "title": "✅ Você foi aprovado na crew da Kyzen!" if aprovado else "Seu alistamento na crew não foi aprovado",
+        "color": 0x28A745 if aprovado else 0xD9534F,
+        "description": "Bem-vindo à tripulação! 🏴‍☠️ A staff vai te passar os próximos passos." if aprovado else
+                       "Dessa vez não deu, mas você pode tentar de novo mais pra frente. "
+                       "Se quiser saber o motivo, abra um ticket. 🤝"})
+    e["color"] = 0x28A745 if aprovado else 0xD9534F
+    e["footer"] = {"text": f"Formulário de {alvo} · {'aprovado' if aprovado else 'recusado'}"}
+    e["fields"] = list(e.get("fields") or []) + [{
+        "name": "✅ Aprovado" if aprovado else "❌ Recusado",
+        "value": f"por <@{staff}>{nota}" + ("" if dm else " · 📪 DM fechada, avise a pessoa"), "inline": False}]
+    return atualizar(e)
+
+
+# ----- Roteador --------------------------------------------------------------
+def interacao_paineis(d, tipo, dados, nome, opcoes, uid):
+    """Tickets, sorteios, cargos e formulário. Devolve None se não for um deles."""
+    membro = d.get("member") or {}
+    if tipo == 2 and nome in ("painel-ticket", "painel-cargos", "painel-formulario", "sorteio"):
+        precisa = {"painel-ticket": PERM_GERENCIAR_SERVIDOR, "painel-formulario": PERM_GERENCIAR_SERVIDOR,
+                   "painel-cargos": PERM_GERENCIAR_CARGOS, "sorteio": PERM_MODERAR}[nome]
+        if not tem_perm(membro, precisa):
+            return resposta(texto="Só a staff pode usar isso.", privada=True, componentes=[])
+        canal = str(d.get("channel_id"))
+        if nome == "painel-ticket":
+            return postar_painel(canal, painel_ticket())
+        if nome == "painel-formulario":
+            if not canal_staff("forms", criar=True):
+                return resposta(texto="Não consegui criar o #formulários-crew.", privada=True, componentes=[])
+            return postar_painel(canal, painel_formulario(opcoes))
+        if nome == "painel-cargos":
+            corpo, erro = painel_cargos(dados, opcoes)
+            return resposta(texto=erro, privada=True, componentes=[]) if erro else postar_painel(canal, corpo)
+        if not canal_staff("bot", criar=True):
+            return resposta(texto="Não consegui criar o #registro-bot.", privada=True, componentes=[])
+        return criar_sorteio(d, uid, str(opcoes.get("premio") or "Prêmio"), str(opcoes.get("termina") or "prox"),
+                             int(opcoes.get("vencedores") or 1))
+    cid = str(dados.get("custom_id") or "")
+    if tipo == 3:
+        if cid.startswith("tk:abrir:"):
+            return abrir_ticket(d, uid, cid.split(":")[2])
+        if cid in ("tk:fechar", "tk:sim"):
+            return fechar_ticket(d, uid, cid == "tk:sim")
+        if cid == "sr:fim":
+            return encerrar_sorteio(d, uid)
+        if re.fullmatch(r"cg:\d{5,25}", cid):
+            return alternar_cargo(d, uid, cid[3:])
+        if re.fullmatch(r"fm:abrir:\d{1,25}", cid):
+            return modal_formulario(cid.split(":")[2])
+        ach = re.fullmatch(r"fm:(ok|no):(\d{5,25}):(\d{1,25})", cid)
+        if ach:
+            return decidir_formulario(d, uid, ach.group(2), ach.group(3), ach.group(1) == "ok")
+    if tipo == 5 and re.fullmatch(r"fm:env:\d{1,25}", cid):
+        valores = {c.get("custom_id"): (c.get("value") or "").strip()
+                   for linha in dados.get("components") or [] for c in linha.get("components") or []}
+        return enviar_formulario(d, uid, cid.split(":")[2], valores)
+    return None
 
 
 def interacao_moderacao(d, tipo, dados, nome, opcoes, uid):
@@ -2540,12 +3027,14 @@ def interacoes():
             lista = []
         return jsonify({"type": 8, "data": {"choices": [{"name": n[:100], "value": n[:100]} for n in lista]}})
     try:
-        mod = interacao_moderacao(d, tipo, dados, nome, opcoes, uid)
+        mod = interacao_paineis(d, tipo, dados, nome, opcoes, uid)
+        if mod is None:
+            mod = interacao_moderacao(d, tipo, dados, nome, opcoes, uid)
         if mod is not None:
             return mod
     except Exception as e:  # noqa: BLE001
         app.logger.error("moderação %s: %s", nome, str(e)[:160])
-        return resposta(texto="Não consegui concluir agora. Confira o #registro-punições e tente de novo.",
+        return resposta(texto="Não consegui concluir agora. Tente de novo em instantes.",
                         privada=True, componentes=[])
     try:
         if nome == "codigos":
@@ -2631,6 +3120,8 @@ def registrar_comandos():
         return privado(jsonify({"ok": False, "erro": e.code, "discord": e.read().decode("utf-8", "replace")[:300]}), 502)
     try:
         registro = canal_registro(criar=True)
+        canal_staff("bot", criar=True)
+        canal_staff("forms", criar=True)
     except (urllib.error.URLError, KeyError, ValueError) as e:
         registro = f"erro: {str(e)[:120]}"
     return privado(jsonify({"ok": True, "comandos": [c.get("name") for c in feitos], "registro_punicoes": registro}))
