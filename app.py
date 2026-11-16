@@ -3400,6 +3400,43 @@ def saude_kyzen(gid):
     return out
 
 
+CONSERTOS = {  # canal: (bots, permissões a liberar só para esses bots)
+    "1570632727097643028": (("411916947773587456", "412347257233604609", "823651749037473833", "235088799074484224"),
+                            PERM_VER | (1 << 20) | (1 << 21) | (1 << 25)),          # 🎶 Música: entrar e falar
+    "1383947381032095846": (("948242943595147325", "1387642831497334934"), PERM_LINKS | PERM_ANEXOS),  # chat-geral
+}
+
+
+@app.route("/api/consertar-bots", methods=["POST"])
+def consertar_bots():
+    """Temporário (staff): devolve aos bots sem admin o que eles precisam nesses canais."""
+    if not debug_ok():
+        return jsonify({"ok": False}), 404
+    gid = os.environ.get("DISCORD_GUILD_ID", "").strip()
+    cargo_do_bot = {str((r.get("tags") or {}).get("bot_id")): r for r in discord_req("GET", f"/guilds/{gid}/roles")
+                    if (r.get("tags") or {}).get("bot_id")}
+    out = {}
+    for cid, (bots, bits) in CONSERTOS.items():
+        canal = discord_req("GET", f"/channels/{cid}")
+        atuais = {str(o["id"]): o for o in canal.get("permission_overwrites") or []}
+        for b in bots:
+            r = cargo_do_bot.get(b)
+            if not r:
+                out[b] = "sem cargo"
+                continue
+            o = atuais.get(str(r["id"])) or {}
+            allow = int(o.get("allow") or 0) | bits
+            deny = int(o.get("deny") or 0) & ~bits
+            try:
+                discord_req("PUT", f"/channels/{cid}/permissions/{r['id']}",
+                            {"type": 0, "allow": str(allow), "deny": str(deny)}, "Kyzen Bot: permissão do bot")
+                out[f"{r.get('name')} em #{canal.get('name')}"] = "liberado"
+            except urllib.error.HTTPError as e:
+                out[f"{r.get('name')} em #{canal.get('name')}"] = f"erro {e.code}"
+            time.sleep(0.3)
+    return privado(jsonify(out))
+
+
 @app.route("/api/diag-saude")
 def diag_saude():
     """Temporário (staff, DEBUG_KEY): confere se cada bot tem o que precisa e se o Kyzen Bot está inteiro."""
