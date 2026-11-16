@@ -2224,6 +2224,11 @@ GUIA_STAFF = {
         {"name": "🔎 Outros comandos", "inline": False,
          "value": "`/historico membro` → ver os warns de alguém\n"
                   "`/perdoar membro` → tirar o último warn (e o mute atual)"},
+        {"name": "🪜 Quem pode o quê", "inline": False,
+         "value": "**Helper:** aviso verbal · **Junior Staff:** 1º e 2º warn · **Staff:** 3º warn · "
+                  "**Senior Staff:** 4º warn e `/perdoar` · **Mod+:** 5º warn (ban)\n"
+                  "Se a punição passar do seu cargo, o bot manda um **pedido de aprovação** aqui e alguém acima "
+                  "aprova com um clique. O membro punido pode **contestar** pela DM."},
         {"name": "⚠️ Importante", "inline": False,
          "value": "Não apague as mensagens deste canal: o bot conta os warns por elas."},
     ],
@@ -2260,7 +2265,7 @@ def ticket_link():
     return f"https://discord.com/channels/{gid}/{CANAL_TICKET}"
 
 
-def advertir(gid, staff_id, alvo_id, alvo_nome, motivo, prova="", verbal=False):
+def advertir(gid, staff_id, alvo_id, alvo_nome, motivo, prova="", verbal=False, nivel_staff=9, pedido_por=""):
     ativos = [r for r in registros(alvo_id) if r["status"] == ST_WARN]
     n = len(ativos) + (0 if verbal else 1)
     if verbal:
@@ -2270,6 +2275,9 @@ def advertir(gid, staff_id, alvo_id, alvo_nome, motivo, prova="", verbal=False):
     else:
         segundos, punicao = PUNICOES[n]
     motivo_audit = f"{'Aviso verbal' if verbal else f'Warn {n}/{LIMITE_BAN}'} por {staff_id}: {motivo}"
+    req = WARN_REQ[0 if verbal else min(n, LIMITE_BAN)]
+    if nivel_staff < req:
+        return pedir_aprovacao(staff_id, alvo_id, motivo, prova, verbal, n, punicao, req)
 
     # 1) avisa na DM antes (depois de um ban o bot não consegue mais falar com a pessoa)
     dm_ok = True
@@ -2282,8 +2290,10 @@ def advertir(gid, staff_id, alvo_id, alvo_nome, motivo, prova="", verbal=False):
             "description": f"**Motivo:** {cortar(motivo, 900)}\n**Punição:** {punicao}\n\n"
                            + ("" if verbal or n >= LIMITE_BAN else
                               f"Com **{LIMITE_BAN} advertências** a punição é banimento. Leia as regras para evitar novas.\n")
-                           + f"Se achar que foi injusto, abra um ticket: {ticket_link()}",
-        }], "allowed_mentions": {"parse": []}})
+                           + "Se achar que foi injusto, clique em **Contestar** e explique o que aconteceu.",
+        }], "components": [{"type": 1, "components": [
+            {"type": 2, "style": 2, "label": "Contestar", "emoji": {"name": "📨"}, "custom_id": f"ct:{alvo_id}"}]}],
+            "allowed_mentions": {"parse": []}})
     except (urllib.error.URLError, KeyError, ValueError):
         dm_ok = False
 
@@ -2314,6 +2324,8 @@ def advertir(gid, staff_id, alvo_id, alvo_nome, motivo, prova="", verbal=False):
            "timestamp": datetime.now(timezone.utc).isoformat()}
     if prova:
         log["fields"].append({"name": "📎 Prova", "value": cortar(prova, 1000), "inline": False})
+    if pedido_por:
+        log["fields"].append({"name": "🙋 Pedido por", "value": f"<@{pedido_por}>", "inline": True})
     try:
         discord_req("POST", f"/channels/{reg}/messages", {"embeds": [log], "allowed_mentions": {"parse": []}})
     except urllib.error.URLError:
@@ -2401,15 +2413,15 @@ def modal_advertir(alvo_id, alvo_nome, prova=""):
                                         "components": [{"type": 1, "components": [c]} for c in caixas]}})
 
 
-def checar_alvo(staff_id, alvo, membro_alvo):
+def checar_alvo(staff_id, alvo, membro_alvo, nivel_staff=9):
     if not alvo or not alvo.get("id"):
         return "Não encontrei esse membro."
     if alvo.get("bot"):
         return "Não dá para advertir um bot."
     if str(alvo["id"]) == staff_id:
         return "Você não pode advertir a si mesmo. 😅"
-    if membro_alvo and tem_perm(membro_alvo, PERM_MODERAR):
-        return "Essa pessoa é da staff. Fale com um owner/admin."
+    if membro_alvo and nivel(membro_alvo) and nivel(membro_alvo) >= nivel_staff:
+        return "Essa pessoa tem cargo de staff igual ou maior que o seu. Fale com alguém acima."
     return ""
 
 
@@ -2426,10 +2438,15 @@ AJUDA = [
                 "**Jibril** (rinha) no <#1407867442428121230>"),
     ("🤖 Onde usar comandos", "Use os comandos no <#1383957562696929342> para não poluir o chat"),
 ]
-AJUDA_STAFF = ("🛡️ Staff", "**Advertir:** clique direito no membro/mensagem → **Apps** → **Advertir** "
-                         "(ou `/advertir`) · `/historico` · `/perdoar`\n**Painéis:** `/painel-ticket` · "
-                         "`/painel-formulario` · `/painel-cargos` · **Sorteio:** `/sorteio`\n"
-                         "**War:** `/war` (a crew confirma presença) · **Aviso agendado:** `/agendar`")
+AJUDA_STAFF = ("🛡️ Staff (cada cargo tem os seus poderes)",
+               "**Helper:** aviso verbal · `/historico` · tickets · formulários\n"
+               "**Junior Staff:** warns de até 1h de mute · `/limpar` (20)\n"
+               "**Staff:** warn até 1 dia · `/lento` · `/castigo` até 1h\n"
+               "**Senior Staff:** warn até 3 dias · `/perdoar` · contestações · `/castigo` até 1 dia\n"
+               "**Mod:** 5º warn (ban) · `/expulsar` · `/banir` · `/trancar` · `/limpar` (100) · `/castigo` até 7 dias\n"
+               "**Senior Mod:** + `/sorteio` · `/war`\n"
+               "**Adm+:** + painéis · `/agendar` · `/desbanir` · `/castigo` até 28 dias\n"
+               "Passou do seu nível? O bot manda um **pedido de aprovação** para quem está acima.")
 
 
 def cmd_ajuda(staff=False):
@@ -2492,16 +2509,15 @@ def norm_nome(s):
     return re.sub(r"[^a-z]", "", unicodedata.normalize("NFD", s or "").encode("ascii", "ignore").decode().lower())
 
 
-def cargos_staff(gid):
-    return [r["id"] for r in discord_req("GET", f"/guilds/{gid}/roles")
-            if r["id"] != gid and not r.get("managed")
-            and int(r.get("permissions") or 0) & (PERM_ADMIN | PERM_MODERAR | PERM_KICK | PERM_BAN)]
+def cargos_staff(gid, minimo=1):
+    """Cargos da hierarquia da staff a partir de um nível (1 = Helper)."""
+    return [rid for n, _, rid in RANKS if n >= minimo]
 
 
 def criar_canal_staff(gid, nome, topico, guia=None, motivo="Canal da staff do Kyzen Bot"):
     """Canal visível só para quem modera (admin, moderar, expulsar ou banir), na categoria da staff."""
     ow = [{"id": gid, "type": 0, "allow": "0", "deny": str(PERM_VER)}]
-    ow += [{"id": r, "type": 0, "allow": str(PERM_VER | PERM_HIST), "deny": "0"} for r in cargos_staff(gid)]
+    ow += [{"id": r, "type": 0, "allow": str(PERM_VER | PERM_HIST), "deny": "0"} for r in cargos_staff(gid, 3)]
     corpo = {"name": nome, "type": 0, "permission_overwrites": ow, "topic": topico}
     for c in discord_req("GET", f"/guilds/{gid}/channels"):
         if c.get("type") == 4 and any(p in norm_nome(c.get("name")) for p in ("staff", "adm", "moder")):
@@ -2612,7 +2628,7 @@ def fechar_ticket(d, uid, confirmado):
     dono, tipo = dono_ticket(canal.get("topic"))
     if not dono:
         return resposta(texto="Este canal não é um ticket.", privada=True, componentes=[])
-    if dono != uid and not tem_perm(d.get("member"), PERM_MODERAR):
+    if dono != uid and nivel(d.get("member")) < 1:
         return resposta(texto="Só quem abriu o ticket ou a staff pode fechar.", privada=True, componentes=[])
     if not confirmado:
         return resposta(texto="Tem certeza? O canal será apagado (a staff guarda uma cópia da conversa).",
@@ -2756,8 +2772,8 @@ def processar_sorteios():
 
 
 def encerrar_sorteio(d, uid):
-    if not tem_perm(d.get("member"), PERM_MODERAR):
-        return resposta(texto="Só a staff pode encerrar o sorteio. Para participar, reaja com 🎉.",
+    if nivel(d.get("member")) < 6:
+        return resposta(texto="Só Senior Mod ou acima pode encerrar o sorteio. Para participar, reaja com 🎉.",
                         privada=True, componentes=[])
     msg = str((d.get("message") or {}).get("id"))
     for m, e, s in registros_sorteio():
@@ -2870,7 +2886,7 @@ def avisar_dm(uid, embed):
 
 
 def decidir_formulario(d, staff, alvo, rid, aprovado):
-    if not tem_perm(d.get("member"), PERM_MODERAR | PERM_GERENCIAR_CARGOS):
+    if nivel(d.get("member")) < 1:
         return resposta(texto="Só a staff pode aprovar ou recusar.", privada=True, componentes=[])
     e = dict(((d.get("message") or {}).get("embeds") or [{}])[0])
     nota = ""
@@ -2899,10 +2915,9 @@ def interacao_paineis(d, tipo, dados, nome, opcoes, uid):
     """Tickets, sorteios, cargos e formulário. Devolve None se não for um deles."""
     membro = d.get("member") or {}
     if tipo == 2 and nome in ("painel-ticket", "painel-cargos", "painel-formulario", "sorteio"):
-        precisa = {"painel-ticket": PERM_GERENCIAR_SERVIDOR, "painel-formulario": PERM_GERENCIAR_SERVIDOR,
-                   "painel-cargos": PERM_GERENCIAR_CARGOS, "sorteio": PERM_MODERAR}[nome]
-        if not tem_perm(membro, precisa):
-            return resposta(texto="Só a staff pode usar isso.", privada=True, componentes=[])
+        req = 6 if nome == "sorteio" else 7
+        if nivel(membro) < req:
+            return so_a_partir(req)
         canal = str(d.get("channel_id"))
         if nome == "painel-ticket":
             return postar_painel(canal, painel_ticket())
@@ -3047,7 +3062,7 @@ def cmd_sugerir(d, uid, texto):
 
 
 def status_sugestao(d, uid, chave):
-    if not tem_perm(d.get("member"), PERM_MODERAR | PERM_GERENCIAR_SERVIDOR):
+    if nivel(d.get("member")) < 4:
         return resposta(texto="Só a staff muda o status. Para votar, use 👍 ou 👎.", privada=True, componentes=[])
     msg = d.get("message") or {}
     e = dict((msg.get("embeds") or [{}])[0])
@@ -3194,8 +3209,8 @@ def enviar_avisos(agora):
 
 
 def cancelar_aviso(d, uid):
-    if not tem_perm(d.get("member"), PERM_GERENCIAR_SERVIDOR):
-        return resposta(texto="Só a staff pode cancelar.", privada=True, componentes=[])
+    if nivel(d.get("member")) < 7:
+        return resposta(texto="Só Adm ou acima pode cancelar.", privada=True, componentes=[])
     msg = d.get("message") or {}
     e = dict((msg.get("embeds") or [{}])[0])
     partes = ((e.get("footer") or {}).get("text") or "").split(" · ")
@@ -3234,7 +3249,7 @@ def processar_agenda():
     agora = time.time()
     out = {}
     for nome, f in (("sorteios", processar_sorteios), ("wars", lambda: lembrar_wars(agora)),
-                    ("avisos", lambda: enviar_avisos(agora)), ("contadores", atualizar_contadores)):
+                    ("avisos", lambda: enviar_avisos(agora)), ("contadores", atualizar_contadores), ("relatorio", relatorio_semanal)):
         try:
             out[nome] = f()
         except Exception as e:  # noqa: BLE001  (uma parte não pode travar as outras)
@@ -3247,12 +3262,12 @@ def interacao_extras(d, tipo, dados, nome, opcoes, uid):
     if tipo == 2 and nome == "sugerir":
         return cmd_sugerir(d, uid, str(opcoes.get("sugestao") or ""))
     if tipo == 2 and nome == "war":
-        if not tem_perm(membro, PERM_EVENTOS | PERM_MODERAR):
+        if nivel(membro) < 6:
             return resposta(texto="Só quem organiza eventos pode marcar war.", privada=True, componentes=[])
         return cmd_war(d, uid, opcoes)
     if tipo == 2 and nome == "agendar":
-        if not tem_perm(membro, PERM_GERENCIAR_SERVIDOR):
-            return resposta(texto="Só a staff pode agendar avisos.", privada=True, componentes=[])
+        if nivel(membro) < 7:
+            return resposta(texto="Só Adm ou acima pode agendar avisos.", privada=True, componentes=[])
         return cmd_agendar(d, uid, opcoes, dados)
     cid = str(dados.get("custom_id") or "")
     if tipo == 3:
@@ -3265,21 +3280,552 @@ def interacao_extras(d, tipo, dados, nome, opcoes, uid):
     return None
 
 
-@app.route("/api/diag-cargos")
-def diag_cargos():
-    """Temporário (staff, DEBUG_KEY): cargos do servidor com posição e permissões."""
+# ---------------------------------------------------------------------------
+# Hierarquia da staff: cada cargo tem os seus poderes no Kyzen Bot
+#   Quem precisa de algo acima do próprio nível manda um pedido de aprovação.
+# ---------------------------------------------------------------------------
+PERM_AUDITORIA = 1 << 7
+RANKS = [  # (nível, nome, ID do cargo)
+    (1, "Helper", "1497068096450465792"),
+    (2, "Junior Staff", "1504676074641162240"),
+    (3, "Staff", "1384722554064867328"),
+    (4, "Senior Staff", "1504678116285485137"),
+    (5, "Mod", "1383961426531717242"),
+    (6, "Senior Mod", "1504677084532965456"),
+    (7, "Adm", "1383960212641157201"),
+    (8, "Head Admin", "1504675809015890072"),
+    (9, "Dev", "1388595988159271063"),
+    (9, "/k", "1407860349935292506"),
+    (9, "Co-Owner", "1383990976728535091"),
+    (9, "Owner", "1383960421932863618"),
+]
+NIVEL_DO_CARGO = {rid: n for n, _, rid in RANKS}
+NOME_NIVEL = {1: "Helper", 2: "Junior Staff", 3: "Staff", 4: "Senior Staff", 5: "Mod", 6: "Senior Mod",
+              7: "Adm", 8: "Head Admin", 9: "Owner"}
+WARN_REQ = {0: 1, 1: 2, 2: 2, 3: 3, 4: 4, 5: 5}          # nº do warn (0 = aviso verbal) -> nível mínimo
+LIMPAR_MAX = {2: 20, 5: 100}                              # nível -> mensagens
+CASTIGO_MAX = {3: 3600, 4: 86400, 5: 7 * 86400, 7: 28 * 86400}
+DURACAO_NOME = {600: "10 minutos", 3600: "1 hora", 86400: "1 dia", 604800: "7 dias", 2419200: "28 dias"}
+TRAVAR = PERM_ENVIAR | (1 << 6) | (1 << 35) | (1 << 36) | (1 << 38)   # enviar, reagir, criar e usar tópicos
+
+COMANDOS += [
+    {"name": "limpar", "description": "Apagar mensagens deste canal (Junior Staff: até 20 · Mod: até 100)",
+     "options": [{"type": 4, "name": "quantidade", "description": "Quantas mensagens", "required": True,
+                  "min_value": 1, "max_value": 100},
+                 {"type": 6, "name": "membro", "description": "Só as mensagens desta pessoa"}]},
+    {"name": "lento", "description": "Modo lento neste canal (Staff+)",
+     "options": [{"type": 4, "name": "segundos", "description": "Tempo entre mensagens", "required": True,
+                  "choices": [{"name": "Desligar", "value": 0}, {"name": "5 segundos", "value": 5},
+                              {"name": "10 segundos", "value": 10}, {"name": "30 segundos", "value": 30},
+                              {"name": "1 minuto", "value": 60}, {"name": "5 minutos", "value": 300}]}]},
+    {"name": "castigo", "description": "Mutar alguém por um tempo, fora da tabela de warns (Staff+)",
+     "options": [{"type": 6, "name": "membro", "description": "Quem", "required": True},
+                 {"type": 4, "name": "duracao", "description": "Por quanto tempo", "required": True,
+                  "choices": [{"name": n, "value": s} for s, n in DURACAO_NOME.items()]},
+                 {"type": 3, "name": "motivo", "description": "Por quê", "required": True, "max_length": 500}]},
+    {"name": "expulsar", "description": "Expulsar alguém do servidor (Mod+)",
+     "options": [{"type": 6, "name": "membro", "description": "Quem", "required": True},
+                 {"type": 3, "name": "motivo", "description": "Por quê", "required": True, "max_length": 500}]},
+    {"name": "banir", "description": "Banir alguém direto, para casos graves (Mod+)",
+     "options": [{"type": 6, "name": "membro", "description": "Quem", "required": True},
+                 {"type": 3, "name": "motivo", "description": "Por quê", "required": True, "max_length": 500},
+                 {"type": 4, "name": "apagar", "description": "Apagar as mensagens recentes da pessoa",
+                  "choices": [{"name": "Não apagar", "value": 0}, {"name": "Último dia", "value": 86400},
+                              {"name": "Últimos 7 dias", "value": 604800}]}]},
+    {"name": "desbanir", "description": "Tirar o ban de alguém (Adm+)",
+     "options": [{"type": 3, "name": "id", "description": "ID da pessoa", "required": True, "max_length": 25},
+                 {"type": 3, "name": "motivo", "description": "Por quê", "max_length": 300}]},
+    {"name": "trancar", "description": "Trancar este canal numa emergência (Mod+)",
+     "options": [{"type": 3, "name": "motivo", "description": "Por quê", "max_length": 300}]},
+    {"name": "destrancar", "description": "Destrancar este canal (Mod+)"},
+]
+
+# Quem vê cada comando na lista do Discord (o bot ainda confere o nível de cada um)
+_VISIVEL = {PERM_AUDITORIA: ("Advertir membro", "Advertir autor", "advertir", "historico", "perdoar", "limpar",
+                             "lento", "castigo", "expulsar", "banir", "desbanir", "trancar", "destrancar"),
+            PERM_GERENCIAR_SERVIDOR: ("painel-ticket", "painel-cargos", "painel-formulario", "agendar"),
+            PERM_EVENTOS: ("sorteio", "war")}
+for _bit, _nomes in _VISIVEL.items():
+    for _c in COMANDOS:
+        if _c["name"] in _nomes:
+            _c["default_member_permissions"] = str(_bit)
+
+
+def nivel(membro):
+    """Nível de staff de alguém (0 = membro comum), pelo cargo que a pessoa tem."""
+    if not membro:
+        return 0
+    n = max([NIVEL_DO_CARGO.get(str(r), 0) for r in membro.get("roles") or []] + [0])
+    if not n and int(membro.get("permissions") or 0) & PERM_ADMIN and not (membro.get("user") or {}).get("bot"):
+        n = 9  # dono do servidor ou admin sem cargo da staff
+    return n
+
+
+def limite(tabela, n):
+    vals = [v for k, v in tabela.items() if n >= k]
+    return max(vals) if vals else 0
+
+
+def so_a_partir(req):
+    return resposta(texto=f"🔒 Isso é a partir de **{NOME_NIVEL[req]}**.", privada=True, componentes=[])
+
+
+def log_acao(titulo, staff, tipo, campos, cor=0x5865F2):
+    """Registra no #registro-punições uma ação que não é warn (castigo, ban, limpeza...)."""
+    reg = canal_registro()
+    if not reg:
+        return
+    try:
+        discord_req("POST", f"/channels/{reg}/messages", {"embeds": [{
+            "title": titulo, "color": cor,
+            "fields": [{"name": "🛡️ Staff", "value": f"<@{staff}>", "inline": True}] +
+                      [{"name": n, "value": cortar(str(v), 1000), "inline": len(str(v)) < 40} for n, v in campos if v],
+            "footer": {"text": f"Ação · {staff} · {tipo}"},
+            "timestamp": datetime.now(timezone.utc).isoformat()}], "allowed_mentions": {"parse": []}})
+    except urllib.error.URLError:
+        pass
+
+
+def avisar_membro(alvo, titulo, texto, cor=0xD9534F):
+    return avisar_dm(alvo, {"title": titulo, "color": cor,
+                            "description": texto + f"\n\nSe achar que foi injusto, abra um ticket: {ticket_link()}"})
+
+
+# ----- Pedido de aprovação ---------------------------------------------------
+def pedir_aprovacao(staff, alvo, motivo, prova, verbal, n, punicao, req):
+    reg = canal_registro()
+    discord_req("POST", f"/channels/{reg}/messages", {
+        "content": f"<@&{next(rid for k, _, rid in RANKS if k == req)}>",
+        "embeds": [{"title": f"✋ Pedido de aprovação · {'Aviso verbal' if verbal else f'Advertência {n}/{LIMITE_BAN}'}",
+                    "color": 0xF39C12,
+                    "description": f"<@{staff}> quer advertir <@{alvo}>, mas a punição (**{punicao}**) precisa de "
+                                   f"**{NOME_NIVEL[req]}** ou acima.",
+                    "fields": [{"name": "👤 Membro", "value": f"<@{alvo}>", "inline": True},
+                               {"name": "🙋 Pedido por", "value": f"<@{staff}>", "inline": True},
+                               {"name": "⚖️ Punição", "value": punicao, "inline": True},
+                               {"name": "📝 Motivo", "value": cortar(motivo, 1000), "inline": False}]
+                              + ([{"name": "📎 Prova", "value": cortar(prova, 1000), "inline": False}] if prova else []),
+                    "footer": {"text": f"Pedido · {alvo} · {req} · {'verbal' if verbal else 'warn'} · pendente"},
+                    "timestamp": datetime.now(timezone.utc).isoformat()}],
+        "components": [{"type": 1, "components": [
+            {"type": 2, "style": 3, "label": "Aprovar", "emoji": {"name": "✅"}, "custom_id": "ap:ok"},
+            {"type": 2, "style": 4, "label": "Recusar", "emoji": {"name": "❌"}, "custom_id": "ap:no"}]}],
+        "allowed_mentions": {"roles": [next(rid for k, _, rid in RANKS if k == req)]}})
+    return resposta({"title": "✋ Pedido de aprovação enviado",
+                     "description": f"Essa punição (**{punicao}**) é a partir de **{NOME_NIVEL[req]}**. "
+                                    f"Mandei o pedido no <#{reg}> e quem for desse cargo pra cima aprova com um clique."},
+                    privada=True, componentes=[])
+
+
+def decidir_pedido(d, uid, aprovar):
+    msg = d.get("message") or {}
+    e = dict((msg.get("embeds") or [{}])[0])
+    partes = ((e.get("footer") or {}).get("text") or "").split(" · ")
+    if len(partes) != 5 or partes[0] != "Pedido" or partes[4] != "pendente":
+        return resposta(texto="Esse pedido já foi resolvido.", privada=True, componentes=[])
+    alvo, req, tipo = partes[1], int(partes[2]), partes[3]
+    if nivel(d.get("member")) < req:
+        return so_a_partir(req)
+    campos = {f.get("name", ""): f.get("value", "") for f in e.get("fields") or []}
+    pedinte = re.sub(r"\D", "", campos.get("🙋 Pedido por", ""))
+    if aprovar:
+        gid = str(d.get("guild_id") or os.environ.get("DISCORD_GUILD_ID", ""))
+        advertir(gid, uid, alvo, alvo, campos.get("📝 Motivo", ""), campos.get("📎 Prova", ""), tipo == "verbal",
+                 nivel_staff=9, pedido_por=pedinte)
+    e["color"] = 0x28A745 if aprovar else 0x6C757D
+    e["footer"] = {"text": " · ".join(partes[:4] + ["aprovado" if aprovar else "recusado"])}
+    e["fields"] = list(e.get("fields") or []) + [{
+        "name": "✅ Aprovado" if aprovar else "❌ Recusado", "value": f"por <@{uid}>", "inline": False}]
+    if pedinte and not aprovar:
+        avisar_dm(pedinte, {"title": "Seu pedido de advertência foi recusado", "color": 0x6C757D,
+                            "description": f"<@{uid}> recusou o pedido para <@{alvo}>."})
+    return atualizar(e)
+
+
+# ----- Contestação (o membro punido pede revisão pela DM) --------------------
+def modal_contestar(uid):
+    return jsonify({"type": 9, "data": {"custom_id": f"ct:env:{uid}", "title": "Contestar punição", "components": [
+        {"type": 1, "components": [{"type": 4, "custom_id": "texto", "style": 2, "required": True, "min_length": 20,
+                                    "max_length": 1000, "label": "Por que a punição foi injusta?",
+                                    "placeholder": "Explique o que aconteceu. Se tiver print, cole o link."}]}]}})
+
+
+def enviar_contestacao(uid, texto):
+    reg = canal_registro()
+    for m in discord_req("GET", f"/channels/{reg}/messages?limit=100"):
+        if any((e.get("footer") or {}).get("text") == f"Contestação · {uid} · pendente" for e in m.get("embeds") or []):
+            return resposta(texto="Você já tem uma contestação em análise. Aguarde a resposta aqui na DM.",
+                            privada=True, componentes=[])
+    ultimo = next((r for r in registros(uid) if r["status"] == ST_WARN), None)
+    discord_req("POST", f"/channels/{reg}/messages", {
+        "embeds": [{"title": "📨 Contestação de punição", "color": 0x9B59B6,
+                    "description": f"<@{uid}> pediu revisão da última advertência.",
+                    "fields": [{"name": "💬 O que a pessoa disse", "value": cortar(texto, 1000), "inline": False}]
+                              + ([{"name": "⚠️ Advertência contestada",
+                                   "value": f"{ultimo['embed'].get('title')}: {cortar(campo(ultimo['embed'], 'Motivo'), 300)}"
+                                            f" · por {campo(ultimo['embed'], 'Staff')}", "inline": False}] if ultimo else []),
+                    "footer": {"text": f"Contestação · {uid} · pendente"},
+                    "timestamp": datetime.now(timezone.utc).isoformat()}],
+        "components": [{"type": 1, "components": [
+            {"type": 2, "style": 3, "label": "Aceitar (tirar a punição)", "custom_id": f"ct:ok:{uid}"},
+            {"type": 2, "style": 2, "label": "Manter a punição", "custom_id": f"ct:no:{uid}"}]}],
+        "allowed_mentions": {"parse": []}})
+    return resposta(texto="📨 Contestação enviada! Um Senior Staff ou acima vai analisar e você recebe a resposta aqui.",
+                    privada=True, componentes=[])
+
+
+def decidir_contestacao(d, staff, alvo, aceitar):
+    if nivel(d.get("member")) < 4:
+        return so_a_partir(4)
+    msg = d.get("message") or {}
+    e = dict((msg.get("embeds") or [{}])[0])
+    if not ((e.get("footer") or {}).get("text") or "").endswith("pendente"):
+        return resposta(texto="Essa contestação já foi resolvida.", privada=True, componentes=[])
+    gid = str(d.get("guild_id") or os.environ.get("DISCORD_GUILD_ID", ""))
+    if aceitar:
+        cmd_perdoar(gid, staff, alvo, "Contestação aceita")
+        try:
+            discord_req("DELETE", f"/guilds/{gid}/bans/{alvo}", motivo=f"Contestação aceita por {staff}")
+        except urllib.error.URLError:
+            pass  # não estava banido
+    avisar_dm(alvo, {"title": "✅ Sua contestação foi aceita" if aceitar else "Sua contestação foi analisada",
+                     "color": 0x28A745 if aceitar else 0x6C757D,
+                     "description": "A advertência foi retirada. Obrigado por explicar! 🤝" if aceitar else
+                                    "A staff analisou e decidiu **manter** a punição."})
+    e["color"] = 0x28A745 if aceitar else 0x6C757D
+    e["footer"] = {"text": f"Contestação · {alvo} · {'aceita' if aceitar else 'mantida'}"}
+    e["fields"] = list(e.get("fields") or []) + [{
+        "name": "✅ Aceita" if aceitar else "⚖️ Punição mantida", "value": f"por <@{staff}>", "inline": False}]
+    return atualizar(e)
+
+
+# ----- Ferramentas por cargo -------------------------------------------------
+def cmd_limpar(d, uid, n_staff, qtd, membro_id):
+    maximo = limite(LIMPAR_MAX, n_staff)
+    if qtd > maximo:
+        return resposta(texto=f"Seu cargo pode apagar até **{maximo}** mensagens de uma vez.", privada=True, componentes=[])
+    canal = str(d.get("channel_id"))
+    limite_idade = time.time() - 13.5 * 86400
+    ids = [m["id"] for m in discord_req("GET", f"/channels/{canal}/messages?limit=100")
+           if (not membro_id or str((m.get("author") or {}).get("id")) == membro_id)
+           and not m.get("pinned") and snowflake_ts(m["id"]) > limite_idade][:qtd]
+    if not ids:
+        return resposta(texto="Não achei mensagens para apagar (o Discord só apaga em lote as de até 14 dias).",
+                        privada=True, componentes=[])
+    if len(ids) == 1:
+        discord_req("DELETE", f"/channels/{canal}/messages/{ids[0]}", motivo=f"Limpeza por {uid}")
+    else:
+        discord_req("POST", f"/channels/{canal}/messages/bulk-delete", {"messages": ids}, f"Limpeza por {uid}")
+    log_acao("🧹 Limpeza de mensagens", uid, "limpar",
+             [("📍 Canal", f"<#{canal}>"), ("🗑️ Apagadas", len(ids)), ("👤 De", f"<@{membro_id}>" if membro_id else "")])
+    return resposta(texto=f"🧹 Apaguei **{len(ids)}** mensagens.", privada=True, componentes=[])
+
+
+def cmd_lento(d, uid, segundos):
+    canal = str(d.get("channel_id"))
+    discord_req("PATCH", f"/channels/{canal}", {"rate_limit_per_user": int(segundos)}, f"Modo lento por {uid}")
+    log_acao("🐢 Modo lento", uid, "lento", [("📍 Canal", f"<#{canal}>"),
+                                             ("⏱️ Tempo", f"{segundos}s" if segundos else "desligado")])
+    return resposta(texto=f"🐢 Modo lento {'desligado' if not segundos else f'de {segundos}s ligado'} neste canal.",
+                    privada=True, componentes=[])
+
+
+def cmd_castigo(gid, uid, n_staff, alvo, duracao, motivo):
+    maximo = limite(CASTIGO_MAX, n_staff)
+    if duracao > maximo:
+        return resposta(texto=f"Seu cargo pode castigar por até **{DURACAO_NOME.get(maximo, f'{maximo}s')}**. "
+                              "Para mais tempo, peça a alguém acima.", privada=True, componentes=[])
+    ate = (datetime.now(timezone.utc) + timedelta(seconds=duracao)).isoformat()
+    try:
+        discord_req("PATCH", f"/guilds/{gid}/members/{alvo}", {"communication_disabled_until": ate},
+                    f"Castigo por {uid}: {motivo}")
+    except urllib.error.HTTPError as e:
+        return resposta(texto="Não consegui: o cargo da pessoa está acima do bot." if e.code == 403 else
+                        f"O Discord recusou ({e.code}).", privada=True, componentes=[])
+    avisar_membro(alvo, "🔇 Você foi castigado na Kyzen SA",
+                  f"**Tempo:** {DURACAO_NOME.get(duracao)}\n**Motivo:** {cortar(motivo, 900)}")
+    log_acao("🔇 Castigo", uid, "castigo", [("👤 Membro", f"<@{alvo}>"), ("⏱️ Tempo", DURACAO_NOME.get(duracao)),
+                                           ("📝 Motivo", motivo)], 0xE67E22)
+    return resposta(texto=f"🔇 <@{alvo}> castigado por **{DURACAO_NOME.get(duracao)}**.", privada=True, componentes=[])
+
+
+def cmd_expulsar_banir(gid, uid, alvo, motivo, banir, apagar=0):
+    avisar_membro(alvo, "🔨 Você foi banido da Kyzen SA" if banir else "👢 Você foi expulso da Kyzen SA",
+                  f"**Motivo:** {cortar(motivo, 900)}")
+    try:
+        if banir:
+            discord_req("PUT", f"/guilds/{gid}/bans/{alvo}", {"delete_message_seconds": int(apagar)}, f"Ban por {uid}: {motivo}")
+        else:
+            discord_req("DELETE", f"/guilds/{gid}/members/{alvo}", motivo=f"Expulso por {uid}: {motivo}")
+    except urllib.error.HTTPError as e:
+        return resposta(texto="Não consegui: o cargo da pessoa está acima do bot." if e.code == 403 else
+                        "A pessoa não está no servidor." if e.code == 404 else f"O Discord recusou ({e.code}).",
+                        privada=True, componentes=[])
+    log_acao("🔨 Banimento direto" if banir else "👢 Expulsão", uid, "banir" if banir else "expulsar",
+             [("👤 Membro", f"<@{alvo}> ({alvo})"), ("📝 Motivo", motivo)], 0x8B0000 if banir else 0xC0392B)
+    return resposta(texto=f"{'🔨 Banido' if banir else '👢 Expulso'}: <@{alvo}>.", privada=True, componentes=[])
+
+
+def cmd_desbanir(gid, uid, alvo, motivo):
+    if not re.fullmatch(r"\d{5,25}", alvo):
+        return resposta(texto="Mande só o ID da pessoa (números).", privada=True, componentes=[])
+    try:
+        discord_req("DELETE", f"/guilds/{gid}/bans/{alvo}", motivo=f"Desbanido por {uid}: {motivo}")
+    except urllib.error.HTTPError as e:
+        return resposta(texto="Essa pessoa não está banida." if e.code == 404 else f"O Discord recusou ({e.code}).",
+                        privada=True, componentes=[])
+    log_acao("🕊️ Ban retirado", uid, "desbanir", [("👤 Membro", f"<@{alvo}> ({alvo})"), ("📝 Motivo", motivo)], 0x28A745)
+    return resposta(texto=f"🕊️ Ban de <@{alvo}> retirado.", privada=True, componentes=[])
+
+
+def cmd_trancar(d, uid, trancar, motivo=""):
+    gid = str(d.get("guild_id"))
+    canal = str(d.get("channel_id"))
+    info = discord_req("GET", f"/channels/{canal}")
+    ows = {str(o["id"]): o for o in info.get("permission_overwrites") or []}
+    o = ows.get(gid) or {}
+    allow, deny = int(o.get("allow") or 0), int(o.get("deny") or 0)
+    if trancar:
+        allow, deny = allow & ~TRAVAR, deny | TRAVAR
+        for rid in [r for k, _, r in RANKS if k < 9]:  # a staff continua falando no canal trancado
+            s = ows.get(rid) or {}
+            if not int(s.get("allow") or 0) & PERM_ENVIAR:
+                discord_req("PUT", f"/channels/{canal}/permissions/{rid}",
+                            {"type": 0, "allow": str(int(s.get("allow") or 0) | PERM_ENVIAR),
+                             "deny": str(int(s.get("deny") or 0) & ~PERM_ENVIAR)}, "Canal trancado")
+    else:
+        deny &= ~TRAVAR
+    discord_req("PUT", f"/channels/{canal}/permissions/{gid}", {"type": 0, "allow": str(allow), "deny": str(deny)},
+                f"{'Trancado' if trancar else 'Destrancado'} por {uid}")
+    discord_req("POST", f"/channels/{canal}/messages", {"embeds": [{
+        "title": "🔒 Canal trancado pela staff" if trancar else "🔓 Canal destrancado",
+        "color": 0xC0392B if trancar else 0x28A745,
+        "description": (cortar(motivo, 500) if motivo else "Aguarde, a staff já está cuidando disso.") if trancar
+                       else "Podem voltar a conversar. 🙂"}], "allowed_mentions": {"parse": []}})
+    log_acao("🔒 Canal trancado" if trancar else "🔓 Canal destrancado", uid, "trancar" if trancar else "destrancar",
+             [("📍 Canal", f"<#{canal}>"), ("📝 Motivo", motivo)], 0xC0392B if trancar else 0x28A745)
+    return resposta(texto="🔒 Canal trancado." if trancar else "🔓 Canal destrancado.", privada=True, componentes=[])
+
+
+# ----- Relatório semanal da staff --------------------------------------------
+def relatorio_semanal(forcar=False):
+    agora = datetime.now(BRT)
+    if not forcar and not (agora.weekday() == 6 and agora.hour >= 18):
+        return 0
+    semana = f"{agora.isocalendar()[0]}-S{agora.isocalendar()[1]:02d}"
+    reg = canal_registro()
+    inicio = time.time() - 7 * 86400
+    msgs, antes = [], ""
+    for _ in range(5):
+        lote = discord_req("GET", f"/channels/{reg}/messages?limit=100" + (f"&before={antes}" if antes else ""))
+        msgs += [m for m in lote if snowflake_ts(m["id"]) > inicio]
+        if len(lote) < 100 or snowflake_ts(lote[-1]["id"]) < inicio:
+            break
+        antes = lote[-1]["id"]
+    if any((e.get("footer") or {}).get("text") == f"Relatório da staff · {semana}" for m in msgs for e in m.get("embeds") or []):
+        return 0
+    por, totais = {}, {}
+
+    def soma(staff, chave):
+        if staff:
+            por.setdefault(staff, {}).setdefault(chave, 0)
+            por[staff][chave] += 1
+            totais[chave] = totais.get(chave, 0) + 1
+
+    for m in msgs:
+        for e in m.get("embeds") or []:
+            rod = (e.get("footer") or {}).get("text") or ""
+            staff = re.sub(r"\D", "", campo(e, "Staff"))
+            if re.match(r"^Membro \d+ · (advertência|advertência perdoada)$", rod):
+                soma(staff, "warns")
+            elif rod.endswith("· aviso verbal"):
+                soma(staff, "avisos")
+            elif rod.endswith("· perdão"):
+                soma(staff, "perdões")
+            elif rod.startswith("Ação · "):
+                soma(rod.split(" · ")[1], {"castigo": "castigos", "banir": "bans", "expulsar": "expulsões",
+                                           "limpar": "limpezas"}.get(rod.split(" · ")[2], "outras"))
+            elif rod.startswith("Contestação · "):
+                totais["contestações"] = totais.get("contestações", 0) + 1
+            elif rod.startswith("Pedido · "):
+                totais["pedidos"] = totais.get("pedidos", 0) + 1
+    try:
+        for m in discord_req("GET", f"/channels/{canal_staff('bot')}/messages?limit=100"):
+            for e in m.get("embeds") or []:
+                if ((e.get("footer") or {}).get("text") or "").startswith("ticket · ") and snowflake_ts(m["id"]) > inicio:
+                    quem = re.findall(r"fechado por <@(\d+)>", e.get("description") or "")
+                    dono = ((e.get("footer") or {}).get("text") or "").split(" · ")[1]
+                    if quem and quem[0] != dono:
+                        soma(quem[0], "tickets")
+        for m in discord_req("GET", f"/channels/{canal_staff('forms')}/messages?limit=100"):
+            for e in m.get("embeds") or []:
+                if re.search(r"· (aprovado|recusado)$", (e.get("footer") or {}).get("text") or "") and \
+                        snowflake_ts(m["id"]) > inicio:
+                    quem = re.findall(r"por <@(\d+)>", (e.get("fields") or [{}])[-1].get("value") or "")
+                    soma(quem[0] if quem else "", "formulários")
+    except urllib.error.URLError:
+        pass
+    linhas = []
+    for staff, c in sorted(por.items(), key=lambda x: -sum(x[1].values()))[:25]:
+        linhas.append(f"<@{staff}> · **{sum(c.values())}** · " + " · ".join(f"{v} {k}" for k, v in c.items()))
+    discord_req("POST", f"/channels/{reg}/messages", {"embeds": [{
+        "title": "📊 Relatório semanal da staff", "color": 0x2C3E50,
+        "description": ("\n".join(linhas) or "Nenhuma ação registrada nesta semana.") +
+                       "\n\n**Total:** " + (" · ".join(f"{v} {k}" for k, v in totais.items()) or "0"),
+        "footer": {"text": f"Relatório da staff · {semana}"},
+        "timestamp": datetime.now(timezone.utc).isoformat()}], "allowed_mentions": {"parse": []}})
+    return 1
+
+
+# ----- Roteador --------------------------------------------------------------
+def interacao_cargos(d, tipo, dados, nome, opcoes, uid):
+    gid = str(d.get("guild_id") or os.environ.get("DISCORD_GUILD_ID", "")).strip()
+    membro = d.get("member") or {}
+    n = nivel(membro)
+    resolv = dados.get("resolved") or {}
+    cid = str(dados.get("custom_id") or "")
+    if tipo == 3:
+        if cid in ("ap:ok", "ap:no"):
+            return decidir_pedido(d, uid, cid == "ap:ok")
+        ach = re.fullmatch(r"ct:(\d{5,25})", cid)
+        if ach:
+            if ach.group(1) != uid:
+                return resposta(texto="Esse botão é só da pessoa punida.", privada=True, componentes=[])
+            return modal_contestar(uid)
+        ach = re.fullmatch(r"ct:(ok|no):(\d{5,25})", cid)
+        if ach:
+            return decidir_contestacao(d, uid, ach.group(2), ach.group(1) == "ok")
+        return None
+    if tipo == 5 and re.fullmatch(r"ct:env:\d{5,25}", cid):
+        valores = {c.get("custom_id"): (c.get("value") or "").strip()
+                   for linha in dados.get("components") or [] for c in linha.get("components") or []}
+        return enviar_contestacao(uid, valores.get("texto", ""))
+    if tipo != 2:
+        return None
+    req = {"limpar": 2, "lento": 3, "castigo": 3, "expulsar": 5, "banir": 5, "trancar": 5, "destrancar": 5,
+           "desbanir": 7}.get(nome)
+    if not req:
+        return None
+    if n < req:
+        return so_a_partir(req)
+    if nome == "limpar":
+        return cmd_limpar(d, uid, n, int(opcoes.get("quantidade") or 1), str(opcoes.get("membro") or ""))
+    if nome == "lento":
+        return cmd_lento(d, uid, int(opcoes.get("segundos") or 0))
+    if nome in ("trancar", "destrancar"):
+        return cmd_trancar(d, uid, nome == "trancar", str(opcoes.get("motivo") or ""))
+    if nome == "desbanir":
+        return cmd_desbanir(gid, uid, str(opcoes.get("id") or "").strip(), str(opcoes.get("motivo") or ""))
+    alvo_id = str(opcoes.get("membro") or "")
+    erro = checar_alvo(uid, (resolv.get("users") or {}).get(alvo_id), (resolv.get("members") or {}).get(alvo_id), n)
+    if erro:
+        return resposta(texto=erro, privada=True, componentes=[])
+    motivo = str(opcoes.get("motivo") or "")
+    if nome == "castigo":
+        return cmd_castigo(gid, uid, n, alvo_id, int(opcoes.get("duracao") or 600), motivo)
+    return cmd_expulsar_banir(gid, uid, alvo_id, motivo, nome == "banir", int(opcoes.get("apagar") or 0))
+
+
+# ----- Aplicar as permissões de cada cargo no servidor (temporário, staff) -----
+P_CONVIDAR, P_MOVER, P_MUTAR, P_ENSURDECER = 1 << 0, 1 << 24, 1 << 22, 1 << 23
+P_GER_MSGS, P_TOPICOS, P_APELIDOS, P_EXPRESSOES = 1 << 13, 1 << 34, 1 << 27, 1 << 30
+P_EVERYONE, P_CANAIS, P_WEBHOOKS = 1 << 17, 1 << 4, 1 << 29
+_HELPER = P_CONVIDAR | PERM_AUDITORIA | P_MOVER
+_JUNIOR = _HELPER | P_GER_MSGS | P_MUTAR | P_TOPICOS
+_STAFF = _JUNIOR | PERM_MODERAR | P_APELIDOS | P_ENSURDECER
+_MOD = _STAFF | PERM_KICK | P_EXPRESSOES
+_SMOD = _MOD | PERM_BAN | PERM_EVENTOS | P_EVERYONE
+_ADM = _SMOD | P_CANAIS | PERM_GERENCIAR_CARGOS | P_WEBHOOKS | PERM_GERENCIAR_SERVIDOR
+NOVAS_PERMS = {"1497068096450465792": _HELPER, "1504676074641162240": _JUNIOR, "1384722554064867328": _STAFF,
+               "1504678116285485137": _STAFF, "1383961426531717242": _MOD, "1504677084532965456": _SMOD,
+               "1383960212641157201": _ADM}
+P_TEXTO = PERM_VER | PERM_ENVIAR | PERM_HIST | PERM_ANEXOS | PERM_LINKS
+P_VOZ_CANAL = PERM_VER | (1 << 20) | (1 << 21)
+P_POR_TIPO = {0: P_TEXTO, 5: P_TEXTO, 15: P_TEXTO, 2: P_VOZ_CANAL, 13: P_VOZ_CANAL}
+
+
+def perm_cargo_no_canal(gid, base, rid, canal):
+    ows = {str(o["id"]): o for o in canal.get("permission_overwrites") or []}
+    p = base
+    for alvo in (gid, rid):
+        o = ows.get(alvo)
+        if o:
+            p = (p & ~int(o.get("deny") or 0)) | int(o.get("allow") or 0)
+    return p
+
+
+def req_lento(metodo, path, dados=None, motivo=""):
+    for _ in range(5):
+        try:
+            return discord_req(metodo, path, dados, motivo)
+        except urllib.error.HTTPError as e:
+            if e.code != 429:
+                raise
+            time.sleep(float(e.headers.get("Retry-After") or 2) + 0.3)
+    return discord_req(metodo, path, dados, motivo)
+
+
+@app.route("/api/aplicar-cargos", methods=["POST"])
+def aplicar_cargos():
     if not debug_ok():
         return jsonify({"ok": False}), 404
     gid = os.environ.get("DISCORD_GUILD_ID", "").strip()
-    nomes = {0: "convidar", 1: "expulsar", 2: "banir", 3: "ADMIN", 4: "ger_canais", 5: "ger_servidor", 7: "auditoria",
-             13: "ger_msgs", 17: "everyone", 22: "mutar_call", 23: "ensurdecer", 24: "mover", 27: "ger_apelidos",
-             28: "ger_cargos", 29: "webhooks", 30: "ger_expressoes", 33: "ger_eventos", 34: "ger_topicos",
-             40: "castigar"}
-    out = []
-    for r in sorted(discord_req("GET", f"/guilds/{gid}/roles"), key=lambda r: -r.get("position", 0)):
-        p = int(r.get("permissions") or 0)
-        out.append(f"{r.get('position'):>3} | {r['id']} | {r.get('name')} | {'bot' if r.get('managed') else ''} | "
-                   + ",".join(n for b, n in nomes.items() if p >> b & 1))
+    roles = {r["id"]: r for r in req_lento("GET", f"/guilds/{gid}/roles")}
+    eu = req_lento("GET", "/users/@me")
+    meus = req_lento("GET", f"/guilds/{gid}/members/{eu['id']}").get("roles") or []
+    topo = max([roles[r].get("position", 0) for r in meus if r in roles] + [0])
+    acima = max(roles[r].get("position", 0) for r in NOVAS_PERMS)
+    if topo <= acima:
+        return privado(jsonify({"ok": False, "erro": "o cargo do Kyzen Bot precisa ficar acima do Adm",
+                                "posicao_bot": topo, "posicao_adm": acima}))
+    out = {"canais_preservados": 0, "cargos": {}, "canais_staff": {}}
+    backup = {roles[r]["name"]: {"id": r, "permissions": roles[r].get("permissions")} for r in NOVAS_PERMS}
+    try:
+        discord_arquivo(f"/channels/{canal_staff('bot')}/messages", {"embeds": [{
+            "title": "💾 Backup das permissões da staff", "color": 0x6C757D,
+            "description": "Permissões dos cargos antes da divisão por nível (para desfazer, se precisar).",
+            "footer": {"text": "backup-cargos"}}], "allowed_mentions": {"parse": []}},
+            "backup-permissoes-staff.json", json.dumps(backup, ensure_ascii=False, indent=2).encode("utf-8"))
+    except urllib.error.URLError as e:
+        return privado(jsonify({"ok": False, "erro": f"backup falhou: {e}"}))
+    # quem tinha admin continua entrando e falando nos mesmos canais de antes
+    canais = req_lento("GET", f"/guilds/{gid}/channels")
+    base_todos = int(roles[gid].get("permissions") or 0)
+    for rid, novo in NOVAS_PERMS.items():
+        if not int(roles[rid].get("permissions") or 0) & PERM_ADMIN:
+            continue
+        for c in canais:
+            if c.get("type") not in P_POR_TIPO:
+                continue
+            p = perm_cargo_no_canal(gid, base_todos | novo, rid, c)
+            faltam = P_POR_TIPO[c["type"]] & ~p
+            if not faltam:
+                continue
+            o = next((x for x in c.get("permission_overwrites") or [] if str(x["id"]) == rid), {})
+            req_lento("PUT", f"/channels/{c['id']}/permissions/{rid}",
+                      {"type": 0, "allow": str(int(o.get("allow") or 0) | faltam),
+                       "deny": str(int(o.get("deny") or 0) & ~faltam)}, "Mantém o acesso que o cargo já tinha")
+            out["canais_preservados"] += 1
+            time.sleep(0.25)
+    for rid, novo in NOVAS_PERMS.items():
+        req_lento("PATCH", f"/guilds/{gid}/roles/{rid}", {"permissions": str(novo)}, "Divisão de poderes por cargo")
+        out["cargos"][roles[rid]["name"]] = "ok"
+    for chave, cid, minimo in (("punicoes", canal_registro(), 3), ("bot", canal_staff("bot"), 3),
+                               ("forms", canal_staff("forms"), 1)):
+        info = req_lento("GET", f"/channels/{cid}")
+        ows = {str(o["id"]): o for o in info.get("permission_overwrites") or []}
+        for rid in cargos_staff(gid, minimo):
+            o = ows.get(rid) or {}
+            if int(o.get("allow") or 0) & PERM_VER:
+                continue
+            req_lento("PUT", f"/channels/{cid}/permissions/{rid}",
+                      {"type": 0, "allow": str(int(o.get("allow") or 0) | PERM_VER | PERM_HIST), "deny": "0"},
+                      "Canal da staff")
+        out["canais_staff"][chave] = "ok"
+    for m in req_lento("GET", f"/channels/{canal_registro()}/pins"):
+        if any((e.get("title") or "").startswith("🛡️ Como advertir") for e in m.get("embeds") or []):
+            req_lento("PATCH", f"/channels/{canal_registro()}/messages/{m['id']}", {"embeds": [GUIA_STAFF]})
+            out["guia"] = "atualizado"
     return privado(jsonify(out))
 
 
@@ -3292,7 +3838,7 @@ def interacao_moderacao(d, tipo, dados, nome, opcoes, uid):
     if tipo == 2 and nome == "denunciar":
         return cmd_denunciar()
     if tipo == 2 and nome == "ajuda":
-        return cmd_ajuda(tem_perm(membro, PERM_MODERAR))
+        return cmd_ajuda(nivel(membro) >= 1)
     if tipo == 2 and nome == "Denunciar mensagem":
         m = (resolv.get("messages") or {}).get(str(dados.get("target_id"))) or {}
         return cmd_denunciar(f"https://discord.com/channels/{gid}/{m.get('channel_id')}/{m.get('id')}" if m else "")
@@ -3301,20 +3847,21 @@ def interacao_moderacao(d, tipo, dados, nome, opcoes, uid):
                 (tipo == 5 and str(dados.get("custom_id", "")).startswith("adv:"))
     if not staff_cmd:
         return None
-    if not tem_perm(membro, PERM_MODERAR):
+    n_staff = nivel(membro)
+    if n_staff < 1:
         return resposta(texto="Só a staff pode usar isso.", privada=True, componentes=[])
 
     if tipo == 2 and nome == "Advertir membro":
         alvo_id = str(dados.get("target_id"))
         alvo = (resolv.get("users") or {}).get(alvo_id)
-        erro = checar_alvo(uid, alvo, (resolv.get("members") or {}).get(alvo_id))
+        erro = checar_alvo(uid, alvo, (resolv.get("members") or {}).get(alvo_id), n_staff)
         if erro:
             return resposta(texto=erro, privada=True, componentes=[])
         return modal_advertir(alvo_id, alvo.get("global_name") or alvo.get("username") or "membro")
     if tipo == 2 and nome == "Advertir autor":
         m = (resolv.get("messages") or {}).get(str(dados.get("target_id"))) or {}
         alvo = m.get("author") or {}
-        erro = checar_alvo(uid, alvo, (resolv.get("members") or {}).get(str(alvo.get("id"))))
+        erro = checar_alvo(uid, alvo, (resolv.get("members") or {}).get(str(alvo.get("id"))), n_staff)
         if erro:
             return resposta(texto=erro, privada=True, componentes=[])
         prova = f"https://discord.com/channels/{gid}/{m.get('channel_id')}/{m.get('id')}"
@@ -3328,19 +3875,23 @@ def interacao_moderacao(d, tipo, dados, nome, opcoes, uid):
         if not re.fullmatch(r"\d{5,25}", alvo_id) or not valores.get("motivo"):
             return resposta(texto="Faltou o motivo.", privada=True, componentes=[])
         verbal = slug_py(valores.get("verbal", "")).startswith("s")
-        return advertir(gid, uid, alvo_id, alvo_id, valores["motivo"], valores.get("prova", ""), verbal)
+        return advertir(gid, uid, alvo_id, alvo_id, valores["motivo"], valores.get("prova", ""), verbal,
+                        nivel_staff=n_staff)
 
     alvo_id = str(opcoes.get("membro") or "")
     alvo = (resolv.get("users") or {}).get(alvo_id)
     if nome == "advertir":
-        erro = checar_alvo(uid, alvo, (resolv.get("members") or {}).get(alvo_id))
+        erro = checar_alvo(uid, alvo, (resolv.get("members") or {}).get(alvo_id), n_staff)
         if erro:
             return resposta(texto=erro, privada=True, componentes=[])
         return advertir(gid, uid, alvo_id, alvo.get("global_name") or alvo.get("username") or alvo_id,
-                        str(opcoes.get("motivo") or ""), str(opcoes.get("prova") or ""), opcoes.get("tipo") == "verbal")
+                        str(opcoes.get("motivo") or ""), str(opcoes.get("prova") or ""), opcoes.get("tipo") == "verbal",
+                        nivel_staff=n_staff)
     if nome == "historico":
         return cmd_historico(alvo_id)
     if nome == "perdoar":
+        if n_staff < 4:
+            return so_a_partir(4)
         return cmd_perdoar(gid, uid, alvo_id, str(opcoes.get("motivo") or ""))
     return None
 
@@ -3373,7 +3924,9 @@ def interacoes():
             lista = []
         return jsonify({"type": 8, "data": {"choices": [{"name": n[:100], "value": n[:100]} for n in lista]}})
     try:
-        mod = interacao_paineis(d, tipo, dados, nome, opcoes, uid)
+        mod = interacao_cargos(d, tipo, dados, nome, opcoes, uid)
+        if mod is None:
+            mod = interacao_paineis(d, tipo, dados, nome, opcoes, uid)
         if mod is None:
             mod = interacao_extras(d, tipo, dados, nome, opcoes, uid)
         if mod is None:
