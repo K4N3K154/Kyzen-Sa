@@ -3794,6 +3794,46 @@ DIRETRIZES_CARGOS = [
 ]
 
 
+@app.route("/api/diag-junior")
+def diag_junior():
+    """Temporário (staff): o que Helper, Junior Staff, Staff e Senior Staff veem e podem em cada canal."""
+    if not debug_ok():
+        return jsonify({"ok": False}), 404
+    gid = os.environ.get("DISCORD_GUILD_ID", "").strip()
+    roles = {r["id"]: r for r in discord_req("GET", f"/guilds/{gid}/roles")}
+    canais = discord_req("GET", f"/guilds/{gid}/channels")
+    cats = {c["id"]: c.get("name") for c in canais if c.get("type") == 4}
+    alvo = [(n, rid) for n, _, rid in RANKS if n <= 4]
+    base_todos = int(roles[gid].get("permissions") or 0)
+    out = {"cargos": {}, "canais": []}
+    for n, rid in alvo:
+        r = roles.get(rid) or {}
+        out["cargos"][NOME_NIVEL[n]] = {"nome": r.get("name"), "posicao": r.get("position"),
+                                        "permissoes": r.get("permissions"), "cor": r.get("color"),
+                                        "separado": r.get("hoist"), "mencionavel": r.get("mentionable")}
+
+    def ef(rid, c):
+        p = base_todos | int((roles.get(rid) or {}).get("permissions") or 0)
+        if p & PERM_ADMIN:
+            return "admin"
+        ows = {str(o["id"]): o for o in c.get("permission_overwrites") or []}
+        for alvo_id in (gid, rid):
+            o = ows.get(alvo_id)
+            if o:
+                p = (p & ~int(o.get("deny") or 0)) | int(o.get("allow") or 0)
+        voz = c.get("type") in (2, 13)
+        return ("V" if p & PERM_VER else "-") + ("E" if p & (1 << 20 if voz else PERM_ENVIAR) else "-")
+
+    for c in sorted(canais, key=lambda c: (c.get("type") == 4, c.get("position", 0))):
+        if c.get("type") == 4:
+            continue
+        linha = {"canal": c.get("name"), "categoria": cats.get(c.get("parent_id"), "")}
+        for n, rid in alvo:
+            linha[NOME_NIVEL[n]] = ef(rid, c)
+        out["canais"].append(linha)
+    return privado(jsonify(out))
+
+
 def interacao_moderacao(d, tipo, dados, nome, opcoes, uid):
     """Comandos de moderação e denúncia. Devolve None se não for um deles."""
     gid = str(d.get("guild_id") or os.environ.get("DISCORD_GUILD_ID", "")).strip()
