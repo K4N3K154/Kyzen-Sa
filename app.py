@@ -4557,14 +4557,49 @@ def configurar_onboarding(gid):
                 "single_select": p.get("single_select", False), "required": p.get("required", False),
                 "in_onboarding": p.get("in_onboarding", True)}
 
-    atuais = [normal(p) for p in ob.get("prompts") or []]
+    existentes = {c["id"] for c in discord_req("GET", f"/guilds/{gid}/channels")}
+    removidos = set()
+
+    def limpar_prompt(p):
+        """Tira das respostas os canais que foram apagados; resposta sem cargo nem canal sai."""
+        ops = []
+        for o in p["options"]:
+            removidos.update(c for c in o.get("channel_ids") or [] if c not in existentes)
+            o["channel_ids"] = [c for c in o.get("channel_ids") or [] if c in existentes]
+            if o["channel_ids"] or o.get("role_ids"):
+                ops.append(o)
+        p["options"] = ops
+        return p
+
+    atuais = [limpar_prompt(normal(p)) for p in ob.get("prompts") or []]
+    atuais = [p for p in atuais if p["options"]]
     titulos = {p["title"] for p in atuais}
     adicionadas = [p["title"] for p in novos if p["title"] not in titulos]
-    prompts = [p for p in novos if p["title"] not in titulos] + atuais
+    prompts = ([p for p in novos if p["title"] not in titulos] + atuais)[:15]
+    # O Discord mostra no máximo 5 perguntas antes de entrar; as outras ficam em "Canais e cargos"
+    antes = 0
+    for p in prompts:
+        if p.get("in_onboarding"):
+            antes += 1
+            if antes > 5:
+                p["in_onboarding"] = False
+    # Canais padrão: só os que existem; completa com canais públicos até o mínimo de 7
+    padrao = [c for c in ob.get("default_channel_ids") or [] if c in existentes]
+    removidos.update(c for c in ob.get("default_channel_ids") or [] if c not in existentes)
+    for c in ("1383949963846877244", "1383990514701041836", "1383947381032095846", "1383957309071560725",
+              "1383957562696929342", "1384921966254882958", "1572032026339446824", "1398726258157949148",
+              "1503249256427950141"):
+        if len(padrao) >= 7:
+            break
+        if c in existentes and c not in padrao:
+            padrao.append(c)
     discord_req("PUT", f"/guilds/{gid}/onboarding", {
-        "prompts": prompts, "default_channel_ids": ob.get("default_channel_ids") or [],
+        "prompts": prompts, "default_channel_ids": padrao,
         "enabled": ob.get("enabled", True), "mode": ob.get("mode", 0)}, "Perguntas do Onboarding")
-    return {"perguntas_novas": adicionadas, "total_perguntas": len(prompts)}
+    return {"perguntas_novas": adicionadas, "total_perguntas": len(prompts),
+            "antes_de_entrar": [p["title"] for p in prompts if p.get("in_onboarding")],
+            "depois_de_entrar": [p["title"] for p in prompts if not p.get("in_onboarding")],
+            "canais_apagados_removidos": len(removidos), "canais_padrao": len(padrao)}
 
 
 @app.route("/api/staff-acao", methods=["POST"])
