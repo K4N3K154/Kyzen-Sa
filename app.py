@@ -5033,7 +5033,9 @@ def registrar_comandos():
         return jsonify({"ok": False}), 404
     token = os.environ.get("DISCORD_BOT_TOKEN", "").strip()
     gid = os.environ.get("DISCORD_GUILD_ID", "").strip()
-    chave_publica()
+    if not _app_id["id"]:  # com a chave pública gravada na Vercel, o ID do app não é buscado no início
+        _app_id["id"] = os.environ.get("DISCORD_CLIENT_ID", "").strip() or \
+            str(discord_get("/oauth2/applications/@me", token)["id"])
     req = urllib.request.Request(f"{API}/applications/{_app_id['id']}/guilds/{gid}/commands", method="PUT",
                                  data=json.dumps(COMANDOS).encode(),
                                  headers={"Authorization": f"Bot {token}", "Content-Type": "application/json",
