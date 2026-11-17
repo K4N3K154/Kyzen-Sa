@@ -1208,13 +1208,75 @@ def snowflake_ts(sid):
     return ((int(sid) >> 22) + 1420070400000) / 1000
 
 
+BLOX = "https://theblox.com.br/?pid=kyzen"
+BLOX_LEMBRETES = [
+    {"titulo": "🛒 Lembrete: a Kyzen tem cupom na The Blox!",
+     "texto": "Quem é da Kyzen tem **desconto exclusivo** na **The Blox**, a nossa patrocinadora.\n"
+              "🍎 Frutas permanentes, ⚔️ espadas e 🎮 gamepasses por **menos do que no próprio Roblox**.\n\n"
+              "No pagamento, use o cupom `KYZEN`."},
+    {"titulo": "🍎 Aquela fruta que você quer tá mais perto do que parece",
+     "texto": "Com o cupom `KYZEN` na **The Blox**, dá pra evoluir no Vox Seas **gastando bem menos**.\n"
+              "E o dono da loja joga com a gente e é da nossa crew. 😉\n\nEntra pelo link da Kyzen e aproveita!"},
+    {"titulo": "⚔️ Quer chegar mais forte na próxima war?",
+     "texto": "Espadas, frutas e gamepasses com **desconto que só quem é da Kyzen tem**, na **The Blox**.\n"
+              "Entra pelo link, escolhe o que quiser e usa o cupom `KYZEN` no pagamento. 🚀"},
+]
+ANUNCIO_THEBLOX = """@everyone
+
+# 🤝 A KYZEN AGORA É PATROCINADA PELA THE BLOX!
+
+Tripulação, chegou a parceria que faltava! 🏴‍☠️
+
+A **The Blox** é uma das **maiores lojas de itens de Roblox do Brasil**, e agora é a **patrocinadora oficial da Kyzen**. E não é uma loja qualquer: o dono **joga Vox Seas com a gente e faz parte da nossa crew**. Ou seja, é gente de dentro, que conhece o jogo e quer ver a tripulação forte. ⚓
+
+🎟️ **Cupom exclusivo da Kyzen:** `KYZEN`
+
+💸 Preços **bem melhores do que comprando direto no Roblox**
+🔒 Loja **confiável**, com milhares de clientes
+🍎 Frutas permanentes, espadas, gamepasses e muito mais
+🎁 Um desconto que **só quem é da Kyzen tem**
+
+Sabe aquela fruta ou espada que você queria, mas achava cara demais? **Essa é a hora.** Com o cupom da Kyzen, o que parecia longe fica ao alcance. É a chance de evoluir no Vox Seas gastando menos. 🚀
+
+🛒 **Compre pelo link da Kyzen:**
+https://theblox.com.br/?pid=kyzen
+
+📝 **Como usar:**
+**1.** Entre pelo link acima
+**2.** Escolha o que você quer
+**3.** No pagamento, use o cupom `KYZEN`
+
+Comprando pelo nosso link, você ainda ajuda a Kyzen a crescer. 💙
+
+Bora ficar mais forte e dominar os mares juntos! 🌊⚓"""
+
+
+def divulgacao_blox(agora):
+    d = BLOX_LEMBRETES[int(agora // 86400) % len(BLOX_LEMBRETES)]
+    return {"embeds": [{"title": d["titulo"], "url": BLOX, "color": 0x1E90FF, "description": d["texto"],
+                        "footer": {"text": "Kyzen SA • patrocinada pela The Blox • comprando pelo link você ajuda a crew"}}],
+            "components": [{"type": 1, "components": [
+                {"type": 2, "style": 5, "label": "🛒 Comprar com o cupom KYZEN", "url": BLOX}]}],
+            "allowed_mentions": {"parse": []}}
+
+
+def anunciar_theblox(token):
+    """Anúncio único do patrocínio no #anúncios (não repete se já foi postado)."""
+    for m in discord_get("/channels/1383990514701041836/messages?limit=50", token):
+        if "theblox.com.br/?pid=kyzen" in (m.get("content") or ""):
+            return {"ok": True, "enviou": False, "motivo": "já foi anunciado", "id": m.get("id")}
+    r = discord_post("/channels/1383990514701041836/messages", token,
+                     {"content": ANUNCIO_THEBLOX, "allowed_mentions": {"parse": ["everyone"]}})
+    return {"ok": True, "enviou": True, "id": r.get("id"), "everyone": r.get("mention_everyone")}
+
+
 def decidir_divulgacao(msgs, bot_id, agora):
     """Decide se é hora de divulgar, olhando só as últimas mensagens do canal (sem banco)."""
     humanas, recentes = 0, 0
     for m in msgs:  # da mais nova para a mais antiga
         autor = m.get("author") or {}
         if str(autor.get("id")) == bot_id and m.get("embeds") and \
-                any(SITE in (e.get("url") or "") for e in m["embeds"]):
+                any(SITE in (e.get("url") or "") or "theblox.com.br" in (e.get("url") or "") for e in m["embeds"]):
             if agora - snowflake_ts(m["id"]) < DIVULGAR_INTERVALO_H * 3600:
                 return False, "divulgou há pouco tempo"
             break  # a contagem de mensagens vale só desde a última divulgação
@@ -1233,6 +1295,8 @@ def decidir_divulgacao(msgs, bot_id, agora):
 def montar_divulgacao(agora):
     hora = int(agora // 3600) % 24
     turno = min(range(len(HORARIOS_UTC)), key=lambda i: abs(HORARIOS_UTC[i] - hora))
+    if HORARIOS_UTC[turno] == 15:  # o horário do meio-dia é o lembrete da The Blox
+        return divulgacao_blox(agora)
     d = DIVULGACOES[(int(agora // 86400) * len(HORARIOS_UTC) + turno) % len(DIVULGACOES)]
     ancora = d["ancora"]
     botoes = sorted(BOTOES, key=lambda x: x[1] != ancora)  # o tema do texto vem primeiro
@@ -1261,6 +1325,11 @@ def divulgar():
         except Exception as e:  # noqa: BLE001  (o sorteio não pode travar a divulgação)
             app.logger.error("sorteios: %s", str(e)[:160])
     token = os.environ.get("DISCORD_BOT_TOKEN", "").strip()
+    if request.args.get("anuncio") == "theblox" and debug_ok():  # anúncio único do patrocínio
+        try:
+            return jsonify(anunciar_theblox(token))
+        except urllib.error.URLError as e:
+            return jsonify({"ok": False, "motivo": str(e)[:120]}), 502
     canal = os.environ.get("CANAL_GERAL", CANAL_GERAL).strip()
     agora = time.time()
     try:
