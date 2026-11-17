@@ -1725,7 +1725,7 @@ def acesso(uid):
     if len(_acesso_cache) > 500:
         for k in sorted(_acesso_cache, key=lambda k: _acesso_cache[k][0])[:250]:
             _acesso_cache.pop(k, None)
-    _acesso_cache[uid] = (agora, ver, membro is not None)
+    _acesso_cache[uid] = (agora, ver, membro is not None, cargos)
     return ver
 
 
@@ -1850,7 +1850,8 @@ def eu():
     return privado(jsonify({"logado": True, "configurado": configurado, "nome": session.get("nome", ""),
                             "avatar": avatar_url(uid, session.get("av", "")), "crew": bool(ver),
                             "erro": ver is None, "canais": ver or [],
-                            "guild": os.environ.get("DISCORD_GUILD_ID", "").strip()}))
+                            "guild": os.environ.get("DISCORD_GUILD_ID", "").strip(),
+                            "staff": nivel_uid(uid)}))
 
 
 def ctx_rapido(info, msgs):
@@ -3318,7 +3319,8 @@ def processar_agenda():
     agora = time.time()
     out = {}
     for nome, f in (("sorteios", processar_sorteios), ("wars", lambda: lembrar_wars(agora)),
-                    ("avisos", lambda: enviar_avisos(agora)), ("contadores", atualizar_contadores), ("relatorio", relatorio_semanal)):
+                    ("avisos", lambda: enviar_avisos(agora)), ("contadores", atualizar_contadores), ("relatorio", relatorio_semanal),
+                    ("convites", processar_convites)):
         try:
             out[nome] = f()
         except Exception as e:  # noqa: BLE001  (uma parte não pode travar as outras)
@@ -4272,6 +4274,312 @@ def interacao_atendimento(d, tipo, dados, nome, opcoes, uid):
         if ach and ach.group(2) in FORMULARIOS:
             return decidir_aplicacao(d, uid, ach.group(2), ach.group(3), ach.group(1) == "okr", valores.get("motivo", ""))
     return None
+
+
+# ---------------------------------------------------------------------------
+# Painel da staff no site, recompensa por convite, agenda das wars e Onboarding
+# ---------------------------------------------------------------------------
+CARGOS_CONVITE = [(3, "🎟️ Recrutador"), (10, "⭐ Recrutador de Elite"), (25, "👑 Lenda do Recrutamento")]
+CANAL_INVITES = "1384013116194558092"
+CAT_INFORMACOES = "1383949340669775954"
+_nomes = {}
+_painel = {"t": 0, "data": None}
+_wars_site = {"t": 0, "data": None}
+
+
+def nome_de(uid):
+    c = _nomes.get(uid)
+    if c and time.time() - c[0] < 3600:
+        return c[1]
+    gid = os.environ.get("DISCORD_GUILD_ID", "").strip()
+    try:
+        m = discord_req("GET", f"/guilds/{gid}/members/{uid}")
+        u = m.get("user") or {}
+        n = m.get("nick") or u.get("global_name") or u.get("username") or uid
+    except urllib.error.URLError:
+        n = uid
+    _nomes[uid] = (time.time(), n)
+    return n
+
+
+def nivel_uid(uid):
+    acesso(uid)
+    c = _acesso_cache.get(uid)
+    cargos = c[3] if c and len(c) > 3 else []
+    return max([NIVEL_DO_CARGO.get(str(r), 0) for r in cargos] + [0])
+
+
+def convites_por_pessoa():
+    gid = os.environ.get("DISCORD_GUILD_ID", "").strip()
+    tot = {}
+    for i in discord_req("GET", f"/guilds/{gid}/invites"):
+        u = i.get("inviter") or {}
+        if u.get("id") and not u.get("bot"):
+            tot[str(u["id"])] = tot.get(str(u["id"]), 0) + int(i.get("uses") or 0)
+    return tot
+
+
+def wars_abertas(contar=True):
+    out = []
+    for m, e, p in registros_bot("war"):
+        if len(p) != 5 or p[4] != "aberta" or int(p[3]) < time.time() - 3 * 3600:
+            continue
+        canal, msg, ts = p[1], p[2], int(p[3])
+        w = {"titulo": (e.get("title") or "War").replace("⚔️ War: ", ""), "ts": ts,
+             "link": f"https://discord.com/channels/{os.environ.get('DISCORD_GUILD_ID', '').strip()}/{canal}/{msg}",
+             "vao": 0, "talvez": 0}
+        if contar:
+            try:
+                ew = (discord_req("GET", f"/channels/{canal}/messages/{msg}").get("embeds") or [{}])[0]
+                listas = listas_war(ew)
+                w["vao"], w["talvez"] = len(listas.get("sim", [])), len(listas.get("talvez", []))
+            except urllib.error.URLError:
+                pass
+        out.append(w)
+    return sorted(out, key=lambda w: w["ts"])[:6]
+
+
+def painel_staff_dados():
+    if _painel["data"] and time.time() - _painel["t"] < 60:
+        return _painel["data"]
+    gid = os.environ.get("DISCORD_GUILD_ID", "").strip()
+    reg = canal_registro()
+    inicio = time.time() - 7 * 86400
+    msgs, antes = [], ""
+    for _ in range(3):
+        lote = discord_req("GET", f"/channels/{reg}/messages?limit=100" + (f"&before={antes}" if antes else ""))
+        msgs += lote
+        if len(lote) < 100 or snowflake_ts(lote[-1]["id"]) < inicio:
+            break
+        antes = lote[-1]["id"]
+    por, totais, pendentes = {}, {}, []
+
+    def soma(staff, chave):
+        if staff:
+            por.setdefault(staff, {}).setdefault(chave, 0)
+            por[staff][chave] += 1
+            totais[chave] = totais.get(chave, 0) + 1
+
+    for m in msgs:
+        for e in m.get("embeds") or []:
+            rod = (e.get("footer") or {}).get("text") or ""
+            link = f"https://discord.com/channels/{gid}/{reg}/{m['id']}"
+            if rod.endswith("· pendente") and rod.startswith(("Pedido · ", "Contestação · ")):
+                pendentes.append({"tipo": "Pedido de aprovação" if rod.startswith("Pedido") else "Contestação",
+                                  "titulo": e.get("title") or "", "link": link, "ts": int(snowflake_ts(m["id"]))})
+            if snowflake_ts(m["id"]) < inicio:
+                continue
+            staff = re.sub(r"\D", "", campo(e, "Staff"))
+            if re.match(r"^Membro \d+ · (advertência|advertência perdoada)$", rod):
+                soma(staff, "warns")
+            elif rod.endswith("· aviso verbal"):
+                soma(staff, "avisos")
+            elif rod.endswith("· perdão"):
+                soma(staff, "perdões")
+            elif rod.startswith("Ação · "):
+                pt = rod.split(" · ")
+                soma(pt[1], {"castigo": "castigos", "banir": "bans", "expulsar": "expulsões",
+                             "limpar": "limpezas"}.get(pt[2] if len(pt) > 2 else "", "outras"))
+    tickets = [{"nome": c.get("name"), "link": f"https://discord.com/channels/{gid}/{c['id']}",
+                "ts": int(snowflake_ts(c["id"]))}
+               for c in discord_req("GET", f"/guilds/{gid}/channels") if (c.get("name") or "").startswith("ticket-")]
+    try:
+        conv = sorted(convites_por_pessoa().items(), key=lambda x: -x[1])[:10]
+    except urllib.error.URLError:
+        conv = []
+    ranking = sorted(por.items(), key=lambda x: -sum(x[1].values()))[:20]
+    dados = {
+        "totais": totais,
+        "staff": [{"nome": nome_de(u), "total": sum(c.values()), "acoes": c} for u, c in ranking],
+        "pendentes": sorted(pendentes, key=lambda p: -p["ts"])[:15],
+        "tickets": sorted(tickets, key=lambda t: t["ts"]),
+        "wars": wars_abertas(contar=False),
+        "convites": [{"nome": nome_de(u), "convites": n} for u, n in conv if n > 0],
+        "atualizado": int(time.time())}
+    _painel.update(t=time.time(), data=dados)
+    return dados
+
+
+@app.route("/api/staff/painel")
+def staff_painel():
+    uid = usuario()
+    if not uid:
+        return privado(jsonify({"ok": False, "motivo": "login"})), 401
+    if nivel_uid(uid) < 1:
+        return privado(jsonify({"ok": False, "motivo": "staff"})), 403
+    try:
+        return privado(jsonify(dict(painel_staff_dados(), ok=True, nivel=NOME_NIVEL.get(nivel_uid(uid), ""))))
+    except urllib.error.URLError:
+        return privado(jsonify({"ok": False, "motivo": "discord"})), 502
+
+
+@app.route("/api/crew/wars")
+def crew_wars():
+    bloqueio = sem_acesso_crew()
+    if bloqueio:
+        return bloqueio
+    if not _wars_site["data"] or time.time() - _wars_site["t"] > 60:
+        try:
+            _wars_site.update(t=time.time(), data=wars_abertas())
+        except urllib.error.URLError:
+            pass
+    return privado(jsonify({"ok": True, "wars": _wars_site["data"] or []}))
+
+
+def cargos_convite(gid):
+    roles = {r.get("name"): r["id"] for r in discord_req("GET", f"/guilds/{gid}/roles")}
+    out = []
+    for limite_c, nome in CARGOS_CONVITE:
+        rid = roles.get(nome) or discord_req("POST", f"/guilds/{gid}/roles", {
+            "name": nome, "permissions": "0", "mentionable": False}, "Recompensa por convite")["id"]
+        out.append((limite_c, nome, rid))
+    return out
+
+
+def processar_convites(forcar_ranking=False, anunciar=True):
+    """Cron: dá os cargos de recrutador e, aos domingos, posta o ranking no #invites."""
+    gid = os.environ.get("DISCORD_GUILD_ID", "").strip()
+    tot = convites_por_pessoa()
+    cargos = cargos_convite(gid)
+    novos = []
+    for uid, n in sorted(tot.items(), key=lambda x: -x[1]):
+        alvo = [(nome, rid) for lim, nome, rid in cargos if n >= lim]
+        if not alvo:
+            continue
+        try:
+            tem = set(str(r) for r in discord_req("GET", f"/guilds/{gid}/members/{uid}").get("roles") or [])
+        except urllib.error.HTTPError:
+            continue  # saiu do servidor
+        ganhou = ""
+        for nome, rid in alvo:
+            if rid not in tem:
+                try:
+                    discord_req("PUT", f"/guilds/{gid}/members/{uid}/roles/{rid}", motivo=f"{n} convites")
+                    ganhou = nome  # fica com o maior cargo novo para um aviso só
+                except urllib.error.HTTPError:
+                    pass
+        if ganhou:
+            novos.append((uid, ganhou, n))
+        time.sleep(0.2)
+    for uid, nome, n in (novos[:10] if anunciar else []):
+        try:
+            discord_req("POST", f"/channels/{CANAL_INVITES}/messages", {
+                "content": f"🎉 <@{uid}> já trouxe **{n} pessoas** para a Kyzen e ganhou o cargo **{nome}**! Valeu, recrutador! ⚓",
+                "allowed_mentions": {"users": [uid]}})
+        except urllib.error.URLError:
+            pass
+    agora = datetime.now(BRT)
+    if forcar_ranking or (agora.weekday() == 6 and agora.hour >= 18):
+        semana = f"{agora.isocalendar()[0]}-S{agora.isocalendar()[1]:02d}"
+        ja = any((e.get("footer") or {}).get("text") == f"Ranking de convites · {semana}"
+                 for m in discord_req("GET", f"/channels/{CANAL_INVITES}/messages?limit=50") for e in m.get("embeds") or [])
+        top = [(u, n) for u, n in sorted(tot.items(), key=lambda x: -x[1]) if n > 0][:10]
+        if not ja and top:
+            medalha = ["🥇", "🥈", "🥉"] + ["🏅"] * 7
+            discord_req("POST", f"/channels/{CANAL_INVITES}/messages", {"embeds": [{
+                "title": "🏆 Ranking de convites da Kyzen", "color": 0xF1C40F,
+                "description": "\n".join(f"{medalha[i]} <@{u}> · **{n}** convites" for i, (u, n) in enumerate(top))
+                               + "\n\n**Recompensas:** " + " · ".join(f"{lim} convites → {nome}" for lim, nome, _ in cargos)
+                               + "\nChame os amigos com o seu link de convite e suba no ranking! 🚀",
+                "footer": {"text": f"Ranking de convites · {semana}"}}], "allowed_mentions": {"parse": []}})
+    return len(novos)
+
+
+def configurar_invites(gid):
+    canais = {c["id"]: c for c in discord_req("GET", f"/guilds/{gid}/channels")}
+    cat = canais.get(CAT_INFORMACOES) or {}
+    ows = [{k: o[k] for k in ("id", "type", "allow", "deny")} for o in cat.get("permission_overwrites") or []]
+    pos = max([c.get("position", 0) for c in canais.values() if c.get("parent_id") == CAT_INFORMACOES] + [0]) + 1
+    discord_req("PATCH", f"/channels/{CANAL_INVITES}", {
+        "parent_id": CAT_INFORMACOES, "permission_overwrites": ows, "position": pos,
+        "topic": "Quem entrou na Kyzen e pelo convite de quem. Traga amigos e ganhe os cargos de Recrutador! 🎟️"},
+        "Canal de convites público")
+    return "ok"
+
+
+def configurar_onboarding(gid):
+    roles = {r.get("name"): r["id"] for r in discord_req("GET", f"/guilds/{gid}/roles")}
+
+    def cargo(nome):
+        if nome not in roles:
+            roles[nome] = discord_req("POST", f"/guilds/{gid}/roles", {"name": nome, "permissions": "0"},
+                                      "Cargos do Onboarding")["id"]
+        return roles[nome]
+
+    ob = discord_req("GET", f"/guilds/{gid}/onboarding")
+    seq = [((int(time.time() * 1000) - 1420070400000) << 22) + 1]
+
+    def nid():
+        seq[0] += 1
+        return str(seq[0])
+
+    def op(titulo, desc, emo, cargos=(), canais=()):
+        return {"id": nid(), "title": titulo, "description": desc, "emoji_name": emo,
+                "role_ids": list(cargos), "channel_ids": list(canais)}
+
+    novos = [
+        {"id": nid(), "type": 0, "title": "De que lado dos mares você está?", "single_select": True, "required": True,
+         "in_onboarding": True, "options": [
+             op("Pirata", "Liberdade, saques e aventura", "🏴‍☠️", [cargo("🏴‍☠️ Lado Pirata")]),
+             op("Marine", "Ordem, justiça e caça aos piratas", "⚓", [cargo("⚓ Lado Marine")])]},
+        {"id": nid(), "type": 0, "title": "Há quanto tempo você navega no Vox Seas?", "single_select": True,
+         "required": True, "in_onboarding": True, "options": [
+             op("Comecei agora", "Quero dicas para começar bem", "🌱", [cargo("🌱 Novato no Vox")]),
+             op("Já jogo faz um tempo", "Conheço o básico do jogo", "⚔️", [cargo("⚔️ Jogador")]),
+             op("Sou veterano", "Já domino os mares", "👑", [cargo("👑 Veterano")])]},
+        {"id": nid(), "type": 0, "title": "O que você procura na Kyzen?", "single_select": False, "required": False,
+         "in_onboarding": True, "options": [
+             op("Entrar numa crew", "Quero uma tripulação para jogar e disputar wars", "⚔️",
+                canais=["1398726258157949148"]),
+             op("Eventos e torneios", "Quero ser avisado dos eventos", "📅", ["1569202090482335784"],
+                ["1503249256427950141"]),
+             op("Jogar a Alfacusa", "A cidade dentro do Discord", "🏙️",
+                canais=["1572032026339446824", "1572032027560120490"]),
+             op("Criar conteúdo", "Faço vídeos ou lives", "🎥", [cargo("🎥 Criador de Conteúdo (interesse)")],
+                ["1400120211516162220"])]},
+    ]
+
+    def normal(p):
+        opcoes = []
+        for o in p.get("options") or []:
+            e = o.get("emoji") or {}
+            opcoes.append({k: v for k, v in {
+                "id": o.get("id"), "title": o.get("title"), "description": o.get("description"),
+                "role_ids": o.get("role_ids") or [], "channel_ids": o.get("channel_ids") or [],
+                "emoji_id": o.get("emoji_id") or e.get("id"), "emoji_name": o.get("emoji_name") or e.get("name"),
+                "emoji_animated": o.get("emoji_animated") or e.get("animated")}.items() if v is not None})
+        return {"id": p.get("id"), "type": p.get("type", 0), "title": p.get("title"), "options": opcoes,
+                "single_select": p.get("single_select", False), "required": p.get("required", False),
+                "in_onboarding": p.get("in_onboarding", True)}
+
+    atuais = [normal(p) for p in ob.get("prompts") or []]
+    titulos = {p["title"] for p in atuais}
+    adicionadas = [p["title"] for p in novos if p["title"] not in titulos]
+    prompts = [p for p in novos if p["title"] not in titulos] + atuais
+    discord_req("PUT", f"/guilds/{gid}/onboarding", {
+        "prompts": prompts, "default_channel_ids": ob.get("default_channel_ids") or [],
+        "enabled": ob.get("enabled", True), "mode": ob.get("mode", 0)}, "Perguntas do Onboarding")
+    return {"perguntas_novas": adicionadas, "total_perguntas": len(prompts)}
+
+
+@app.route("/api/staff-acao", methods=["POST"])
+def staff_acao():
+    """Staff (DEBUG_KEY): ações de configuração do servidor, sem precisar de rota temporária."""
+    if not debug_ok():
+        return jsonify({"ok": False}), 404
+    gid = os.environ.get("DISCORD_GUILD_ID", "").strip()
+    acao = request.args.get("acao", "")
+    try:
+        if acao == "invites":
+            return privado(jsonify({"ok": True, "invites": configurar_invites(gid)}))
+        if acao == "convites":
+            return privado(jsonify({"ok": True, "pessoas_premiadas": processar_convites(forcar_ranking=True,
+                                                                                          anunciar=False)}))
+        if acao == "onboarding":
+            return privado(jsonify(dict(configurar_onboarding(gid), ok=True)))
+        return privado(jsonify({"ok": False, "erro": "ação inválida"}))
+    except urllib.error.HTTPError as e:
+        return privado(jsonify({"ok": False, "acao": acao, "erro": f"{e.code} {e.read().decode('utf-8', 'replace')[:300]}"}))
 
 
 def interacao_moderacao(d, tipo, dados, nome, opcoes, uid):
