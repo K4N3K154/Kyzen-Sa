@@ -3865,6 +3865,18 @@ def trocar_bots():
                     out[nome] = "já não estava" if e.code == 404 else f"erro {e.code}"
                 time.sleep(0.3)
             return privado(jsonify(dict(out, ok=True)))
+        if passo == "ver":
+            out = []
+            for canal in ("1383949963846877244", "1406310960276439180"):
+                for m in rq2("GET", f"/channels/{canal}/messages?limit=50"):
+                    if str((m.get("author") or {}).get("id")) == "678344927997853742" and m.get("components"):
+                        out.append({"canal": canal, "texto": cortar(m.get("content") or "", 200),
+                                    "embed": [cortar((e.get("title") or "") + " | " + (e.get("description") or ""), 400)
+                                              for e in m.get("embeds") or []],
+                                    "botoes": [{"rotulo": c.get("label"), "tipo": c.get("type"), "id": c.get("custom_id"),
+                                                "opcoes": [o.get("label") for o in c.get("options") or []]}
+                                               for linha in m["components"] for c in linha.get("components") or []]})
+            return privado(jsonify({"ok": True, "paineis": out}))
         if passo == "automod":
             return privado(jsonify({"ok": True, "regras": [
                 f"{'✅' if r.get('enabled') else '⏸️'} {r.get('name')} (criada por {r.get('creator_id')})"
