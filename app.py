@@ -2054,6 +2054,7 @@ COMANDOS = [
     {"name": "evento", "description": "Próximo evento do servidor"},
     {"name": "frota", "description": "Top 3 da Frota (só para quem é da crew)"},
     {"name": "site", "description": "Site da Kyzen SA com Trello, Frota e eventos"},
+    {"name": "cupom", "description": "Cupom de desconto da Kyzen na The Blox, nossa parceira"},
 ]
 
 
@@ -2525,6 +2526,7 @@ AJUDA = [
     ("🗺️ Vox Seas", "**Kyzen Bot**: `/codigos` `/fruta` `/ilha` `/drop` `/evento` `/site`"),
     ("⚔️ Entrar na crew", "Formulário no <#1398726258157949148>"),
     ("🎉 Sorteios", "Reaja com 🎉 na mensagem do sorteio para participar"),
+    ("🎟️ Cupom da The Blox", "Use `/cupom`: desconto exclusivo da Kyzen na The Blox, nossa parceira"),
     ("💡 Sugestões", "Use `/sugerir` e a galera vota com 👍 / 👎 no <#1384921966254882958>"),
     ("🎫 Ajuda e denúncias", "Abra um ticket no <#1398749616832254002> · `/denunciar` mostra o passo a passo"),
     ("🎵 Música", "Entre numa call e use **/play** do **Jockie Music**"),
@@ -4883,7 +4885,7 @@ def interacoes():
     return "", 202
 
 
-PUBLICOS = {"codigos", "fruta", "ilha", "drop", "evento", "site"}
+PUBLICOS = {"codigos", "fruta", "ilha", "drop", "evento", "site", "cupom"}
 
 
 def adiar_interacao(d, tipo, nome):
@@ -4947,6 +4949,16 @@ def _tratar_interacao(d, tipo, dados, nome, opcoes, uid):
         return resposta(texto="Não consegui concluir agora. Tente de novo em instantes.",
                         privada=True, componentes=[])
     try:
+        if nome == "cupom":
+            return resposta({"author": {"name": "The Blox · parceira oficial da Kyzen", "icon_url": BLOX_LOGO},
+                             "title": "🎟️ Cupom KYZEN na The Blox", "url": BLOX, "color": 0x1E90FF,
+                             "thumbnail": {"url": BLOX_LOGO},
+                             "description": "Quem é da Kyzen tem **desconto exclusivo** na **The Blox**, a nossa "
+                                            "patrocinadora: frutas, espadas e gamepasses por **menos do que no "
+                                            "próprio Roblox**.\n\n🎟️ Cupom: **`KYZEN`**\n"
+                                            "🛒 Entre pelo link e use o cupom no pagamento."},
+                            componentes=[{"type": 1, "components": [
+                                {"type": 2, "style": 5, "label": "🛒 Comprar com o cupom KYZEN", "url": BLOX}]}])
         if nome == "codigos":
             return cmd_codigos()
         if nome == "fruta":
