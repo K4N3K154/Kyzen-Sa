@@ -4699,6 +4699,29 @@ def criar_forum_sets(gid):
     return {"forum": forum["id"], "post_guia": post["id"], "criado": True}
 
 
+PING_VOX = "1446300736454529114"
+AVISO_FORUM_SETS = f"""<@&{PING_VOX}>
+
+# 📚 NOVO CANAL: SETS E ITENS DOS BOSSES!
+
+A pedido da comunidade, criamos o <#1572317292728160367>, um fórum só para divulgar os **itens importantes dos sets**: o que precisa, **como craftar** e **qual boss ou NPC de outra ilha dropa**.
+
+• Cada item vira um post, fácil de achar pela busca
+• Use as etiquetas (Set, Craft, Drop de Boss, NPC de outra ilha...)
+• Antes de postar, leia o guia fixado e use o modelo
+
+Ajude a tripulação: quem descobrir, posta! 🏴‍☠️"""
+
+
+def avisar_forum_sets():
+    for m in discord_req("GET", "/channels/1383990514701041836/messages?limit=30"):
+        if "1572317292728160367" in (m.get("content") or ""):
+            return {"enviou": False, "motivo": "já foi avisado", "id": m.get("id")}
+    r = discord_req("POST", "/channels/1383990514701041836/messages", {
+        "content": AVISO_FORUM_SETS, "allowed_mentions": {"roles": [PING_VOX]}})
+    return {"enviou": True, "id": r.get("id")}
+
+
 @app.route("/api/staff-acao", methods=["POST"])
 def staff_acao():
     """Staff (DEBUG_KEY): ações de configuração do servidor, sem precisar de rota temporária."""
@@ -4712,6 +4735,8 @@ def staff_acao():
         if acao == "convites":
             return privado(jsonify({"ok": True, "pessoas_premiadas": processar_convites(forcar_ranking=True,
                                                                                           anunciar=False)}))
+        if acao == "aviso-forum-sets":
+            return privado(jsonify(dict(avisar_forum_sets(), ok=True)))
         if acao == "forum-sets":
             return privado(jsonify(dict(criar_forum_sets(gid), ok=True)))
         if acao in ("voz", "voz-ver"):
