@@ -4489,6 +4489,11 @@ def configurar_invites(gid):
     canais = {c["id"]: c for c in discord_req("GET", f"/guilds/{gid}/channels")}
     cat = canais.get(CAT_INFORMACOES) or {}
     ows = [{k: o[k] for k in ("id", "type", "allow", "deny")} for o in cat.get("permission_overwrites") or []]
+    # Invite Tracker (avisa quem entrou pelo convite de quem) e Loritta (boas-vindas) continuam escrevendo aqui
+    escreve = str(PERM_VER | PERM_ENVIAR | PERM_LINKS | PERM_ANEXOS | PERM_HIST)
+    for r in discord_req("GET", f"/guilds/{gid}/roles"):
+        if str((r.get("tags") or {}).get("bot_id")) in ("720351927581278219", "297153970613387264"):
+            ows = [o for o in ows if str(o["id"]) != r["id"]] + [{"id": r["id"], "type": 0, "allow": escreve, "deny": "0"}]
     pos = max([c.get("position", 0) for c in canais.values() if c.get("parent_id") == CAT_INFORMACOES] + [0]) + 1
     discord_req("PATCH", f"/channels/{CANAL_INVITES}", {
         "parent_id": CAT_INFORMACOES, "permission_overwrites": ows, "position": pos,
