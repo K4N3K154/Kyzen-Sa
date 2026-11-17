@@ -3834,6 +3834,28 @@ def resumo_msg(m):
             "componentes": comps}
 
 
+@app.route("/api/detalhes-bots", methods=["POST"])
+def detalhes_bots():
+    """Temporário (staff): mensagens completas do Appy e do Apolo para copiar igual."""
+    if not debug_ok():
+        return jsonify({"ok": False}), 404
+    gid = os.environ.get("DISCORD_GUILD_ID", "").strip()
+    alvo = {"1398749616832254002": ("1066094883573600307", 3), "1398733203698880532": ("853327905357561948", 4),
+            "1571135541049688084": ("853327905357561948", 4), "1511447116265033808": ("1066094883573600307", 3),
+            "1571952619549761666": ("1066094883573600307", 5)}
+    out = {}
+    for cid, (bot, n) in alvo.items():
+        try:
+            msgs = [m for m in rq3("GET", f"/channels/{cid}/messages?limit=100") if str((m.get("author") or {}).get("id")) == bot][:n]
+        except urllib.error.HTTPError as e:
+            out[cid] = f"erro {e.code}"
+            continue
+        out[cid] = [{"content": m.get("content"), "embeds": m.get("embeds"), "components": m.get("components"),
+                     "quando": datetime.fromtimestamp(snowflake_ts(m["id"]), timezone.utc).strftime("%d/%m %H:%M")}
+                    for m in msgs]
+    return privado(jsonify(out))
+
+
 @app.route("/api/varredura", methods=["POST"])
 def varredura():
     """Temporário (staff): o que cada bot fazia em cada canal (últimas 100 mensagens de cada canal)."""
