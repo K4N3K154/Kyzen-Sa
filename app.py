@@ -4200,6 +4200,68 @@ def interacao_atendimento(d, tipo, dados, nome, opcoes, uid):
     return None
 
 
+@app.route("/api/anti-raid", methods=["POST"])
+def anti_raid():
+    """Temporário (staff): aplica as correções anti-raid e confere o resultado."""
+    if not debug_ok():
+        return jsonify({"ok": False}), 404
+    gid = os.environ.get("DISCORD_GUILD_ID", "").strip()
+    alerta = canal_registro()
+
+    def rq(m, path, dados=None, motivo="Proteção anti-raid"):
+        for _ in range(6):
+            try:
+                return discord_req(m, path, dados, motivo)
+            except urllib.error.HTTPError as e:
+                if e.code != 429:
+                    raise
+                time.sleep(2)
+        return discord_req(m, path, dados, motivo)
+
+    out = {}
+    passos = []
+
+    def passo(nome, f):
+        try:
+            f()
+            out[nome] = "ok"
+        except urllib.error.HTTPError as e:
+            out[nome] = f"erro {e.code}: {e.read().decode('utf-8', 'replace')[:160]}"
+
+    passo("verificacao_media", lambda: rq("PATCH", f"/guilds/{gid}", {"verification_level": 2}))
+    passo("alertas_seguranca", lambda: rq("PATCH", f"/guilds/{gid}", {"safety_alerts_channel_id": alerta}))
+
+    def mencoes():
+        regra = next((r for r in rq("GET", f"/guilds/{gid}/auto-moderation/rules") if r.get("trigger_type") == 5), None)
+        corpo = {"trigger_metadata": {"mention_total_limit": 5, "mention_raid_protection_enabled": True},
+                 "actions": [{"type": 1, "metadata": {"custom_message": "Muitas menções de uma vez."}},
+                             {"type": 2, "metadata": {"channel_id": alerta}},
+                             {"type": 3, "metadata": {"duration_seconds": 600}}],
+                 "exempt_roles": cargos_staff(gid)[:20], "enabled": True}
+        if regra:
+            rq("PATCH", f"/guilds/{gid}/auto-moderation/rules/{regra['id']}", corpo)
+        else:
+            rq("POST", f"/guilds/{gid}/auto-moderation/rules",
+               dict(corpo, name="Kyzen · Spam de menções", event_type=1, trigger_type=5))
+    passo("mencoes_raid", mencoes)
+
+    def apps():
+        todos = next(r for r in rq("GET", f"/guilds/{gid}/roles") if r["id"] == gid)
+        rq("PATCH", f"/guilds/{gid}/roles/{gid}", {"permissions": str(int(todos.get("permissions") or 0) & ~(1 << 50))})
+    passo("sem_apps_externos", apps)
+    passo("lento_chat_geral", lambda: rq("PATCH", f"/channels/{CANAL_GERAL}", {"rate_limit_per_user": 2}))
+
+    g = rq("GET", f"/guilds/{gid}")
+    todos = next(r for r in rq("GET", f"/guilds/{gid}/roles") if r["id"] == gid)
+    regra = next((r for r in rq("GET", f"/guilds/{gid}/auto-moderation/rules") if r.get("trigger_type") == 5), {})
+    out["confere"] = {"verificacao": g.get("verification_level"), "alertas": g.get("safety_alerts_channel_id") == alerta,
+                      "apps_externos_everyone": bool(int(todos.get("permissions") or 0) & (1 << 50)),
+                      "lento_chat_geral": rq("GET", f"/channels/{CANAL_GERAL}").get("rate_limit_per_user"),
+                      "mencoes": {"raid": (regra.get("trigger_metadata") or {}).get("mention_raid_protection_enabled"),
+                                  "acoes": [a.get("type") for a in regra.get("actions") or []]}}
+    return privado(jsonify(out))
+
+
 def interacao_moderacao(d, tipo, dados, nome, opcoes, uid):
     """Comandos de moderação e denúncia. Devolve None se não for um deles."""
     gid = str(d.get("guild_id") or os.environ.get("DISCORD_GUILD_ID", "")).strip()
