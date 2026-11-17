@@ -1152,7 +1152,7 @@ def avaliacao():
 # ---------------------------------------------------------------------------
 CANAL_GERAL = "1383947381032095846"
 SITE = "https://kyzensaofc.vercel.app"
-DIVULGAR_INTERVALO_H = 6       # tempo mínimo entre duas divulgações
+DIVULGAR_INTERVALO_H = 4       # tempo mínimo entre duas divulgações (00h, 12h e 19h cabem)
 DIVULGAR_MIN_MSGS = 5          # mensagens de membros desde a última divulgação
 DIVULGAR_JANELA_H = 12         # ...e pelo menos uma nas últimas horas
 DIVULGAR_MIN_RECENTES = 1
@@ -1209,6 +1209,8 @@ def snowflake_ts(sid):
 
 
 BLOX = "https://theblox.com.br/?pid=kyzen"
+DIVULGAR_SO_BLOX = True
+CANAIS_DIVULGACAO = ["1383947381032095846", "1504915310892024018"]  # #chat-geral e #chat-crew
 BLOX_LEMBRETES = [
     {"titulo": "🛒 Lembrete: a Kyzen tem cupom na The Blox!",
      "texto": "Quem é da Kyzen tem **desconto exclusivo** na **The Blox**, a nossa patrocinadora.\n"
@@ -1251,8 +1253,8 @@ Comprando pelo nosso link, você ainda ajuda a Kyzen a crescer. 💙
 Bora ficar mais forte e dominar os mares juntos! 🌊⚓"""
 
 
-def divulgacao_blox(agora):
-    d = BLOX_LEMBRETES[int(agora // 86400) % len(BLOX_LEMBRETES)]
+def divulgacao_blox(agora, turno=0):
+    d = BLOX_LEMBRETES[(int(agora // 86400) * len(HORARIOS_UTC) + turno) % len(BLOX_LEMBRETES)]
     return {"embeds": [{"title": d["titulo"], "url": BLOX, "color": 0x1E90FF, "description": d["texto"],
                         "footer": {"text": "Kyzen SA • patrocinada pela The Blox • comprando pelo link você ajuda a crew"}}],
             "components": [{"type": 1, "components": [
@@ -1295,8 +1297,10 @@ def decidir_divulgacao(msgs, bot_id, agora):
 def montar_divulgacao(agora):
     hora = int(agora // 3600) % 24
     turno = min(range(len(HORARIOS_UTC)), key=lambda i: abs(HORARIOS_UTC[i] - hora))
-    if HORARIOS_UTC[turno] == 15:  # o horário do meio-dia é o lembrete da The Blox
-        return divulgacao_blox(agora)
+    if DIVULGAR_SO_BLOX:  # agora os 3 horários são da The Blox (os textos do site ficam guardados)
+        return divulgacao_blox(agora, turno)
+    if HORARIOS_UTC[turno] == 15:
+        return divulgacao_blox(agora, turno)
     d = DIVULGACOES[(int(agora // 86400) * len(HORARIOS_UTC) + turno) % len(DIVULGACOES)]
     ancora = d["ancora"]
     botoes = sorted(BOTOES, key=lambda x: x[1] != ancora)  # o tema do texto vem primeiro
@@ -1330,27 +1334,30 @@ def divulgar():
             return jsonify(anunciar_theblox(token))
         except urllib.error.URLError as e:
             return jsonify({"ok": False, "motivo": str(e)[:120]}), 502
-    canal = os.environ.get("CANAL_GERAL", CANAL_GERAL).strip()
     agora = time.time()
     try:
         bot_id = str(discord_get("/users/@me", token)["id"])
-        msgs = discord_get(f"/channels/{canal}/messages?limit=100", token)
     except (urllib.error.URLError, ValueError, KeyError, TypeError):
         return jsonify({"ok": False, "motivo": "discord indisponível"}), 502
-    vai, motivo = decidir_divulgacao(msgs, bot_id, agora)
-    if request.args.get("forcar") == "1" and debug_ok():  # teste manual da staff
-        vai, motivo = True, "forçado pela staff"
+    forcar = request.args.get("forcar") == "1" and debug_ok()  # teste manual da staff
     previa = request.args.get("previa") == "1"
-    if previa or not vai:
-        return jsonify({"ok": True, "enviou": False, "enviaria": vai, "motivo": motivo,
-                        "mensagem": montar_divulgacao(agora)["embeds"][0]["title"]})
-    try:
-        r = discord_post(f"/channels/{canal}/messages", token, montar_divulgacao(agora))
-    except urllib.error.HTTPError as e:
-        return jsonify({"ok": False, "motivo": f"discord recusou ({e.code})"}), 502
-    except (urllib.error.URLError, ValueError):
-        return jsonify({"ok": False, "motivo": "discord indisponível"}), 502
-    return jsonify({"ok": True, "enviou": True, "id": r.get("id")})
+    resultados = {}
+    for canal in CANAIS_DIVULGACAO:
+        try:
+            msgs = discord_get(f"/channels/{canal}/messages?limit=100", token)
+            vai, motivo = (True, "forçado pela staff") if forcar else decidir_divulgacao(msgs, bot_id, agora)
+            if previa or not vai:
+                resultados[canal] = {"enviou": False, "enviaria": vai, "motivo": motivo,
+                                     "mensagem": montar_divulgacao(agora)["embeds"][0]["title"]}
+                continue
+            r = discord_post(f"/channels/{canal}/messages", token, montar_divulgacao(agora))
+            resultados[canal] = {"enviou": True, "id": r.get("id")}
+        except urllib.error.HTTPError as e:
+            resultados[canal] = {"enviou": False, "motivo": f"discord recusou ({e.code})"}
+        except (urllib.error.URLError, ValueError):
+            resultados[canal] = {"enviou": False, "motivo": "discord indisponível"}
+        time.sleep(0.5)
+    return jsonify({"ok": True, "canais": resultados})
 
 
 @app.route("/api/requisitos")
