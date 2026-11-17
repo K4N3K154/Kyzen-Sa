@@ -4759,6 +4759,47 @@ def staff_acao():
                         mudou.append(f"{c.get('name')}: erro {e.code}")
                     time.sleep(0.4)
             return privado(jsonify({"ok": True, "antes": antes, "mudou": mudou, "regioes": regioes}))
+        if acao == "membro-buscar":  # acha alguém pelo nome, para dar cargo próprio
+            q = urllib.parse.quote(request.args.get("q", "")[:32])
+            achados = [{"id": m["user"]["id"], "usuario": m["user"].get("username"),
+                        "nome": m["user"].get("global_name"), "apelido": m.get("nick"),
+                        "entrou": m.get("joined_at"), "cargos": len(m.get("roles") or [])}
+                       for m in discord_req("GET", f"/guilds/{gid}/members/search?query={q}&limit=10")]
+            g = discord_req("GET", f"/guilds/{gid}")
+            return privado(jsonify({"ok": True, "achados": achados, "boost": g.get("premium_tier"),
+                                    "recursos": [f for f in g.get("features", []) if "ROLE" in f]}))
+        if acao == "cargo-proprio":  # cargo exclusivo e em destaque para um membro (ex.: criador de conteúdo)
+            uid, nome = request.args.get("uid", ""), request.args.get("nome", "")[:100]
+            if not uid.isdigit() or not nome:
+                return privado(jsonify({"ok": False, "erro": "falta uid ou nome"}))
+            cor = int(request.args.get("cor", "FF0000"), 16)
+            cor2 = request.args.get("cor2", "")
+            emoji = request.args.get("emoji", "")
+            abaixo = request.args.get("abaixo", "1497068096450465792")  # padrão: logo abaixo do Helper
+            g = discord_req("GET", f"/guilds/{gid}")
+            feats = g.get("features", [])
+            corpo = {"name": nome, "color": cor, "hoist": True, "mentionable": False, "permissions": "0"}
+            if cor2 and "ENHANCED_ROLE_COLORS" in feats:
+                corpo["colors"] = {"primary_color": cor, "secondary_color": int(cor2, 16)}
+            if emoji and "ROLE_ICONS" in feats:
+                corpo["unicode_emoji"] = emoji
+            existente = next((r for r in g.get("roles", []) if r.get("name") == nome), None)
+            if existente:
+                cargo = discord_req("PATCH", f"/guilds/{gid}/roles/{existente['id']}", corpo, "Cargo próprio")
+            else:
+                cargo = discord_req("POST", f"/guilds/{gid}/roles", corpo, "Cargo próprio")
+            ref = next((r for r in g.get("roles", []) if r["id"] == abaixo), None)
+            posicao = None
+            if ref:
+                posicao = max(1, ref["position"])  # entra logo abaixo do cargo de referência
+                try:
+                    discord_req("PATCH", f"/guilds/{gid}/roles", [{"id": cargo["id"], "position": posicao}],
+                                "Cargo próprio em destaque")
+                except urllib.error.HTTPError as e:
+                    posicao = f"erro {e.code}"
+            discord_req("PUT", f"/guilds/{gid}/members/{uid}/roles/{cargo['id']}", None, "Cargo próprio")
+            return privado(jsonify({"ok": True, "cargo": cargo["id"], "posicao": posicao,
+                                    "gradiente": "colors" in corpo, "icone": "unicode_emoji" in corpo}))
         if acao == "onboarding":
             r = configurar_onboarding(gid, int(request.args.get("antes") or 5), int(request.args.get("total") or 15))
             return privado(jsonify(dict(r, ok="erro" not in r)))
