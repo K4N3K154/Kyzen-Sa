@@ -4645,6 +4645,24 @@ def staff_acao():
         if acao == "convites":
             return privado(jsonify({"ok": True, "pessoas_premiadas": processar_convites(forcar_ranking=True,
                                                                                           anunciar=False)}))
+        if acao in ("voz", "voz-ver"):
+            regioes = [r["id"] for r in discord_req("GET", "/voice/regions")]
+            alvo = request.args.get("regiao", "brazil")
+            if alvo not in regioes:
+                return privado(jsonify({"ok": False, "erro": "região inválida", "regioes": regioes}))
+            antes, mudou = {}, []
+            for c in discord_req("GET", f"/guilds/{gid}/channels"):
+                if c.get("type") not in (2, 13):
+                    continue
+                antes[c.get("name")] = {"regiao": c.get("rtc_region") or "automático", "bitrate": c.get("bitrate")}
+                if acao == "voz" and c.get("rtc_region") != alvo:
+                    try:
+                        discord_req("PATCH", f"/channels/{c['id']}", {"rtc_region": alvo}, "Região de voz no Brasil")
+                        mudou.append(c.get("name"))
+                    except urllib.error.HTTPError as e:
+                        mudou.append(f"{c.get('name')}: erro {e.code}")
+                    time.sleep(0.4)
+            return privado(jsonify({"ok": True, "antes": antes, "mudou": mudou, "regioes": regioes}))
         if acao == "onboarding":
             r = configurar_onboarding(gid, int(request.args.get("antes") or 5), int(request.args.get("total") or 15))
             return privado(jsonify(dict(r, ok="erro" not in r)))
