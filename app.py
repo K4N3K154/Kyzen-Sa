@@ -3794,99 +3794,6 @@ DIRETRIZES_CARGOS = [
 ]
 
 
-VARRER_BOTS = {"1066094883573600307": "Apolo", "155149108183695360": "Dyno", "282859044593598464": "ProBot",
-               "735147814878969968": "Fibo", "788814313930096662": "SlashBot", "458276816071950337": "ServerStats",
-               "710034409214181396": "Ticket King", "853327905357561948": "Appy", "678344927997853742": "Sapphire",
-               "530082442967646230": "Giveaway Boat", "235148962103951360": "carl-bot",
-               "1105540109568327701": "Lobão", "967180406283718656": "Rio", "297153970613387264": "Loritta"}
-
-
-def rq3(metodo, path, dados=None):
-    for _ in range(8):
-        try:
-            return discord_req(metodo, path, dados)
-        except urllib.error.HTTPError as e:
-            if e.code != 429:
-                raise
-            try:
-                espera = float(json.loads(e.read().decode("utf-8")).get("retry_after") or 1)
-            except ValueError:
-                espera = 1.5
-            time.sleep(espera + 0.3)
-    return discord_req(metodo, path, dados)
-
-
-def resumo_msg(m):
-    comps = []
-    for linha in m.get("components") or []:
-        for c in linha.get("components") or []:
-            comps.append({"tipo": c.get("type"), "rotulo": c.get("label"), "id": c.get("custom_id"),
-                          "emoji": (c.get("emoji") or {}).get("name"),
-                          "opcoes": [(o.get("label"), o.get("description")) for o in c.get("options") or []],
-                          "placeholder": c.get("placeholder")})
-    return {"quando": datetime.fromtimestamp(snowflake_ts(m["id"]), timezone.utc).strftime("%d/%m %H:%M"),
-            "texto": cortar(m.get("content") or "", 300),
-            "embeds": [{"autor": (e.get("author") or {}).get("name"), "titulo": e.get("title"),
-                        "descricao": cortar(e.get("description") or "", 700),
-                        "campos": [(f.get("name"), cortar(f.get("value") or "", 200)) for f in e.get("fields") or []],
-                        "rodape": (e.get("footer") or {}).get("text"), "imagem": bool(e.get("image")),
-                        "miniatura": bool(e.get("thumbnail")), "cor": e.get("color")} for e in m.get("embeds") or []],
-            "componentes": comps}
-
-
-@app.route("/api/detalhes-bots", methods=["POST"])
-def detalhes_bots():
-    """Temporário (staff): mensagens completas do Appy e do Apolo para copiar igual."""
-    if not debug_ok():
-        return jsonify({"ok": False}), 404
-    gid = os.environ.get("DISCORD_GUILD_ID", "").strip()
-    alvo = {"1398749616832254002": ("1066094883573600307", 3), "1398733203698880532": ("853327905357561948", 4),
-            "1571135541049688084": ("853327905357561948", 4), "1511447116265033808": ("1066094883573600307", 3),
-            "1571952619549761666": ("1066094883573600307", 5)}
-    out = {}
-    for cid, (bot, n) in alvo.items():
-        try:
-            msgs = [m for m in rq3("GET", f"/channels/{cid}/messages?limit=100") if str((m.get("author") or {}).get("id")) == bot][:n]
-        except urllib.error.HTTPError as e:
-            out[cid] = f"erro {e.code}"
-            continue
-        out[cid] = [{"content": m.get("content"), "embeds": m.get("embeds"), "components": m.get("components"),
-                     "quando": datetime.fromtimestamp(snowflake_ts(m["id"]), timezone.utc).strftime("%d/%m %H:%M")}
-                    for m in msgs]
-    return privado(jsonify(out))
-
-
-@app.route("/api/varredura", methods=["POST"])
-def varredura():
-    """Temporário (staff): o que cada bot fazia em cada canal (últimas 100 mensagens de cada canal)."""
-    if not debug_ok():
-        return jsonify({"ok": False}), 404
-    gid = os.environ.get("DISCORD_GUILD_ID", "").strip()
-    parte = int(request.args.get("parte") or 0)
-    canais = [c for c in rq3("GET", f"/guilds/{gid}/channels") if c.get("type") in (0, 5)]
-    canais.sort(key=lambda c: c["id"])
-    lote = canais[parte * 12:(parte + 1) * 12]
-    out = {"parte": parte, "total_partes": (len(canais) + 11) // 12, "canais": {}}
-    for c in lote:
-        try:
-            msgs = rq3("GET", f"/channels/{c['id']}/messages?limit=100")
-        except urllib.error.HTTPError as e:
-            out["canais"][c.get("name")] = f"sem acesso ({e.code})"
-            continue
-        por_bot = {}
-        for m in msgs:
-            b = str((m.get("author") or {}).get("id"))
-            if b in VARRER_BOTS:
-                por_bot.setdefault(VARRER_BOTS[b], []).append(m)
-        if por_bot:
-            out["canais"][c.get("name")] = {
-                nome: {"quantas": len(ms), "mais_recente": resumo_msg(ms[0]),
-                       "mais_antiga_vista": resumo_msg(ms[-1]) if len(ms) > 1 else None}
-                for nome, ms in por_bot.items()}
-        time.sleep(0.2)
-    return privado(jsonify(out))
-
-
 # ---------------------------------------------------------------------------
 # Atendimento (igual ao Apolo) e formulários Staff Apply / Crew Apply (igual ao Appy)
 # ---------------------------------------------------------------------------
@@ -4291,29 +4198,6 @@ def interacao_atendimento(d, tipo, dados, nome, opcoes, uid):
         if ach and ach.group(2) in FORMULARIOS:
             return decidir_aplicacao(d, uid, ach.group(2), ach.group(3), ach.group(1) == "okr", valores.get("motivo", ""))
     return None
-
-
-@app.route("/api/trocar-paineis", methods=["POST"])
-def trocar_paineis():
-    """Temporário (staff): painéis novos no lugar do Apolo e dos painéis antigos do Kyzen Bot."""
-    if not debug_ok():
-        return jsonify({"ok": False}), 404
-    out = {}
-    for canal, corpo, nome in (("1398749616832254002", painel_atendimento(), "abrir-ticket"),
-                               ("1398726258157949148", painel_formularios(), "kyzen-apply")):
-        msgs = rq3("GET", f"/channels/{canal}/messages?limit=50")
-        novo = rq3("POST", f"/channels/{canal}/messages", dict(corpo, allowed_mentions={"parse": []}))
-        apagadas = []
-        for m in msgs:
-            autor = str((m.get("author") or {}).get("id"))
-            ids = [c.get("custom_id") or "" for l in m.get("components") or [] for c in l.get("components") or []]
-            antigo_kyzen = autor == "1571195084391587990" and any(i.startswith(("tk:abrir", "fm:abrir")) for i in ids)
-            if autor == "1066094883573600307" or antigo_kyzen:
-                rq3("DELETE", f"/channels/{canal}/messages/{m['id']}")
-                apagadas.append("Apolo" if autor == "1066094883573600307" else "Kyzen antigo")
-                time.sleep(0.3)
-        out[nome] = {"novo": novo.get("id"), "apagadas": apagadas}
-    return privado(jsonify(out))
 
 
 def interacao_moderacao(d, tipo, dados, nome, opcoes, uid):
