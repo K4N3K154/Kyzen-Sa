@@ -4502,7 +4502,7 @@ def configurar_invites(gid):
     return "ok"
 
 
-def configurar_onboarding(gid):
+def configurar_onboarding(gid, max_antes=5, max_total=15):
     roles = {r.get("name"): r["id"] for r in discord_req("GET", f"/guilds/{gid}/roles")}
 
     def cargo(nome):
@@ -4575,13 +4575,13 @@ def configurar_onboarding(gid):
     atuais = [p for p in atuais if p["options"]]
     titulos = {p["title"] for p in atuais}
     adicionadas = [p["title"] for p in novos if p["title"] not in titulos]
-    prompts = ([p for p in novos if p["title"] not in titulos] + atuais)[:15]
+    prompts = ([p for p in novos if p["title"] not in titulos] + atuais)[:max_total]
     # O Discord mostra no máximo 5 perguntas antes de entrar; as outras ficam em "Canais e cargos"
     antes = 0
     for p in prompts:
         if p.get("in_onboarding"):
             antes += 1
-            if antes > 5:
+            if antes > max_antes:
                 p["in_onboarding"] = False
     # Canais padrão: só os que existem; completa com canais públicos até o mínimo de 7
     padrao = [c for c in ob.get("default_channel_ids") or [] if c in existentes]
@@ -4593,9 +4593,14 @@ def configurar_onboarding(gid):
             break
         if c in existentes and c not in padrao:
             padrao.append(c)
-    discord_req("PUT", f"/guilds/{gid}/onboarding", {
-        "prompts": prompts, "default_channel_ids": padrao,
-        "enabled": ob.get("enabled", True), "mode": ob.get("mode", 0)}, "Perguntas do Onboarding")
+    contagem = {"existentes": len(atuais), "total_enviado": len(prompts),
+                "antes_de_entrar": sum(1 for p in prompts if p.get("in_onboarding"))}
+    try:
+        discord_req("PUT", f"/guilds/{gid}/onboarding", {
+            "prompts": prompts, "default_channel_ids": padrao,
+            "enabled": ob.get("enabled", True), "mode": ob.get("mode", 0)}, "Perguntas do Onboarding")
+    except urllib.error.HTTPError as e:
+        return dict(contagem, erro=f"{e.code} {e.read().decode('utf-8', 'replace')[:200]}")
     return {"perguntas_novas": adicionadas, "total_perguntas": len(prompts),
             "antes_de_entrar": [p["title"] for p in prompts if p.get("in_onboarding")],
             "depois_de_entrar": [p["title"] for p in prompts if not p.get("in_onboarding")],
@@ -4616,7 +4621,8 @@ def staff_acao():
             return privado(jsonify({"ok": True, "pessoas_premiadas": processar_convites(forcar_ranking=True,
                                                                                           anunciar=False)}))
         if acao == "onboarding":
-            return privado(jsonify(dict(configurar_onboarding(gid), ok=True)))
+            r = configurar_onboarding(gid, int(request.args.get("antes") or 5), int(request.args.get("total") or 15))
+            return privado(jsonify(dict(r, ok="erro" not in r)))
         return privado(jsonify({"ok": False, "erro": "ação inválida"}))
     except urllib.error.HTTPError as e:
         return privado(jsonify({"ok": False, "acao": acao, "erro": f"{e.code} {e.read().decode('utf-8', 'replace')[:300]}"}))
