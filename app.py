@@ -4724,6 +4724,70 @@ def avisar_forum_sets():
     return {"enviou": True, "id": r.get("id")}
 
 
+TROCAS_NOME = "🔄・trocas"
+TROCAS_TOPICO = ("Trocas de frutas e itens do Vox Seas. Formato: o que você TEM 🔁 o que você QUER. "
+                 "Sem golpe, sem spam, sem venda por dinheiro real. Golpe? Abra um ticket com print.")
+TROCAS_GUIA = (
+    "Aqui é o lugar para **trocar frutas, espadas e itens do Vox Seas** com a galera. 🏴‍☠️\n\n"
+    "**📝 Como anunciar**\n"
+    "Mande numa mensagem só: **o que você tem 🔁 o que você quer**\n"
+    "> `Tenho: Fruta X + Fruta Y 🔁 Quero: Fruta Z`\n"
+    "> `Procurando: Espada X, pago com frutas`\n"
+    "> `Vendo: Fruta X por 100K 💰`\n"
+    "Pode usar emoji e print do item. Quem tiver Nitro pode usar os emojis de fruta do server oficial.\n\n"
+    "**📌 Regras**\n"
+    "• Um anúncio a cada pouco tempo (o canal tem modo lento), nada de flood\n"
+    "• Combine os detalhes no privado ou numa thread da mensagem\n"
+    "• **Proibido vender ou comprar com dinheiro real ou Robux fora do jogo**\n"
+    "• Nada de golpe: quem aplicar golpe é **banido**\n\n"
+    "**🛡️ Dicas para não cair em golpe**\n"
+    "• Faça a troca **pela janela de trade do jogo** e confira tudo antes de aceitar\n"
+    "• Desconfie de oferta boa demais e de quem pede para você entregar primeiro\n"
+    "• Caiu em golpe? Abra um ticket em <#1398749616832254002> com prints da conversa\n\n"
+    "Boas trocas! 🔁")
+
+
+def canais_resumo(gid):
+    canais = discord_req("GET", f"/guilds/{gid}/channels")
+    cats = {c["id"]: c["name"] for c in canais if c.get("type") == 4}
+    out = {}
+    for c in sorted(canais, key=lambda c: c.get("position", 0)):
+        if c.get("type") != 4:
+            out.setdefault(cats.get(c.get("parent_id"), "(sem categoria)") + f" [{c.get('parent_id')}]", []).append(
+                f"{c['name']} ({c['type']})")
+    return out
+
+
+def criar_trocas(gid, parent):
+    canais = discord_req("GET", f"/guilds/{gid}/channels")
+    existente = next((c for c in canais if c.get("name") == TROCAS_NOME), None)
+    if existente:
+        return {"canal": existente["id"], "criado": False}
+    cat = next(c for c in canais if c["id"] == parent)
+    ows = [{k: o[k] for k in ("id", "type", "allow", "deny")} for o in cat.get("permission_overwrites") or []]
+    pode = PERM_VER | PERM_ENVIAR | PERM_HIST | PERM_ANEXOS | PERM_LINKS | (1 << 6) | (1 << 18) | (1 << 38)
+    eo = next((o for o in ows if str(o["id"]) == gid), None)
+    if eo is None:
+        eo = {"id": gid, "type": 0, "allow": "0", "deny": "0"}
+        ows.append(eo)
+    if not int(eo.get("deny") or 0) & PERM_VER:  # só libera escrever se a categoria já é visível para todos
+        eo["allow"] = str(int(eo.get("allow") or 0) | pode)
+        eo["deny"] = str(int(eo.get("deny") or 0) & ~pode)
+    canal = discord_req("POST", f"/guilds/{gid}/channels", {
+        "name": TROCAS_NOME, "type": 0, "parent_id": parent, "permission_overwrites": ows,
+        "topic": TROCAS_TOPICO, "rate_limit_per_user": 120}, "Canal de trocas de frutas e itens")
+    msg = discord_req("POST", f"/channels/{canal['id']}/messages", {
+        "embeds": [{"title": "🔄 Trocas de frutas e itens", "color": COR, "description": TROCAS_GUIA,
+                    "footer": {"text": "Kyzen SA · troque com responsabilidade"}}],
+        "allowed_mentions": {"parse": []}})
+    try:
+        discord_req("PUT", f"/channels/{canal['id']}/pins/{msg['id']}", None, "Fixa o guia de trocas")
+    except urllib.error.HTTPError:
+        pass
+    _canais_cache["t"] = 0
+    return {"canal": canal["id"], "criado": True}
+
+
 @app.route("/api/staff-acao", methods=["POST"])
 def staff_acao():
     """Staff (DEBUG_KEY): ações de configuração do servidor, sem precisar de rota temporária."""
@@ -4759,6 +4823,10 @@ def staff_acao():
                         mudou.append(f"{c.get('name')}: erro {e.code}")
                     time.sleep(0.4)
             return privado(jsonify({"ok": True, "antes": antes, "mudou": mudou, "regioes": regioes}))
+        if acao == "canais":
+            return privado(jsonify({"ok": True, "canais": canais_resumo(gid)}))
+        if acao == "trocas":
+            return privado(jsonify(dict(criar_trocas(gid, request.args.get("cat", "")), ok=True)))
         if acao == "membro-buscar":  # acha alguém pelo nome, para dar cargo próprio
             q = urllib.parse.quote(request.args.get("q", "")[:32])
             achados = [{"id": m["user"]["id"], "usuario": m["user"].get("username"),
