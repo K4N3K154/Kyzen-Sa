@@ -3794,6 +3794,87 @@ DIRETRIZES_CARGOS = [
 ]
 
 
+BOTS_SEM_FUNCAO = {"710034409214181396": "Ticket King", "853327905357561948": "Appy", "530082442967646230": "Giveaway Boat",
+                   "788814313930096662": "SlashBot", "458276816071950337": "ServerStats", "735147814878969968": "Fibo",
+                   "155149108183695360": "Dyno", "678344927997853742": "Sapphire", "282859044593598464": "ProBot"}
+CANAL_TICKETS, CANAL_APPLY, CARGO_CREW = "1398749616832254002", "1398726258157949148", "1446301930639986840"
+
+
+def rq2(metodo, path, dados=None, motivo=""):
+    for _ in range(8):
+        try:
+            return discord_req(metodo, path, dados, motivo)
+        except urllib.error.HTTPError as e:
+            if e.code != 429:
+                raise
+            try:
+                espera = float(json.loads(e.read().decode("utf-8")).get("retry_after") or 1)
+            except ValueError:
+                espera = 1.5
+            time.sleep(espera + 0.3)
+    return discord_req(metodo, path, dados, motivo)
+
+
+@app.route("/api/trocar-bots", methods=["POST"])
+def trocar_bots():
+    """Temporário (staff): painéis do Kyzen Bot no lugar dos antigos e remoção dos bots sem função."""
+    if not debug_ok():
+        return jsonify({"ok": False}), 404
+    gid = os.environ.get("DISCORD_GUILD_ID", "").strip()
+    passo = request.args.get("passo", "")
+    try:
+        if passo == "paineis":
+            out = {}
+            for canal, corpo, nome in ((CANAL_TICKETS, painel_ticket(), "ticket"),
+                                       (CANAL_APPLY, painel_formulario({"cargo": CARGO_CREW}), "formulario")):
+                msgs = rq2("GET", f"/channels/{canal}/messages?limit=50")
+                ja = any((m.get("author") or {}).get("id") == "1571195084391587990" and m.get("components")
+                         for m in msgs)
+                if not ja:
+                    rq2("POST", f"/channels/{canal}/messages", dict(corpo, allowed_mentions={"parse": []}))
+                apagadas = 0
+                for m in msgs:
+                    if (m.get("author") or {}).get("id") in ("710034409214181396", "853327905357561948"):
+                        rq2("DELETE", f"/channels/{canal}/messages/{m['id']}", motivo="Painel antigo")
+                        apagadas += 1
+                        time.sleep(0.3)
+                out[nome] = {"painel_novo": "já existia" if ja else "postado", "antigas_apagadas": apagadas}
+            return privado(jsonify(dict(out, ok=True)))
+        if passo == "procurar":
+            achados = []
+            for c in rq2("GET", f"/guilds/{gid}/channels"):
+                if c.get("type") not in (0, 5):
+                    continue
+                try:
+                    msgs = rq2("GET", f"/channels/{c['id']}/messages?limit=50")
+                except urllib.error.HTTPError:
+                    continue
+                for m in msgs:
+                    b = str((m.get("author") or {}).get("id"))
+                    if b in BOTS_SEM_FUNCAO and m.get("components"):
+                        achados.append(f"#{c.get('name')}: painel do {BOTS_SEM_FUNCAO[b]}")
+                time.sleep(0.2)
+            return privado(jsonify({"ok": True, "paineis_antigos": sorted(set(achados))}))
+        if passo == "remover":
+            out = {}
+            for bid, nome in BOTS_SEM_FUNCAO.items():
+                try:
+                    rq2("DELETE", f"/guilds/{gid}/members/{bid}", motivo="Função assumida pelo Kyzen Bot")
+                    out[nome] = "removido"
+                except urllib.error.HTTPError as e:
+                    out[nome] = "já não estava" if e.code == 404 else f"erro {e.code}"
+                time.sleep(0.3)
+            return privado(jsonify(dict(out, ok=True)))
+        if passo == "automod":
+            return privado(jsonify({"ok": True, "regras": [
+                f"{'✅' if r.get('enabled') else '⏸️'} {r.get('name')} (criada por {r.get('creator_id')})"
+                for r in rq2("GET", f"/guilds/{gid}/auto-moderation/rules")]}))
+        return privado(jsonify({"ok": False, "erro": "passo inválido"}))
+    except Exception as e:  # noqa: BLE001
+        corpo = e.read().decode("utf-8", "replace")[:200] if hasattr(e, "read") else ""
+        return privado(jsonify({"ok": False, "passo": passo, "erro": f"{type(e).__name__}: {e} {corpo}"}))
+
+
 def interacao_moderacao(d, tipo, dados, nome, opcoes, uid):
     """Comandos de moderação e denúncia. Devolve None se não for um deles."""
     gid = str(d.get("guild_id") or os.environ.get("DISCORD_GUILD_ID", "")).strip()
