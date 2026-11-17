@@ -1212,16 +1212,29 @@ BLOX = "https://theblox.com.br/?pid=kyzen"
 DIVULGAR_SO_BLOX = True
 CANAIS_DIVULGACAO = ["1383947381032095846", "1504915310892024018"]  # #chat-geral e #chat-crew
 BLOX_LEMBRETES = [
-    {"titulo": "🛒 Lembrete: a Kyzen tem cupom na The Blox!",
-     "texto": "Quem é da Kyzen tem **desconto exclusivo** na **The Blox**, a nossa patrocinadora.\n"
-              "🍎 Frutas permanentes, ⚔️ espadas e 🎮 gamepasses por **menos do que no próprio Roblox**.\n\n"
-              "No pagamento, use o cupom `KYZEN`."},
-    {"titulo": "🍎 Aquela fruta que você quer tá mais perto do que parece",
-     "texto": "Com o cupom `KYZEN` na **The Blox**, dá pra evoluir no Vox Seas **gastando bem menos**.\n"
-              "E o dono da loja joga com a gente e é da nossa crew. 😉\n\nEntra pelo link da Kyzen e aproveita!"},
-    {"titulo": "⚔️ Quer chegar mais forte na próxima war?",
-     "texto": "Espadas, frutas e gamepasses com **desconto que só quem é da Kyzen tem**, na **The Blox**.\n"
-              "Entra pelo link, escolhe o que quiser e usa o cupom `KYZEN` no pagamento. 🚀"},
+    {"titulo": "🤫 A galera que tá subindo rápido no Vox Seas tem um segredo…",
+     "texto": "Enquanto muita gente paga caro em Robux, quem é da Kyzen entra na **The Blox**, usa o cupom `KYZEN` "
+              "e leva **fruta, espada e gamepass gastando bem menos**.\n\n"
+              "Pronto. Agora você também sabe. 😏"},
+    {"titulo": "👀 Você ainda tá pagando preço cheio no Roblox?",
+     "texto": "Sério mesmo? 😅\n\nQuem é da Kyzen tem **desconto exclusivo** na **The Blox**, a nossa patrocinadora. "
+              "**Mesma fruta, mesma espada, preço menor.**\n\nNo pagamento é só usar o cupom `KYZEN`."},
+    {"titulo": "🍎 E se a fruta dos seus sonhos estivesse a um cupom de distância?",
+     "texto": "Sabe aquela fruta que você vive olhando e pensando *\"um dia eu pego\"*?\n\n"
+              "Com o cupom `KYZEN` na **The Blox**, esse dia pode ser **hoje**. "
+              "O que parecia caro demais fica ao seu alcance. 🔥"},
+    {"titulo": "⚔️ Na próxima war, quem vai estar mais forte: você ou o inimigo?",
+     "texto": "Os inimigos **não têm** o cupom da Kyzen. **Você tem.** 😈\n\n"
+              "Equipamento melhor, gastando menos, na **The Blox**. "
+              "Chega na próxima war preparado e deixa o resto da tripulação orgulhosa. 🏴‍☠️"},
+    {"titulo": "💸 Robux tá caro? A Kyzen deu um jeito nisso.",
+     "texto": "A **The Blox**, nossa patrocinadora, vende itens do Roblox por **menos do que o próprio Roblox**.\n"
+              "E com o cupom `KYZEN` fica **ainda melhor**.\n\n"
+              "Frutas permanentes, espadas, gamepasses… tudo num lugar só. 🛒"},
+    {"titulo": "🏴‍☠️ Só quem é da tripulação sabe disso…",
+     "texto": "Existe um desconto que você **não vai achar em lugar nenhum**: o dono da **The Blox** joga com a gente, "
+              "é da nossa crew e liberou o cupom `KYZEN` **só para a Kyzen**.\n\n"
+              "Vai deixar passar? 👀"},
 ]
 ANUNCIO_THEBLOX = """@everyone
 
