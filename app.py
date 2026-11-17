@@ -1210,6 +1210,8 @@ def snowflake_ts(sid):
 
 BLOX = "https://theblox.com.br/?pid=kyzen"
 DIVULGAR_SO_BLOX = True
+BLOX_LOGO = "https://theblox.com.br/cdn/s/gYzcMXAdJnXPDR89wDWlyo/attachments/17423474473673678imagem.png"
+BLOX_BANNER = "https://theblox.com.br/cdn/s/tK_mrGrcvDuVQ2W4ROcra3/attachments/17946020054027417imagem.webp"
 CANAIS_DIVULGACAO = ["1383947381032095846", "1504915310892024018"]  # #chat-geral e #chat-crew
 BLOX_LEMBRETES = [
     {"titulo": "🤫 A galera que tá subindo rápido no Vox Seas tem um segredo…",
@@ -1268,7 +1270,9 @@ Bora ficar mais forte e dominar os mares juntos! 🌊⚓"""
 
 def divulgacao_blox(agora, turno=0):
     d = BLOX_LEMBRETES[(int(agora // 86400) * len(HORARIOS_UTC) + turno) % len(BLOX_LEMBRETES)]
-    return {"embeds": [{"title": d["titulo"], "url": BLOX, "color": 0x1E90FF, "description": d["texto"],
+    return {"embeds": [{"author": {"name": "The Blox · parceira oficial da Kyzen", "icon_url": BLOX_LOGO, "url": BLOX},
+                        "title": d["titulo"], "url": BLOX, "color": 0x1E90FF, "description": d["texto"],
+                        "thumbnail": {"url": BLOX_LOGO}, "image": {"url": BLOX_BANNER},
                         "footer": {"text": "Kyzen SA • patrocinada pela The Blox • comprando pelo link você ajuda a crew"}}],
             "components": [{"type": 1, "components": [
                 {"type": 2, "style": 5, "label": "🛒 Comprar com o cupom KYZEN", "url": BLOX}]}],
@@ -1355,7 +1359,8 @@ def divulgar():
     forcar = request.args.get("forcar") == "1" and debug_ok()  # teste manual da staff
     previa = request.args.get("previa") == "1"
     resultados = {}
-    for canal in CANAIS_DIVULGACAO:
+    so = request.args.get("so", "")
+    for canal in [c for c in CANAIS_DIVULGACAO if not (forcar and so) or c == so]:
         try:
             msgs = discord_get(f"/channels/{canal}/messages?limit=100", token)
             vai, motivo = (True, "forçado pela staff") if forcar else decidir_divulgacao(msgs, bot_id, agora)
