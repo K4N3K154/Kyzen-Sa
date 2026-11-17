@@ -5,6 +5,7 @@ import json
 import os
 import re
 import secrets
+import threading
 import time
 import unicodedata
 import urllib.error
@@ -13,7 +14,7 @@ import urllib.request
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from flask import Flask, Response, jsonify, redirect, request, session
+from flask import Flask, Response, copy_current_request_context, jsonify, redirect, request, session
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -4294,6 +4295,77 @@ def interacoes():
         else:
             lista = []
         return jsonify({"type": 8, "data": {"choices": [{"name": n[:100], "value": n[:100]} for n in lista]}})
+    resultado = {}
+
+    @copy_current_request_context
+    def rodar():
+        try:
+            resultado["r"] = _tratar_interacao(d, tipo, dados, nome, opcoes, uid)
+        except Exception as e:  # noqa: BLE001
+            resultado["erro"] = e
+
+    t = threading.Thread(target=rodar, daemon=True)
+    t.start()
+    t.join(2.2)
+    if not t.is_alive():
+        if "erro" in resultado:
+            app.logger.error("interação %s: %s", nome, str(resultado["erro"])[:160])
+            return resposta(texto="Algo deu errado. Tente de novo em instantes.", privada=True, componentes=[])
+        return resultado["r"]
+    # Passou de ~2 s: avisa o Discord que está processando e termina depois (o token vale 15 minutos)
+    adiado = adiar_interacao(d, tipo, nome)
+    t.join(60)
+    terminar_interacao(d, adiado, resultado)
+    return "", 202
+
+
+PUBLICOS = {"codigos", "fruta", "ilha", "drop", "evento", "site"}
+
+
+def adiar_interacao(d, tipo, nome):
+    """Resposta 'pensando...' pelo endpoint de callback. Devolve o tipo usado (5 ou 6)."""
+    if tipo == 3 or (tipo == 5 and d.get("message")):
+        corpo, adiado = {"type": 6}, 6
+    else:
+        corpo, adiado = {"type": 5, "data": {} if nome in PUBLICOS else {"flags": 64}}, 5
+    try:
+        discord_req("POST", f"/interactions/{d.get('id')}/{d.get('token')}/callback", corpo)
+    except urllib.error.URLError as e:
+        app.logger.error("adiar: %s", str(e)[:120])
+    return adiado
+
+
+def terminar_interacao(d, adiado, resultado):
+    base = f"/webhooks/{d.get('application_id')}/{d.get('token')}"
+    erro = {"content": "Algo deu errado. Tente de novo em instantes.", "flags": 64, "allowed_mentions": {"parse": []}}
+    if "r" not in resultado:
+        if "erro" in resultado:
+            app.logger.error("interação adiada: %s", str(resultado["erro"])[:160])
+        dados, tipo_r = erro, 4
+    else:
+        try:
+            r = resultado["r"]
+            corpo = r.get_json() if hasattr(r, "get_json") else None
+            tipo_r, dados = (corpo or {}).get("type"), (corpo or {}).get("data") or {}
+        except Exception:  # noqa: BLE001
+            tipo_r, dados = 4, erro
+    if tipo_r == 9:
+        dados, tipo_r = {"content": "Demorei para abrir o formulário. Clique de novo, por favor. 🙏", "flags": 64}, 4
+    try:
+        if adiado == 5:
+            if tipo_r in (4, 7):
+                discord_req("PATCH", f"{base}/messages/@original", {k: v for k, v in dados.items() if k != "flags"})
+            else:
+                discord_req("PATCH", f"{base}/messages/@original", {"content": "✅ Feito."})
+        elif tipo_r == 7:
+            discord_req("PATCH", f"{base}/messages/@original", dados)
+        elif tipo_r == 4:
+            discord_req("POST", base, dados)
+    except urllib.error.URLError as e:
+        app.logger.error("terminar: %s", str(e)[:160])
+
+
+def _tratar_interacao(d, tipo, dados, nome, opcoes, uid):
     try:
         mod = interacao_atendimento(d, tipo, dados, nome, opcoes, uid)
         if mod is None:
@@ -4342,6 +4414,7 @@ def diag_app():
     banco = db_ok()
     return privado(jsonify({"id": str(info.get("id")), "nome": info.get("name"),
                             "interactions_endpoint_url": info.get("interactions_endpoint_url"),
+                            "chave_publica": info.get("verify_key"),
                             "redirects": info.get("redirect_uris"),
                             "variaveis_de_banco": sorted(k for k in os.environ if "DATABASE" in k or "POSTGRES" in k or k.startswith("PG")),
                             "banco_ok": banco, "banco_erro": "" if banco else _db_erro["msg"]}))
