@@ -3350,6 +3350,10 @@ for _bit, _nomes in _VISIVEL.items():
         if _c["name"] in _nomes:
             _c["default_member_permissions"] = str(_bit)
 
+# Tickets voltaram para o Apolo e os formulários para o Appy: esses painéis saem da lista de comandos.
+# (O código continua aqui para fechar os tickets que o Kyzen Bot já abriu.)
+COMANDOS[:] = [_c for _c in COMANDOS if _c["name"] not in ("painel-ticket", "painel-formulario")]
+
 
 def nivel(membro):
     """Nível de staff de alguém (0 = membro comum), pelo cargo que a pessoa tem."""
@@ -3787,7 +3791,7 @@ DIRETRIZES_CARGOS = [
      "Tudo do Mod + 🎉 `/sorteio` · ⚔️ `/war` · gerenciar eventos · banir pelo Discord · mencionar @everyone"),
     ("👑 Adm", 0xF1C40F,
      "**Gestão do servidor**: canais, cargos, painéis e avisos oficiais. Acompanhar e **avaliar a staff**.",
-     "Tudo do Senior Mod + 🎫 painéis (`/painel-ticket`, `/painel-formulario`, `/painel-cargos`) · 📢 `/agendar` · "
+     "Tudo do Senior Mod + 🏷️ `/painel-cargos` · 📢 `/agendar` · "
      "🕊️ `/desbanir` · 🔇 `/castigo` (até 28 dias) · gerenciar canais e cargos"),
     ("💎 Head Admin · Dev · Co-Owner · Owner", 0x1ABC9C,
      "**Direção geral** da Kyzen: promoções, rebaixamentos e a palavra final em qualquer caso.",
