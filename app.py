@@ -4747,6 +4747,31 @@ TROCAS_GUIA = (
     "Boas trocas! 🔁")
 
 
+AVISO_TROCAS = f"""<@&{PING_VOX}>
+
+# 🔄 NOVO CANAL: TROCAS!
+
+Agora a Kyzen tem o <#1572371715051495525>, o lugar certo para **trocar frutas, espadas e itens do Vox Seas** com a galera!
+
+• Anuncie assim: **o que você tem 🔁 o que você quer**
+• Pode mandar print e usar emojis (com Nitro dá para usar os de fruta do server oficial)
+• Negocie no privado ou numa thread da mensagem
+• Leia o guia fixado antes de postar
+
+🛡️ Troque sempre pela janela de trade do jogo. Caiu em golpe? Abra um ticket com prints, e quem aplica golpe é **banido**.
+
+Boas trocas, marujos! 🏴‍☠️"""
+
+
+def avisar_trocas():
+    for m in discord_req("GET", "/channels/1383990514701041836/messages?limit=30"):
+        if "1572371715051495525" in (m.get("content") or ""):
+            return {"enviou": False, "motivo": "já foi avisado", "id": m.get("id")}
+    r = discord_req("POST", "/channels/1383990514701041836/messages", {
+        "content": AVISO_TROCAS, "allowed_mentions": {"roles": [PING_VOX]}})
+    return {"enviou": True, "id": r.get("id")}
+
+
 def canais_resumo(gid):
     canais = discord_req("GET", f"/guilds/{gid}/channels")
     cats = {c["id"]: c["name"] for c in canais if c.get("type") == 4}
@@ -4823,6 +4848,8 @@ def staff_acao():
                         mudou.append(f"{c.get('name')}: erro {e.code}")
                     time.sleep(0.4)
             return privado(jsonify({"ok": True, "antes": antes, "mudou": mudou, "regioes": regioes}))
+        if acao == "aviso-trocas":
+            return privado(jsonify(dict(avisar_trocas(), ok=True)))
         if acao == "canais":
             return privado(jsonify({"ok": True, "canais": canais_resumo(gid)}))
         if acao == "trocas":
