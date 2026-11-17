@@ -4632,6 +4632,73 @@ def configurar_onboarding(gid, max_antes=5, max_total=15):
             "canais_apagados_removidos": len(removidos), "canais_padrao": len(padrao)}
 
 
+FORUM_SETS_NOME = "📚・sets-e-itens"
+FORUM_SETS_TAGS = [("Set", "🧥"), ("Craft", "⚒️"), ("Drop de Boss", "👹"), ("NPC de outra ilha", "🧭"),
+                   ("Material", "🪨"), ("Dúvida", "❓")]
+FORUM_SETS_REGRAS = (
+    "Divulgue aqui os itens importantes dos sets dos bosses: o que precisa, como craftar e quem dropa.\n\n"
+    "• Um post por item ou set, com o nome do item no título\n"
+    "• Só itens importantes: os que precisam de craft, de boss ou de NPC de outra ilha. "
+    "O que dropa do NPC da própria ilha não precisa, porque é fácil de achar\n"
+    "• Use as etiquetas e, se puder, mande um print\n"
+    "• Antes de postar, veja se o item já não tem post (use a busca)")
+FORUM_SETS_GUIA = (
+    "Use este modelo no seu post (copie e preencha):\n\n"
+    "```\n"
+    "🧥 Set: \n"
+    "🎯 Item: \n"
+    "⚒️ Como conseguir: (craft / drop de boss / NPC)\n"
+    "🪨 Materiais: \n"
+    "🗺️ Onde: (ilha, boss ou NPC)\n"
+    "💡 Dica: \n"
+    "```\n"
+    "📸 Anexe um print se tiver.\n\n"
+    "**Vale postar:** item que precisa de craft, que dropa de boss ou de NPC de outra ilha.\n"
+    "**Não precisa:** o que dropa do NPC da própria ilha (é fácil de achar).\n\n"
+    "🔎 Antes de postar, use a busca do fórum para ver se o item já tem post.\n"
+    "📖 O **Guia** do site também tem o \"Onde dropa?\" com os drops do Trello oficial: "
+    "https://kyzensaofc.vercel.app/#guia")
+
+
+def criar_forum_sets(gid):
+    canais = discord_req("GET", f"/guilds/{gid}/channels")
+    existente = next((c for c in canais if c.get("type") == 15 and c.get("name") == FORUM_SETS_NOME), None)
+    if existente:
+        return {"forum": existente["id"], "criado": False}
+    cat = next(c for c in canais if c["id"] == "1383947381032095844")  # 🌎 Geral
+    ows = [{k: o[k] for k in ("id", "type", "allow", "deny")} for o in cat.get("permission_overwrites") or []]
+    # todo mundo pode criar post, responder e mandar print aqui
+    pode = PERM_VER | PERM_ENVIAR | PERM_HIST | PERM_ANEXOS | PERM_LINKS | (1 << 6) | (1 << 38)
+    eo = next((o for o in ows if str(o["id"]) == gid), None)
+    if eo is None:
+        eo = {"id": gid, "type": 0, "allow": "0", "deny": "0"}
+        ows.append(eo)
+    eo["allow"] = str(int(eo.get("allow") or 0) | pode)
+    eo["deny"] = str(int(eo.get("deny") or 0) & ~pode)
+    forum = discord_req("POST", f"/guilds/{gid}/channels", {
+        "name": FORUM_SETS_NOME, "type": 15, "parent_id": "1383947381032095844", "permission_overwrites": ows,
+        "topic": FORUM_SETS_REGRAS, "rate_limit_per_user": 30, "default_thread_rate_limit_per_user": 3,
+        "default_reaction_emoji": {"emoji_name": "👍"}, "default_sort_order": 0, "default_forum_layout": 1,
+        "available_tags": [{"name": n, "emoji_name": e} for n, e in FORUM_SETS_TAGS]},
+        "Fórum de sets e itens (sugestão da comunidade)")
+    post = discord_req("POST", f"/channels/{forum['id']}/threads", {
+        "name": "📌 Leia antes de postar: como divulgar um item",
+        "message": {"embeds": [{"title": "📌 Como divulgar um item de set", "color": COR,
+                                "description": FORUM_SETS_GUIA,
+                                "footer": {"text": "Kyzen SA · ideia sugerida pela comunidade"}}],
+                    "allowed_mentions": {"parse": []}}}, "Guia do fórum de sets")
+    try:
+        discord_req("PATCH", f"/channels/{post['id']}", {"flags": 2, "locked": True}, "Fixa o guia do fórum")
+    except urllib.error.HTTPError:
+        pass
+    try:  # exige pelo menos uma etiqueta em cada post (fica mais fácil de filtrar)
+        discord_req("PATCH", f"/channels/{forum['id']}", {"flags": 16}, "Exige etiqueta nos posts")
+    except urllib.error.HTTPError:
+        pass
+    _canais_cache["t"] = 0
+    return {"forum": forum["id"], "post_guia": post["id"], "criado": True}
+
+
 @app.route("/api/staff-acao", methods=["POST"])
 def staff_acao():
     """Staff (DEBUG_KEY): ações de configuração do servidor, sem precisar de rota temporária."""
@@ -4645,6 +4712,8 @@ def staff_acao():
         if acao == "convites":
             return privado(jsonify({"ok": True, "pessoas_premiadas": processar_convites(forcar_ranking=True,
                                                                                           anunciar=False)}))
+        if acao == "forum-sets":
+            return privado(jsonify(dict(criar_forum_sets(gid), ok=True)))
         if acao in ("voz", "voz-ver"):
             regioes = [r["id"] for r in discord_req("GET", "/voice/regions")]
             alvo = request.args.get("regiao", "brazil")
