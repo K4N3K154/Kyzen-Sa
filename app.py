@@ -4414,7 +4414,9 @@ def diag_app():
     banco = db_ok()
     return privado(jsonify({"id": str(info.get("id")), "nome": info.get("name"),
                             "interactions_endpoint_url": info.get("interactions_endpoint_url"),
-                            "chave_publica": info.get("verify_key"),
+                            "chave_publica": info.get("verify_key") or discord_get(
+                                "/applications/@me", os.environ.get("DISCORD_BOT_TOKEN", "").strip()).get("verify_key"),
+                            "chave_na_vercel": bool(os.environ.get("DISCORD_PUBLIC_KEY", "").strip()),
                             "redirects": info.get("redirect_uris"),
                             "variaveis_de_banco": sorted(k for k in os.environ if "DATABASE" in k or "POSTGRES" in k or k.startswith("PG")),
                             "banco_ok": banco, "banco_erro": "" if banco else _db_erro["msg"]}))
