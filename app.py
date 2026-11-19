@@ -1268,6 +1268,72 @@ Comprando pelo nosso link, você ainda ajuda a Kyzen a crescer. 💙
 Bora ficar mais forte e dominar os mares juntos! 🌊⚓"""
 
 
+DIVULGAR_PARCEIRA = "novabux"  # quem aparece nos 3 horários: "novabux" ou "theblox"
+NOVABUX = "https://discord.gg/nT2EZbUZD"  # só o servidor deles é divulgado (o site não)
+NOVABUX_ICONE = SITE + "/img/novabux-icone.png"
+NOVABUX_BANNER = SITE + "/img/novabux-banner.png"
+NOVABUX_RODAPE = "A NovaBux é uma loja parceira e independente da Kyzen. Dúvidas e compras são tratadas direto com eles."
+NOVABUX_LEMBRETES = [
+    {"titulo": "🔥 Promoções que você não vai acreditar",
+     "texto": "A **NovaBux**, nossa parceira, está com **promoções fantásticas** em itens do **Vox Seas**: "
+              "gamepasses, espadas, cristais e muito mais.\n\n"
+              "💜 **Até 44% de desconto** para quem apoia a Kyzen. É só dizer que veio da **Kyzen** no ticket. 👀"},
+    {"titulo": "👀 Ainda tá pagando preço cheio?",
+     "texto": "Quem é da Kyzen tem acesso às ofertas da **NovaBux**, com **até 44% de desconto**.\n\n"
+              "Entra no servidor deles, confere com seus próprios olhos e diz que veio da **Kyzen**. 😏"},
+    {"titulo": "⚔️ Chega na próxima war mais forte",
+     "texto": "Os inimigos pagam caro. **Você não precisa.** 😈\n\n"
+              "Na **NovaBux** tem gamepass, Double XP e espadas em promoção, com **até 44% de desconto** "
+              "para quem diz que veio da **Kyzen**."},
+    {"titulo": "🏝️ Aquele gamepass que você queria…",
+     "texto": "Private Server, 2x Mastery, Fruit Notifier, barcos… tá tudo em **promoção** na **NovaBux**, "
+              "nossa parceira.\n\n💜 Descontos de **até 44%** para quem apoia a Kyzen. Vai deixar passar?"},
+    {"titulo": "💎 Cristais e money pra subir rápido",
+     "texto": "Quer evoluir no Vox Seas sem gastar uma fortuna? A **NovaBux** tem **pacotes de cristais, money e "
+              "Double XP** com preços bem abaixo do normal.\n\nDiz que veio da **Kyzen** e garante o seu desconto. 🚀"},
+    {"titulo": "🤫 O segredo de quem tá evoluindo rápido…",
+     "texto": "…é a parceria da Kyzen com a **NovaBux**. 😏\n\n"
+              "**Até 44% de desconto** em itens do Vox Seas, só para quem apoia a Kyzen. "
+              "Entra lá, abre seu ticket e fala que veio da **Kyzen**."},
+]
+AVISO_NOVABUX = f"""<@&1446300736454529114>
+
+# 🤝 NOVA PARCEIRA: NOVABUX
+
+A Kyzen fechou parceria com a **NovaBux**, uma loja de itens do **Vox Seas**!
+
+🔥 **Promoções fantásticas** rolando agora: gamepasses, itens e muito mais por preços que você não vai acreditar.
+
+💜 **Descontos de até 44% são exclusivos para quem apoia a Kyzen!** Para garantir o seu, é só dizer que veio da **Kyzen** ao abrir seu ticket lá.
+
+Passa no servidor deles e confere com seus próprios olhos 👀
+
+🔗 {NOVABUX}
+
+-# {NOVABUX_RODAPE}"""
+
+
+def divulgacao_novabux(agora, turno=0):
+    d = NOVABUX_LEMBRETES[(int(agora // 86400) * len(HORARIOS_UTC) + turno) % len(NOVABUX_LEMBRETES)]
+    return {"embeds": [{"author": {"name": "NovaBux · parceira da Kyzen", "icon_url": NOVABUX_ICONE, "url": NOVABUX},
+                        "title": d["titulo"], "url": NOVABUX, "color": 0xE24FD3, "description": d["texto"],
+                        "thumbnail": {"url": NOVABUX_ICONE}, "image": {"url": NOVABUX_BANNER},
+                        "footer": {"text": NOVABUX_RODAPE}}],
+            "components": [{"type": 1, "components": [
+                {"type": 2, "style": 5, "label": "💜 Entrar no servidor da NovaBux", "url": NOVABUX}]}],
+            "allowed_mentions": {"parse": []}}
+
+
+def avisar_novabux():
+    for m in discord_req("GET", "/channels/1383990514701041836/messages?limit=30"):
+        if "nT2EZbUZD" in (m.get("content") or ""):
+            return {"enviou": False, "motivo": "já foi avisado", "id": m.get("id")}
+    r = discord_req("POST", "/channels/1383990514701041836/messages", {
+        "content": AVISO_NOVABUX, "allowed_mentions": {"roles": ["1446300736454529114"]},
+        "embeds": [{"color": 0xE24FD3, "image": {"url": NOVABUX_BANNER}}]})
+    return {"enviou": True, "id": r.get("id")}
+
+
 def divulgacao_blox(agora, turno=0):
     d = BLOX_LEMBRETES[(int(agora // 86400) * len(HORARIOS_UTC) + turno) % len(BLOX_LEMBRETES)]
     return {"embeds": [{"author": {"name": "The Blox · parceira oficial da Kyzen", "icon_url": BLOX_LOGO, "url": BLOX},
@@ -1295,7 +1361,8 @@ def decidir_divulgacao(msgs, bot_id, agora):
     for m in msgs:  # da mais nova para a mais antiga
         autor = m.get("author") or {}
         if str(autor.get("id")) == bot_id and m.get("embeds") and \
-                any(SITE in (e.get("url") or "") or "theblox.com.br" in (e.get("url") or "") for e in m["embeds"]):
+                any(SITE in (e.get("url") or "") or "theblox.com.br" in (e.get("url") or "")
+                    or NOVABUX in (e.get("url") or "") for e in m["embeds"]):
             if agora - snowflake_ts(m["id"]) < DIVULGAR_INTERVALO_H * 3600:
                 return False, "divulgou há pouco tempo"
             break  # a contagem de mensagens vale só desde a última divulgação
@@ -1314,7 +1381,9 @@ def decidir_divulgacao(msgs, bot_id, agora):
 def montar_divulgacao(agora):
     hora = int(agora // 3600) % 24
     turno = min(range(len(HORARIOS_UTC)), key=lambda i: abs(HORARIOS_UTC[i] - hora))
-    if DIVULGAR_SO_BLOX:  # agora os 3 horários são da The Blox (os textos do site ficam guardados)
+    if DIVULGAR_PARCEIRA == "novabux":  # os 3 horários são da parceira (os textos do site ficam guardados)
+        return divulgacao_novabux(agora, turno)
+    if DIVULGAR_SO_BLOX:
         return divulgacao_blox(agora, turno)
     if HORARIOS_UTC[turno] == 15:
         return divulgacao_blox(agora, turno)
@@ -4848,6 +4917,8 @@ def staff_acao():
                         mudou.append(f"{c.get('name')}: erro {e.code}")
                     time.sleep(0.4)
             return privado(jsonify({"ok": True, "antes": antes, "mudou": mudou, "regioes": regioes}))
+        if acao == "aviso-novabux":
+            return privado(jsonify(dict(avisar_novabux(), ok=True)))
         if acao == "aviso-trocas":
             return privado(jsonify(dict(avisar_trocas(), ok=True)))
         if acao == "canais":
