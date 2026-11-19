@@ -4925,6 +4925,22 @@ def staff_acao():
             return privado(jsonify({"ok": True, "antes": antes, "mudou": mudou, "regioes": regioes}))
         if acao == "raids":
             return privado(jsonify(dict(criar_raids(gid), ok=True)))
+        if acao == "msgs":  # leitura: últimas mensagens de um canal (autor, ping e título), sem dados pessoais
+            cid = request.args.get("canal", "")
+            if cid and not cid.isdigit():  # aceita parte do nome do canal
+                cid = next((c["id"] for c in discord_req("GET", f"/guilds/{gid}/channels")
+                            if cid in c.get("name", "")), "")
+            if not cid.isdigit():
+                return privado(jsonify({"ok": False, "erro": "canal inválido"}))
+            out = []
+            for m in discord_req("GET", f"/channels/{cid}/messages?limit={min(int(request.args.get('n') or 10), 50)}"):
+                a = m.get("author") or {}
+                out.append({"quando": m.get("timestamp", "")[:16], "autor": a.get("username"), "bot": a.get("bot", False),
+                            "app": a.get("id") if a.get("bot") else None,
+                            "texto": (m.get("content") or "")[:120], "cargos_marcados": m.get("mention_roles"),
+                            "embeds": [(e.get("title") or (e.get("author") or {}).get("name") or "")[:80]
+                                       for e in m.get("embeds") or []]})
+            return privado(jsonify({"ok": True, "msgs": out}))
         if acao == "raids-mover":
             return privado(jsonify(dict(mover_raids(gid), ok=True)))
         if acao == "aviso-raids":
