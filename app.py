@@ -1271,7 +1271,7 @@ Bora ficar mais forte e dominar os mares juntos! 🌊⚓"""
 DIVULGAR_PARCEIRA = "novabux"  # quem aparece nos 3 horários: "novabux" ou "theblox"
 NOVABUX = "https://discord.gg/vZu9VZMzhz"  # só o servidor deles é divulgado (o site não)
 NOVABUX_ICONE = SITE + "/img/novabux-icone.png"
-NOVABUX_BANNER = SITE + "/img/novabux-banner.png"
+NOVABUX_BANNER = SITE + "/img/novabux-banner2.png"
 NOVABUX_RODAPE = "A NovaBux é uma loja parceira e independente da Kyzen. Dúvidas e compras são tratadas direto com eles."
 NOVABUX_LEMBRETES = [
     {"titulo": "🤯 Ser da Kyzen nunca valeu tanto a pena",
@@ -1328,9 +1328,11 @@ def divulgacao_novabux(agora, turno=0):
 def avisar_novabux():
     for m in discord_req("GET", "/channels/1383990514701041836/messages?limit=30"):
         if "nT2EZbUZD" in (m.get("content") or "") or "vZu9VZMzhz" in (m.get("content") or ""):
-            if "nT2EZbUZD" in m["content"]:  # troca o convite antigo (que vencia) pelo permanente
+            imagem = ((m.get("embeds") or [{}])[0].get("image") or {}).get("url") or ""
+            if "nT2EZbUZD" in m["content"] or imagem != NOVABUX_BANNER:  # convite ou banner desatualizado
                 discord_req("PATCH", f"/channels/1383990514701041836/messages/{m['id']}",
-                            {"content": AVISO_NOVABUX, "allowed_mentions": {"parse": []}})
+                            {"content": AVISO_NOVABUX, "allowed_mentions": {"parse": []},
+                             "embeds": [{"color": 0xE24FD3, "image": {"url": NOVABUX_BANNER}}]})
                 return {"enviou": False, "editou": True, "id": m.get("id")}
             return {"enviou": False, "motivo": "já foi avisado", "id": m.get("id")}
     r = discord_req("POST", "/channels/1383990514701041836/messages", {
