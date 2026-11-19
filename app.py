@@ -2600,6 +2600,7 @@ AJUDA = [
     ("🗺️ Vox Seas", "**Kyzen Bot**: `/codigos` `/fruta` `/ilha` `/drop` `/evento` `/site`"),
     ("⚔️ Entrar na crew", "Formulário no <#1398726258157949148>"),
     ("🎉 Sorteios", "Reaja com 🎉 na mensagem do sorteio para participar"),
+    ("⚔️ Raids e bosses", "Use `/raid` no canal de raids da crew para chamar a galera"),
     ("🎟️ Cupom da The Blox", "Use `/cupom`: desconto exclusivo da Kyzen na The Blox, nossa parceira"),
     ("💡 Sugestões", "Use `/sugerir` e a galera vota com 👍 / 👎 no <#1384921966254882958>"),
     ("🎫 Ajuda e denúncias", "Abra um ticket no <#1398749616832254002> · `/denunciar` mostra o passo a passo"),
@@ -4922,6 +4923,10 @@ def staff_acao():
                         mudou.append(f"{c.get('name')}: erro {e.code}")
                     time.sleep(0.4)
             return privado(jsonify({"ok": True, "antes": antes, "mudou": mudou, "regioes": regioes}))
+        if acao == "raids":
+            return privado(jsonify(dict(criar_raids(gid), ok=True)))
+        if acao == "aviso-raids":
+            return privado(jsonify(dict(avisar_raids(gid, request.args.get("ping") == "1"), ok=True)))
         if acao == "aviso-novabux":
             return privado(jsonify(dict(avisar_novabux(), ok=True)))
         if acao == "aviso-trocas":
@@ -5097,7 +5102,175 @@ def interacoes():
     return "", 202
 
 
-PUBLICOS = {"codigos", "fruta", "ilha", "drop", "evento", "site", "cupom"}
+# ---------------------------------------------------------------------------
+# Raids e bosses: canal da crew, cargo de ping e /raid com lista de quem vai
+# (sugestão da comunidade)
+# ---------------------------------------------------------------------------
+RAID_CANAL_NOME = "⚔️・raids-e-bosses"
+RAID_CARGO_NOME = "⚔️ Caçador de Raids"
+RAID_CAT = "1504914443421618266"  # ⚔️ | Crew
+RAID_COR = 0xE8590C
+_raid_ids = {"t": 0, "canal": None, "cargo": None}
+RAID_GUIA = (
+    "Este canal é **só para chamar a crew para raid e boss**, assim ninguém se perde no meio do chat. 🏴‍☠️\n\n"
+    "**🔔 Quer ser chamado?**\n"
+    "Clique no botão **🔔 Quero ser chamado** aqui embaixo e ganhe o cargo **{cargo}**. "
+    "Toda vez que alguém chamar uma raid ou um boss, você recebe o ping e não perde mais nenhum drop.\n"
+    "Cansou? Clique de novo e o cargo sai.\n\n"
+    "**⚔️ Como chamar a galera**\n"
+    "Use o comando **`/raid`** aqui no canal:\n"
+    "> `/raid boss: Nome do boss ou raid` `vagas: 4` `como_entrar: servidor privado / link / hora`\n"
+    "O bot marca todo mundo que tem o cargo e cria um card com o botão **✋ Tô dentro**, "
+    "mostrando quem vai e quantas vagas sobram.\n\n"
+    "**📌 Regras**\n"
+    "• Só chamadas de raid e boss aqui. Conversa vai no chat da crew\n"
+    "• Nada de ping falso ou chamar sem estar indo de verdade\n"
+    "• Dividam os drops como combinaram antes de começar\n\n"
+    "Bora caçar! ⚔️")
+
+
+def raid_ids(gid):
+    """IDs do canal e do cargo de raids (procura pelo nome e guarda por 10 min)."""
+    if time.time() - _raid_ids["t"] < 600 and _raid_ids["canal"]:
+        return _raid_ids["canal"], _raid_ids["cargo"]
+    canal = next((c["id"] for c in discord_req("GET", f"/guilds/{gid}/channels")
+                  if c.get("name") == RAID_CANAL_NOME), None)
+    cargo = next((r["id"] for r in discord_req("GET", f"/guilds/{gid}/roles")
+                  if r.get("name") == RAID_CARGO_NOME), None)
+    _raid_ids.update(t=time.time(), canal=canal, cargo=cargo)
+    return canal, cargo
+
+
+def criar_raids(gid):
+    canais = discord_req("GET", f"/guilds/{gid}/channels")
+    cargos = discord_req("GET", f"/guilds/{gid}/roles")
+    cargo = next((r for r in cargos if r.get("name") == RAID_CARGO_NOME), None)
+    if not cargo:
+        cargo = discord_req("POST", f"/guilds/{gid}/roles", {
+            "name": RAID_CARGO_NOME, "color": RAID_COR, "hoist": False, "mentionable": True, "permissions": "0"},
+            "Cargo de ping de raids e bosses")
+    canal = next((c for c in canais if c.get("name") == RAID_CANAL_NOME), None)
+    criado = False
+    if not canal:
+        cat = next(c for c in canais if c["id"] == RAID_CAT)
+        ows = [{k: o[k] for k in ("id", "type", "allow", "deny")} for o in cat.get("permission_overwrites") or []]
+        chat_crew = next((c for c in canais if c.get("parent_id") == RAID_CAT and "chat-crew" in c.get("name", "")),
+                         None)
+        canal = discord_req("POST", f"/guilds/{gid}/channels", {
+            "name": RAID_CANAL_NOME, "type": 0, "parent_id": RAID_CAT, "permission_overwrites": ows,
+            "topic": "Só chamadas de raid e boss. Use /raid para chamar e pegue o cargo "
+                     f"{RAID_CARGO_NOME} na mensagem fixada para receber o ping.",
+            "rate_limit_per_user": 10,
+            "position": (chat_crew or {}).get("position", 0) + 1}, "Canal de raids e bosses (sugestão da comunidade)")
+        criado = True
+        msg = discord_req("POST", f"/channels/{canal['id']}/messages", {
+            "embeds": [{"title": "⚔️ Raids e Bosses da Kyzen", "color": RAID_COR,
+                        "description": RAID_GUIA.format(cargo=f"<@&{cargo['id']}>"),
+                        "footer": {"text": "Kyzen SA · ideia sugerida pela comunidade"}}],
+            "components": [{"type": 1, "components": [
+                {"type": 2, "style": 3, "label": "🔔 Quero ser chamado", "custom_id": f"cg:{cargo['id']}"}]}],
+            "allowed_mentions": {"parse": []}})
+        try:
+            discord_req("PUT", f"/channels/{canal['id']}/pins/{msg['id']}", None, "Fixa o guia de raids")
+        except urllib.error.HTTPError:
+            pass
+    _raid_ids.update(t=time.time(), canal=canal["id"], cargo=cargo["id"])
+    _canais_cache["t"] = 0
+    return {"canal": canal["id"], "cargo": cargo["id"], "criado": criado}
+
+
+def avisar_raids(gid, ping=False):
+    canal, cargo = raid_ids(gid)
+    canais = discord_req("GET", f"/guilds/{gid}/channels")
+    anuncios = next(c["id"] for c in canais if c.get("parent_id") == RAID_CAT and "anúncios-crew" in c.get("name", ""))
+    for m in discord_req("GET", f"/channels/{anuncios}/messages?limit=30"):
+        if canal in (m.get("content") or ""):
+            return {"enviou": False, "motivo": "já foi avisado", "id": m.get("id")}
+    texto = (("@everyone\n\n" if ping else "") + f"# ⚔️ NOVO CANAL: RAIDS E BOSSES!\n\n"
+             f"A pedido da tripulação, agora a crew tem o <#{canal}>, um canal **só para chamar raid e boss**. "
+             "Nada de chamada perdida no meio do chat! 🏴‍☠️\n\n"
+             f"🔔 **Clique no botão aqui embaixo** e ganhe o cargo <@&{cargo}>. Toda vez que alguém chamar "
+             "uma raid ou um boss, você é avisado na hora e **não perde mais nenhum drop**.\n\n"
+             "⚔️ Para chamar a galera, use **`/raid`** no canal. O bot marca os caçadores e monta a lista com "
+             "o botão **✋ Tô dentro**.\n\n"
+             "Quem tem o cargo chega primeiro, pega mais drop e evolui mais rápido. Vai ficar de fora? 😏")
+    r = discord_req("POST", f"/channels/{anuncios}/messages", {
+        "content": texto, "allowed_mentions": {"parse": ["everyone"] if ping else []},
+        "components": [{"type": 1, "components": [
+            {"type": 2, "style": 3, "label": "🔔 Quero ser chamado", "custom_id": f"cg:{cargo}"}]}]})
+    return {"enviou": True, "id": r.get("id"), "canal_aviso": anuncios}
+
+
+COMANDOS += [
+    {"name": "raid", "description": "Chamar a crew para uma raid ou boss (no canal de raids)",
+     "options": [{"type": 3, "name": "boss", "description": "Qual raid ou boss", "required": True, "max_length": 80},
+                 {"type": 4, "name": "vagas", "description": "Quantas pessoas precisa (opcional)",
+                  "required": False, "min_value": 1, "max_value": 30},
+                 {"type": 3, "name": "como_entrar", "description": "Servidor, link ou horário (opcional)",
+                  "required": False, "max_length": 200}]},
+]
+
+
+def _raid_card(boss, dono, vagas, entrar, gente):
+    linhas = "\n".join(f"• <@{u}>" for u in gente) or "Ninguém ainda. Seja o primeiro!"
+    total = f"{len(gente)}/{vagas}" if vagas else str(len(gente))
+    desc = f"**Quem chamou:** <@{dono}>\n"
+    if entrar:
+        desc += f"**Como entrar:** {entrar}\n"
+    cheio = bool(vagas) and len(gente) >= vagas
+    return {"title": f"⚔️ {boss}", "color": 0x6C757D if cheio else RAID_COR,
+            "description": desc + f"\n**✋ Quem vai ({total}):**\n{linhas}"
+                           + ("\n\n🔒 **Vagas preenchidas!**" if cheio else ""),
+            "footer": {"text": f"vagas:{vagas or 0} · Kyzen SA · raids e bosses"}}
+
+
+def interacao_raid(d, tipo, dados, nome, opcoes, uid):
+    gid = str(d.get("guild_id") or os.environ.get("DISCORD_GUILD_ID", "")).strip()
+    if tipo == 2 and nome == "raid":
+        canal, cargo = raid_ids(gid)
+        if not canal or str(d.get("channel_id")) != canal:
+            return resposta(texto=f"Use o `/raid` no canal <#{canal}>." if canal else "O canal de raids ainda não existe.",
+                            privada=True, componentes=[])
+        boss = cortar(str(opcoes.get("boss") or "Raid"), 80)
+        vagas = int(opcoes.get("vagas") or 0)
+        entrar = cortar(str(opcoes.get("como_entrar") or ""), 200)
+        return jsonify({"type": 4, "data": {
+            "content": f"<@&{cargo}> **{boss}** chamando! Quem vem? ⚔️" if cargo else f"**{boss}** chamando!",
+            "allowed_mentions": {"roles": [cargo] if cargo else []},
+            "embeds": [_raid_card(boss, uid, vagas, entrar, [uid])],
+            "components": [{"type": 1, "components": [
+                {"type": 2, "style": 3, "label": "✋ Tô dentro", "custom_id": "rd:in"},
+                {"type": 2, "style": 2, "label": "Sair", "custom_id": "rd:out"}]}]}})
+    cid = dados.get("custom_id") or ""
+    if tipo == 3 and cid in ("rd:in", "rd:out"):
+        msg = d.get("message") or {}
+        e = (msg.get("embeds") or [{}])[0]
+        desc = e.get("description") or ""
+        dono = (re.search(r"Quem chamou:\*\* <@(\d+)>", desc) or [None, uid])[1]
+        entrar_m = re.search(r"\*\*Como entrar:\*\* (.*)", desc)
+        lista = desc[desc.find("Quem vai"):]
+        gente = re.findall(r"• <@(\d+)>", lista)
+        vm = re.search(r"vagas:(\d+)", (e.get("footer") or {}).get("text") or "")
+        vagas = int(vm.group(1)) if vm else 0
+        if cid == "rd:in":
+            if uid in gente:
+                return resposta(texto="Você já está na lista. ✋", privada=True, componentes=[])
+            if vagas and len(gente) >= vagas:
+                return resposta(texto="As vagas já foram preenchidas. Fica para a próxima!", privada=True,
+                                componentes=[])
+            gente.append(uid)
+        else:
+            if uid not in gente:
+                return resposta(texto="Você não está na lista.", privada=True, componentes=[])
+            gente.remove(uid)
+        boss = (e.get("title") or "⚔️ Raid").removeprefix("⚔️ ")
+        return jsonify({"type": 7, "data": {
+            "embeds": [_raid_card(boss, dono, vagas, entrar_m.group(1) if entrar_m else "", gente)],
+            "allowed_mentions": {"parse": []}}})
+    return None
+
+
+PUBLICOS = {"codigos", "fruta", "ilha", "drop", "evento", "site", "cupom", "raid"}
 
 
 def adiar_interacao(d, tipo, nome):
@@ -5145,7 +5318,9 @@ def terminar_interacao(d, adiado, resultado):
 
 def _tratar_interacao(d, tipo, dados, nome, opcoes, uid):
     try:
-        mod = interacao_atendimento(d, tipo, dados, nome, opcoes, uid)
+        mod = interacao_raid(d, tipo, dados, nome, opcoes, uid)
+        if mod is None:
+            mod = interacao_atendimento(d, tipo, dados, nome, opcoes, uid)
         if mod is None:
             mod = interacao_cargos(d, tipo, dados, nome, opcoes, uid)
         if mod is None:
