@@ -1269,32 +1269,33 @@ Bora ficar mais forte e dominar os mares juntos! 🌊⚓"""
 
 
 DIVULGAR_PARCEIRA = "novabux"  # quem aparece nos 3 horários: "novabux" ou "theblox"
-NOVABUX = "https://discord.gg/nT2EZbUZD"  # só o servidor deles é divulgado (o site não)
+NOVABUX = "https://discord.gg/vZu9VZMzhz"  # só o servidor deles é divulgado (o site não)
 NOVABUX_ICONE = SITE + "/img/novabux-icone.png"
 NOVABUX_BANNER = SITE + "/img/novabux-banner.png"
 NOVABUX_RODAPE = "A NovaBux é uma loja parceira e independente da Kyzen. Dúvidas e compras são tratadas direto com eles."
 NOVABUX_LEMBRETES = [
-    {"titulo": "🔥 Promoções que você não vai acreditar",
-     "texto": "A **NovaBux**, nossa parceira, está com **promoções fantásticas** em itens do **Vox Seas**: "
-              "gamepasses, espadas, cristais e muito mais.\n\n"
-              "💜 **Até 44% de desconto** para quem apoia a Kyzen. É só dizer que veio da **Kyzen** no ticket. 👀"},
-    {"titulo": "👀 Ainda tá pagando preço cheio?",
-     "texto": "Quem é da Kyzen tem acesso às ofertas da **NovaBux**, com **até 44% de desconto**.\n\n"
-              "Entra no servidor deles, confere com seus próprios olhos e diz que veio da **Kyzen**. 😏"},
-    {"titulo": "⚔️ Chega na próxima war mais forte",
-     "texto": "Os inimigos pagam caro. **Você não precisa.** 😈\n\n"
-              "Na **NovaBux** tem gamepass, Double XP e espadas em promoção, com **até 44% de desconto** "
-              "para quem diz que veio da **Kyzen**."},
-    {"titulo": "🏝️ Aquele gamepass que você queria…",
-     "texto": "Private Server, 2x Mastery, Fruit Notifier, barcos… tá tudo em **promoção** na **NovaBux**, "
-              "nossa parceira.\n\n💜 Descontos de **até 44%** para quem apoia a Kyzen. Vai deixar passar?"},
-    {"titulo": "💎 Cristais e money pra subir rápido",
-     "texto": "Quer evoluir no Vox Seas sem gastar uma fortuna? A **NovaBux** tem **pacotes de cristais, money e "
-              "Double XP** com preços bem abaixo do normal.\n\nDiz que veio da **Kyzen** e garante o seu desconto. 🚀"},
-    {"titulo": "🤫 O segredo de quem tá evoluindo rápido…",
-     "texto": "…é a parceria da Kyzen com a **NovaBux**. 😏\n\n"
-              "**Até 44% de desconto** em itens do Vox Seas, só para quem apoia a Kyzen. "
-              "Entra lá, abre seu ticket e fala que veio da **Kyzen**."},
+    {"titulo": "🤯 Ser da Kyzen nunca valeu tanto a pena",
+     "texto": "A **NovaBux** liberou uma promoção **INSANA só para quem é da Kyzen**: **até 44% de desconto** em "
+              "gamepasses, espadas, cristais e muito mais do **Vox Seas**.\n\n"
+              "Quem não é da Kyzen paga mais caro. **Você não.** 😏 É só dizer que veio da **Kyzen** no ticket."},
+    {"titulo": "👀 Você é da Kyzen e ainda paga preço cheio?",
+     "texto": "Então você está **perdendo dinheiro**. 😅\n\n"
+              "Por ser da Kyzen, você tem acesso a um desconto **absurdo** na **NovaBux**: **até 44% OFF**. "
+              "Entra no servidor deles e fala que veio da **Kyzen**."},
+    {"titulo": "⚔️ Os inimigos pagam caro. Quem é da Kyzen, não.",
+     "texto": "Essa é a vantagem de estar na tripulação certa. 😈\n\n"
+              "Na **NovaBux**, quem é da Kyzen leva gamepass, Double XP e espadas com **desconto insano de até 44%**. "
+              "Chega na próxima war mais forte gastando quase a metade."},
+    {"titulo": "🏝️ Quase metade do preço? Só sendo da Kyzen.",
+     "texto": "Private Server, 2x Mastery, Fruit Notifier, barcos… com **até 44% de desconto** na **NovaBux**.\n\n"
+              "💜 Essa promoção é **exclusiva da Kyzen**. Em nenhum outro lugar você acha esse preço. "
+              "Vai deixar passar?"},
+    {"titulo": "💎 Cristais e money com preço de membro da Kyzen",
+     "texto": "Quer subir rápido no Vox Seas? Por ser da Kyzen, você paga **muito menos** em **cristais, money e "
+              "Double XP** na **NovaBux**.\n\nUma promoção **insana**, só nossa. Diz que veio da **Kyzen** e garante. 🚀"},
+    {"titulo": "🤫 O privilégio de quem é da Kyzen…",
+     "texto": "Existe um desconto que **só a Kyzen tem**: **até 44% OFF** em itens do Vox Seas na **NovaBux**. 😏\n\n"
+              "Entra lá, abre seu ticket e fala que veio da **Kyzen**. O resto é economia."},
 ]
 AVISO_NOVABUX = f"""<@&1446300736454529114>
 
@@ -1326,7 +1327,11 @@ def divulgacao_novabux(agora, turno=0):
 
 def avisar_novabux():
     for m in discord_req("GET", "/channels/1383990514701041836/messages?limit=30"):
-        if "nT2EZbUZD" in (m.get("content") or ""):
+        if "nT2EZbUZD" in (m.get("content") or "") or "vZu9VZMzhz" in (m.get("content") or ""):
+            if "nT2EZbUZD" in m["content"]:  # troca o convite antigo (que vencia) pelo permanente
+                discord_req("PATCH", f"/channels/1383990514701041836/messages/{m['id']}",
+                            {"content": AVISO_NOVABUX, "allowed_mentions": {"parse": []}})
+                return {"enviou": False, "editou": True, "id": m.get("id")}
             return {"enviou": False, "motivo": "já foi avisado", "id": m.get("id")}
     r = discord_req("POST", "/channels/1383990514701041836/messages", {
         "content": AVISO_NOVABUX, "allowed_mentions": {"roles": ["1446300736454529114"]},
@@ -1362,7 +1367,7 @@ def decidir_divulgacao(msgs, bot_id, agora):
         autor = m.get("author") or {}
         if str(autor.get("id")) == bot_id and m.get("embeds") and \
                 any(SITE in (e.get("url") or "") or "theblox.com.br" in (e.get("url") or "")
-                    or NOVABUX in (e.get("url") or "") for e in m["embeds"]):
+                    or "discord.gg/" in (e.get("url") or "") for e in m["embeds"]):
             if agora - snowflake_ts(m["id"]) < DIVULGAR_INTERVALO_H * 3600:
                 return False, "divulgou há pouco tempo"
             break  # a contagem de mensagens vale só desde a última divulgação
