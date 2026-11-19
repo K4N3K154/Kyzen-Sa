@@ -1271,7 +1271,7 @@ Bora ficar mais forte e dominar os mares juntos! 🌊⚓"""
 DIVULGAR_PARCEIRA = "novabux"  # quem aparece nos 3 horários: "novabux" ou "theblox"
 NOVABUX = "https://discord.gg/vZu9VZMzhz"  # só o servidor deles é divulgado (o site não)
 NOVABUX_ICONE = SITE + "/img/novabux-icone.png"
-NOVABUX_BANNER = SITE + "/img/novabux-banner2.png"
+NOVABUX_BANNER = SITE + "/img/novabux-banner3.png"
 NOVABUX_RODAPE = "A NovaBux é uma loja parceira e independente da Kyzen. Dúvidas e compras são tratadas direto com eles."
 NOVABUX_LEMBRETES = [
     {"titulo": "🤯 Ser da Kyzen nunca valeu tanto a pena",
