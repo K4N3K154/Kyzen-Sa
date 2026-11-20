@@ -4168,7 +4168,7 @@ def chamar(d, uid, quem):
 # ----- Formulários (igual ao Appy) -------------------------------------------
 FORMULARIOS = {
     "crew": {"nome": "Crew Apply", "emoji": "⚔️", "canal": "1571135541049688084", "cargo": "1446301930639986840",
-             "ping": cargos_staff("", 7), "descricao": "Entre para a crew da Kyzen no Vox Seas",
+             "ping": [r for r in cargos_staff("", 7) if r != "1388595988159271063"], "descricao": "Entre para a crew da Kyzen no Vox Seas",
              "perguntas": [
                  ("Qual seu nick do Roblox?", "Nick do Roblox", 1, 60),
                  ("Quantos anos você tem?", "Idade", 1, 10),
