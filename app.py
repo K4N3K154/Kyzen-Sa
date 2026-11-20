@@ -4967,6 +4967,32 @@ def staff_acao():
             g = discord_req("GET", f"/guilds/{gid}")
             return privado(jsonify({"ok": True, "achados": achados, "boost": g.get("premium_tier"),
                                     "recursos": [f for f in g.get("features", []) if "ROLE" in f]}))
+        if acao == "cargo-editar":  # renomeia um cargo e coloca logo acima de outro (achado pelo nome)
+            rid, nome = request.args.get("id", ""), request.args.get("nome", "")[:100]
+            acima = request.args.get("acima", "").lower()
+            roles = discord_req("GET", f"/guilds/{gid}/roles")
+            cargo = next((r for r in roles if r["id"] == rid), None)
+            if not cargo:
+                return privado(jsonify({"ok": False, "erro": "cargo não existe"}))
+            if nome:
+                discord_req("PATCH", f"/guilds/{gid}/roles/{rid}", {"name": nome, "hoist": True}, "Renomeia cargo")
+            ref = None
+            if acima:
+                ref = next((r for r in roles if r["id"] != rid and r.get("name", "").lower().strip() == acima), None) \
+                    or next((r for r in roles if r["id"] != rid and acima in r.get("name", "").lower()), None)
+                if not ref:
+                    return privado(jsonify({"ok": False, "erro": "cargo de referência não achado",
+                                            "cargos": [r["name"] for r in roles]}))
+                # descendo, fica em ref+1; subindo, ocupa o lugar do ref (que desce um)
+                alvo = ref["position"] + 1 if cargo["position"] > ref["position"] else ref["position"]
+                if cargo["position"] != alvo:
+                    discord_req("PATCH", f"/guilds/{gid}/roles", [{"id": rid, "position": alvo}],
+                                "Cargo acima do de referência")
+            novos = {r["id"]: r for r in discord_req("GET", f"/guilds/{gid}/roles")}
+            return privado(jsonify({"ok": True, "cargo": novos[rid]["name"], "posicao": novos[rid]["position"],
+                                    "destaque": novos[rid]["hoist"],
+                                    "referencia": ref and {"nome": novos[ref["id"]]["name"],
+                                                           "posicao": novos[ref["id"]]["position"]}}))
         if acao == "cargo-proprio":  # cargo exclusivo e em destaque para um membro (ex.: criador de conteúdo)
             uid, nome = request.args.get("uid", ""), request.args.get("nome", "")[:100]
             if not uid.isdigit() or not nome:
