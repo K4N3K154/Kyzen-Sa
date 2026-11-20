@@ -1388,7 +1388,10 @@ def decidir_divulgacao(msgs, bot_id, agora):
 def montar_divulgacao(agora):
     hora = int(agora // 3600) % 24
     turno = min(range(len(HORARIOS_UTC)), key=lambda i: abs(HORARIOS_UTC[i] - hora))
-    if DIVULGAR_PARCEIRA == "novabux":  # os 3 horários são da parceira (os textos do site ficam guardados)
+    if DIVULGAR_PARCEIRA == "novabux":  # NovaBux quase sempre; The Blox em 1 de cada 7 horários (~3x por semana)
+        slot = int(agora // 86400) * len(HORARIOS_UTC) + turno
+        if slot % 7 == 3:
+            return divulgacao_blox(agora, slot // 7)
         return divulgacao_novabux(agora, turno)
     if DIVULGAR_SO_BLOX:
         return divulgacao_blox(agora, turno)
