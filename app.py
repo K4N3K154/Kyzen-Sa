@@ -4967,6 +4967,9 @@ def staff_acao():
             g = discord_req("GET", f"/guilds/{gid}")
             return privado(jsonify({"ok": True, "achados": achados, "boost": g.get("premium_tier"),
                                     "recursos": [f for f in g.get("features", []) if "ROLE" in f]}))
+        if acao == "subcrews":
+            return privado(jsonify(dict(montar_subcrews(gid, request.args.get("postar") == "1",
+                                                        request.args.get("aplicar") == "1"), ok=True)))
         if acao == "cargo-editar":  # renomeia um cargo e coloca logo acima de outro (achado pelo nome)
             rid, nome = request.args.get("id", ""), request.args.get("nome", "")[:100]
             acima = request.args.get("acima", "").lower()
@@ -5349,7 +5352,111 @@ def interacao_raid(d, tipo, dados, nome, opcoes, uid):
     return None
 
 
-PUBLICOS = {"codigos", "fruta", "ilha", "drop", "evento", "site", "cupom", "raid"}
+# ----- Kyzen SA e Kyzen Sky: cada membro da crew escolhe a sua (um cargo só) ---------------
+SUBCREWS = [("チーム | Kyzen SA", 0xC9954F, "⚓"), ("チーム | Kyzen Sky", 0x5DADE2, "☁️")]
+CHAT_CREW = "1504915310892024018"
+CARGO_CREW = "1446301930639986840"
+
+
+def subcrews_ids(gid, criar=False):
+    roles = discord_req("GET", f"/guilds/{gid}/roles")
+    ids = []
+    for nome, cor, _ in SUBCREWS:
+        r = next((x for x in roles if x.get("name") == nome), None)
+        if not r and criar:
+            r = discord_req("POST", f"/guilds/{gid}/roles", {"name": nome, "color": cor, "hoist": False,
+                                                             "mentionable": True, "permissions": "0"},
+                            "Cargo de sub-crew (Kyzen SA / Kyzen Sky)")
+            time.sleep(0.5)
+        ids.append(r["id"] if r else None)
+    return ids
+
+
+def painel_subcrews(ids):
+    return {"embeds": [{"title": "⚓ Qual é a sua crew?", "color": COR,
+                        "description": "Escolha abaixo se você é da **Kyzen SA** ou da **Kyzen Sky** e ganhe o cargo "
+                                       "na hora.\n\n"
+                                       + "\n".join(f"{e} <@&{rid}>" for (_, _, e), rid in zip(SUBCREWS, ids))
+                                       + "\n\nMudou de crew? É só clicar na outra, que o bot troca o cargo. "
+                                         "Clicar de novo na sua tira o cargo.",
+                        "footer": {"text": "Kyzen Bot · só um cargo de crew por pessoa"}}],
+            "components": [{"type": 1, "components": [
+                {"type": 2, "style": 1 if i == 0 else 2, "label": nome.split("| ")[-1], "emoji": {"name": e},
+                 "custom_id": f"cx:{rid}"} for i, ((nome, _, e), rid) in enumerate(zip(SUBCREWS, ids))]}],
+            "allowed_mentions": {"parse": []}}
+
+
+def escolher_subcrew(d, uid, rid):
+    gid = str(d.get("guild_id"))
+    ids = [x for x in subcrews_ids(gid) if x]
+    if rid not in ids:
+        return resposta(texto="Esse cargo não existe mais. Avise a staff.", privada=True, componentes=[])
+    meus = (d.get("member") or {}).get("roles") or []
+    if CARGO_CREW not in meus:
+        return resposta(texto="Esses cargos são só para quem é da crew. Faça o apply primeiro! ⚔️", privada=True,
+                        componentes=[])
+    if rid in meus:
+        discord_req("DELETE", f"/guilds/{gid}/members/{uid}/roles/{rid}", motivo="Escolha de crew")
+        return resposta(texto=f"➖ Tirei o cargo <@&{rid}>.", privada=True, componentes=[])
+    for outro in ids:
+        if outro != rid and outro in meus:
+            discord_req("DELETE", f"/guilds/{gid}/members/{uid}/roles/{outro}", motivo="Trocou de crew")
+    discord_req("PUT", f"/guilds/{gid}/members/{uid}/roles/{rid}", motivo="Escolha de crew")
+    return resposta(texto=f"✅ Agora você é <@&{rid}>! 🏴‍☠️", privada=True, componentes=[])
+
+
+def montar_subcrews(gid, postar=True, aplicar=True):
+    """Cria os cargos, dá o cargo a quem já respondeu no chat-crew e posta o painel de escolha."""
+    ids = subcrews_ids(gid, criar=True)
+    msgs = discord_req("GET", f"/channels/{CHAT_CREW}/messages?limit=100")
+    respostas = {}
+    for m in reversed(msgs):  # da mais antiga para a mais nova: vale a última resposta de cada um
+        a = m.get("author") or {}
+        if a.get("bot"):
+            continue
+        t = re.sub(r"[^a-z ]", "", (m.get("content") or "").lower()).strip()
+        t = t.removeprefix("kyzen ").strip()
+        if t in ("sa", "sky"):
+            respostas[a["id"]] = ids[0] if t == "sa" else ids[1]
+    dados = []
+    for uid, rid in respostas.items():
+        if not aplicar:
+            dados.append(rid)
+            continue
+        try:
+            membro = discord_req("GET", f"/guilds/{gid}/members/{uid}")
+            meus = membro.get("roles") or []
+            for outro in ids:
+                if outro != rid and outro in meus:
+                    discord_req("DELETE", f"/guilds/{gid}/members/{uid}/roles/{outro}", motivo="Respondeu a crew")
+            if rid not in meus:
+                discord_req("PUT", f"/guilds/{gid}/members/{uid}/roles/{rid}", motivo="Respondeu a crew no chat")
+            dados.append(rid)
+        except urllib.error.HTTPError:
+            pass
+        time.sleep(0.4)
+    painel = None
+    if postar:
+        painel = discord_req("POST", f"/channels/{CHAT_CREW}/messages", painel_subcrews(ids)).get("id")
+    return {"cargos": ids, "sa": dados.count(ids[0]), "sky": dados.count(ids[1]), "painel": painel}
+
+
+COMANDOS += [{"name": "painel-crew", "description": "Postar aqui o painel para escolher Kyzen SA ou Kyzen Sky",
+              "default_member_permissions": str(PERM_GERENCIAR_SERVIDOR)}]
+
+
+def interacao_subcrew(d, tipo, dados, nome, opcoes, uid):
+    gid = str(d.get("guild_id") or os.environ.get("DISCORD_GUILD_ID", "")).strip()
+    if tipo == 2 and nome == "painel-crew":
+        corpo = painel_subcrews(subcrews_ids(gid, criar=True))
+        return jsonify({"type": 4, "data": corpo})
+    cid = dados.get("custom_id") or ""
+    if tipo == 3 and re.fullmatch(r"cx:\d{5,25}", cid):
+        return escolher_subcrew(d, uid, cid[3:])
+    return None
+
+
+PUBLICOS = {"codigos", "fruta", "ilha", "drop", "evento", "site", "cupom", "raid", "painel-crew"}
 
 
 def adiar_interacao(d, tipo, nome):
@@ -5398,6 +5505,8 @@ def terminar_interacao(d, adiado, resultado):
 def _tratar_interacao(d, tipo, dados, nome, opcoes, uid):
     try:
         mod = interacao_raid(d, tipo, dados, nome, opcoes, uid)
+        if mod is None:
+            mod = interacao_subcrew(d, tipo, dados, nome, opcoes, uid)
         if mod is None:
             mod = interacao_atendimento(d, tipo, dados, nome, opcoes, uid)
         if mod is None:
