@@ -4166,6 +4166,7 @@ def chamar(d, uid, quem):
 
 
 # ----- Formulários (igual ao Appy) -------------------------------------------
+CC_APPLY = "CC_APPLY_ID"  # 🎥・cc-apply (Registros): onde chegam os formulários de Content Creator
 FORMULARIOS = {
     "crew": {"nome": "Crew Apply", "emoji": "⚔️", "canal": "1571135541049688084", "cargo": "1446301930639986840",
              "ping": [r for r in cargos_staff("", 7) if r != "1388595988159271063"], "descricao": "Entre para a crew da Kyzen no Vox Seas",
@@ -4192,6 +4193,17 @@ FORMULARIOS = {
                    1, 100),
                   ("Tem alguma habilidade adicional que gostaria de destacar?\n### (Ex: Design, Bot Management, Editing, "
                    "Languages, Event Organization, etc.)", "Habilidade adicional", 2, 600)]},
+    "cc": {"nome": "Content Creator Apply", "emoji": "🎥", "canal": CC_APPLY, "cargo": "1399228692311441448",
+           "ping": ["1399909597430677628"] + [r for r in cargos_staff("", 7) if r != "1388595988159271063"],
+           "descricao": "Vire Content Creator da Kyzen", "painel": "req-cc",
+           "perguntas": [
+               ("Qual seu nick do Roblox?", "Nick do Roblox", 1, 60),
+               ("Em quais plataformas você publica? Mande o link de cada canal/perfil.",
+                "Plataformas e links dos canais", 2, 500),
+               ("Quantos inscritos/seguidores você tem em cada plataforma?", "Inscritos/seguidores", 1, 200),
+               ("Com que frequência você posta vídeos ou faz lives?", "Frequência de posts/lives", 1, 200),
+               ("Que tipo de conteúdo você faz e por que quer ser Content Creator da Kyzen?",
+                "Seu conteúdo e por que a Kyzen?", 2, 800)]},
 }
 
 
@@ -4200,13 +4212,55 @@ def painel_formularios():
         "author": {"name": "Kyzen SA", "icon_url": icone_servidor()}, "title": "📋・Formulários da Kyzen",
         "color": 8972168, "thumbnail": {"url": icone_servidor()},
         "description": "Quer fazer parte da Kyzen? Escolha abaixo o formulário:\n\n"
-                       + "\n".join(f"{f['emoji']} **{f['nome']}**: {f['descricao']}" for f in FORMULARIOS.values())
+                       + "\n".join(f"{f['emoji']} **{f['nome']}**: {f['descricao']}" for f in FORMULARIOS.values()
+                                   if not f.get("painel"))
                        + "\n\nResponda com calma e com sinceridade. A resposta da staff chega na sua **DM**, então "
                          "deixe a DM aberta."}],
         "components": [{"type": 1, "components": [{
             "type": 3, "custom_id": "fa:menu", "placeholder": "Faça uma seleção",
             "options": [{"label": f["nome"], "value": k, "description": f["descricao"], "emoji": {"name": f["emoji"]}}
-                        for k, f in FORMULARIOS.items()]}]}]}
+                        for k, f in FORMULARIOS.items() if not f.get("painel")]}]}]}
+
+
+def painel_cc():
+    return {"embeds": [{
+        "author": {"name": "Kyzen SA", "icon_url": icone_servidor()}, "title": "🎥・Seja Content Creator da Kyzen!",
+        "color": 0xFF0000, "thumbnail": {"url": icone_servidor()},
+        "description": "Você grava **Vox Seas** e quer representar a Kyzen? Então manda o seu formulário! 🎬\n\n"
+                       "## ✨ O que você ganha\n"
+                       "🔴 Cargo <@&1399228692311441448> com destaque na lista de membros\n"
+                       "📢 Seus vídeos divulgados no canal de **vídeos novos** do servidor\n"
+                       "🤝 Contato direto com a staff para collabs, eventos e sorteios\n\n"
+                       "## 📋 O que vamos perguntar\n"
+                       "**1.** Seu nick do Roblox\n**2.** Em quais plataformas você publica (com os links)\n"
+                       "**3.** Quantos inscritos/seguidores você tem\n**4.** Com que frequência você posta\n"
+                       "**5.** Que conteúdo você faz e por que a Kyzen\n\n"
+                       "Clique no botão abaixo e responda com sinceridade. A resposta da staff chega na sua **DM**, "
+                       "então deixe a DM aberta. 📬",
+        "footer": {"text": "Kyzen SA · Content Creator Apply"}}],
+        "components": [{"type": 1, "components": [{"type": 2, "style": 4, "label": "Enviar formulário de CC",
+                                                   "emoji": {"name": "🎥"}, "custom_id": "fa:abrir:cc"}]}],
+        "allowed_mentions": {"parse": []}}
+
+
+def montar_cc(gid):
+    """Cria o canal privado 🎥・cc-apply (igual ao crew-apply) e posta o painel no req-cc."""
+    canais = discord_req("GET", f"/guilds/{gid}/channels")
+    novo = None
+    if not any(c["id"] == CC_APPLY for c in canais):
+        base = next(c for c in canais if c["id"] == FORMULARIOS["crew"]["canal"])
+        ows = [{k: o[k] for k in ("id", "type", "allow", "deny")} for o in base.get("permission_overwrites") or []]
+        ows.append({"id": "1399909597430677628", "type": 0, "allow": str(PERM_VER | PERM_HIST | PERM_ENVIAR),
+                    "deny": "0"})
+        novo = discord_req("POST", f"/guilds/{gid}/channels", {
+            "name": "🎥・cc-apply", "type": 0, "parent_id": base.get("parent_id"), "permission_overwrites": ows,
+            "topic": "Formulários de Content Creator enviados pelo #req-cc"}, "Canal dos formulários de CC")["id"]
+    req = next(c["id"] for c in canais if c.get("name", "").endswith("req-cc"))
+    for m in discord_req("GET", f"/channels/{req}/messages?limit=20"):
+        if any(e.get("title") == "🎥・Seja Content Creator da Kyzen!" for e in m.get("embeds") or []):
+            return {"canal_novo": novo, "painel": m["id"], "postou": False}
+    msg = discord_req("POST", f"/channels/{req}/messages", painel_cc())
+    return {"canal_novo": novo, "painel": msg.get("id"), "postou": True}
 
 
 def modal_aplicacao(tipo, parte, inicio):
@@ -4346,6 +4400,12 @@ def interacao_atendimento(d, tipo, dados, nome, opcoes, uid):
             t = (dados.get("values") or [""])[0]
             if t not in FORMULARIOS:
                 return efemera("Opção inválida.")
+            if pendente_de(t, uid):
+                return efemera(f"Você já tem um **{FORMULARIOS[t]['nome']}** em análise. Aguarde a resposta na DM. 🙂")
+            return modal_aplicacao(t, 1, int(time.time()))
+        ach = re.fullmatch(r"fa:abrir:(\w+)", cid)
+        if ach and ach.group(1) in FORMULARIOS:
+            t = ach.group(1)
             if pendente_de(t, uid):
                 return efemera(f"Você já tem um **{FORMULARIOS[t]['nome']}** em análise. Aguarde a resposta na DM. 🙂")
             return modal_aplicacao(t, 1, int(time.time()))
@@ -4967,6 +5027,8 @@ def staff_acao():
             g = discord_req("GET", f"/guilds/{gid}")
             return privado(jsonify({"ok": True, "achados": achados, "boost": g.get("premium_tier"),
                                     "recursos": [f for f in g.get("features", []) if "ROLE" in f]}))
+        if acao == "cc-form":
+            return privado(jsonify(dict(montar_cc(gid), ok=True)))
         if acao == "aviso-subcrews":
             return privado(jsonify(dict(avisar_subcrews(gid, request.args.get("ping") == "1"), ok=True)))
         if acao == "subcrews":
