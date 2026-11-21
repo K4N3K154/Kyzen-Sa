@@ -4243,6 +4243,41 @@ def painel_cc():
         "allowed_mentions": {"parse": []}}
 
 
+def avisar_cc(gid):
+    """Anúncio no #anúncios: vagas abertas para Content Creator, marcando o Ping - Vox Seas."""
+    canais = discord_req("GET", f"/guilds/{gid}/channels")
+    anuncios = next(c["id"] for c in canais if c.get("name", "").endswith("anúncios") and "crew" not in c["name"])
+    req = next(c["id"] for c in canais if c.get("name", "").endswith("req-cc"))
+    titulo = "🎥 VAGAS ABERTAS PARA CONTENT CREATOR DA KYZEN!"
+    for m in discord_req("GET", f"/channels/{anuncios}/messages?limit=30"):
+        if any(e.get("title") == titulo for e in m.get("embeds") or []):
+            return {"enviou": False, "motivo": "já foi avisado", "id": m["id"]}
+    painel = next((m["id"] for m in discord_req("GET", f"/channels/{req}/messages?limit=20")
+                   if any(e.get("title") == "🎥・Seja Content Creator da Kyzen!" for e in m.get("embeds") or [])), None)
+    link = f"https://discord.com/channels/{gid}/{req}" + (f"/{painel}" if painel else "")
+    r = discord_req("POST", f"/channels/{anuncios}/messages", {
+        "content": "<@&1446300736454529114>",
+        "embeds": [{"title": titulo, "color": 0xFF0000, "thumbnail": {"url": icone_servidor()},
+                    "description": "Você grava **Vox Seas**, faz lives ou posta vídeos e quer representar a Kyzen? "
+                                   "**Chegou a sua hora!** 🎬\n\n"
+                                   "## ✨ O que você ganha\n"
+                                   "🔴 Cargo <@&1399228692311441448> com destaque na lista de membros\n"
+                                   "📢 Seus vídeos divulgados para toda a comunidade\n"
+                                   "🤝 Contato direto com a staff para collabs, eventos e sorteios\n\n"
+                                   "## 📝 Como se candidatar\n"
+                                   f"**1.** Vá no <#{req}>\n"
+                                   "**2.** Clique em **🎥 Enviar formulário de CC**\n"
+                                   "**3.** Responda as 5 perguntas (plataformas, inscritos, frequência...)\n"
+                                   "**4.** Aguarde: a resposta da staff chega na sua **DM** 📬\n\n"
+                                   "Não importa se o canal é pequeno ou grande: queremos gente que **posta com "
+                                   "frequência** e curte o jogo. Bora crescer junto com a Kyzen! 🏴‍☠️",
+                    "footer": {"text": "Kyzen SA · Content Creator"}}],
+        "components": [{"type": 1, "components": [{"type": 2, "style": 5, "label": "Quero ser Content Creator",
+                                                   "emoji": {"name": "🎥"}, "url": link}]}],
+        "allowed_mentions": {"roles": ["1446300736454529114"]}})
+    return {"enviou": True, "id": r.get("id"), "canal": anuncios}
+
+
 def montar_cc(gid):
     """Cria o canal privado 🎥・cc-apply (igual ao crew-apply) e posta o painel no req-cc."""
     canais = discord_req("GET", f"/guilds/{gid}/channels")
@@ -5027,6 +5062,8 @@ def staff_acao():
             g = discord_req("GET", f"/guilds/{gid}")
             return privado(jsonify({"ok": True, "achados": achados, "boost": g.get("premium_tier"),
                                     "recursos": [f for f in g.get("features", []) if "ROLE" in f]}))
+        if acao == "aviso-cc":
+            return privado(jsonify(dict(avisar_cc(gid), ok=True)))
         if acao == "cc-form":
             return privado(jsonify(dict(montar_cc(gid), ok=True)))
         if acao == "aviso-subcrews":
