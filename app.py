@@ -41,6 +41,13 @@ def debug_ok():
     return len(chave) >= 16 and hmac.compare_digest(request.args.get("debug", ""), chave)
 
 
+def codex_control_ok():
+    """Controle remoto do Kyzen Bot com uma chave separada do token do Discord."""
+    chave = os.environ.get("CODEX_CONTROL_KEY", "")
+    recebida = request.headers.get("X-Codex-Control-Key", "")
+    return len(chave) >= 32 and hmac.compare_digest(recebida, chave)
+
+
 _falhas = {}
 
 
@@ -3165,6 +3172,26 @@ COMANDOS += [
                  {"type": 3, "name": "marcar", "description": "Marcar alguém junto",
                   "choices": [{"name": "Ninguém", "value": "nada"}, {"name": "@everyone", "value": "everyone"},
                               {"name": "@here", "value": "here"}]}]},
+    {"name": "falar", "description": "Fazer o Kyzen Bot enviar uma mensagem em um canal",
+     "default_member_permissions": str(PERM_GERENCIAR_SERVIDOR),
+     "options": [{"type": 7, "name": "canal", "description": "Canal onde o bot vai falar", "required": True,
+                  "channel_types": [0, 5]},
+                 {"type": 3, "name": "mensagem", "description": "Texto que o Kyzen Bot vai enviar",
+                  "required": True, "max_length": 2000}]},
+    {"name": "bot-editar", "description": "Editar uma mensagem enviada pelo Kyzen Bot",
+     "default_member_permissions": str(PERM_GERENCIAR_SERVIDOR),
+     "options": [{"type": 7, "name": "canal", "description": "Canal da mensagem", "required": True,
+                  "channel_types": [0, 5]},
+                 {"type": 3, "name": "mensagem_id", "description": "ID da mensagem do Kyzen Bot", "required": True,
+                  "min_length": 5, "max_length": 25},
+                 {"type": 3, "name": "mensagem", "description": "Novo texto", "required": True,
+                  "max_length": 2000}]},
+    {"name": "bot-apagar", "description": "Apagar uma mensagem enviada pelo Kyzen Bot",
+     "default_member_permissions": str(PERM_GERENCIAR_SERVIDOR),
+     "options": [{"type": 7, "name": "canal", "description": "Canal da mensagem", "required": True,
+                  "channel_types": [0, 5]},
+                 {"type": 3, "name": "mensagem_id", "description": "ID da mensagem do Kyzen Bot", "required": True,
+                  "min_length": 5, "max_length": 25}]},
 ]
 
 
@@ -3456,6 +3483,77 @@ def interacao_extras(d, tipo, dados, nome, opcoes, uid):
         if cid == "av:cancelar":
             return cancelar_aviso(d, uid)
     return None
+
+
+def _bot_id_atual():
+    """ID do próprio Kyzen Bot, usado para impedir edição/exclusão de mensagens de terceiros."""
+    if not _app_id["id"]:
+        token = os.environ.get("DISCORD_BOT_TOKEN", "").strip()
+        if not token:
+            return ""
+        _app_id["id"] = os.environ.get("DISCORD_CLIENT_ID", "").strip() or \
+            str(discord_get("/oauth2/applications/@me", token).get("id") or "")
+    return str(_app_id["id"] or "")
+
+
+def _mensagem_do_kyzen(canal, mensagem_id):
+    if not str(canal).isdigit() or not str(mensagem_id).isdigit():
+        return None
+    msg = discord_req("GET", f"/channels/{canal}/messages/{mensagem_id}")
+    autor = msg.get("author") or {}
+    return msg if str(autor.get("id") or "") == _bot_id_atual() else None
+
+
+def controle_bot_enviar(canal, texto, responder=None):
+    texto = cortar(str(texto or "").strip(), 2000)
+    if not str(canal).isdigit() or not texto:
+        raise ValueError("canal ou mensagem inválidos")
+    corpo = {"content": texto, "allowed_mentions": {"parse": []}}
+    if responder and str(responder).isdigit():
+        corpo["message_reference"] = {"message_id": str(responder), "fail_if_not_exists": False}
+    return discord_req("POST", f"/channels/{canal}/messages", corpo)
+
+
+def controle_bot_editar(canal, mensagem_id, texto):
+    if not _mensagem_do_kyzen(canal, mensagem_id):
+        raise ValueError("essa mensagem não foi enviada pelo Kyzen Bot")
+    texto = cortar(str(texto or "").strip(), 2000)
+    if not texto:
+        raise ValueError("mensagem vazia")
+    return discord_req("PATCH", f"/channels/{canal}/messages/{mensagem_id}",
+                       {"content": texto, "allowed_mentions": {"parse": []}})
+
+
+def controle_bot_apagar(canal, mensagem_id):
+    if not _mensagem_do_kyzen(canal, mensagem_id):
+        raise ValueError("essa mensagem não foi enviada pelo Kyzen Bot")
+    discord_req("DELETE", f"/channels/{canal}/messages/{mensagem_id}")
+    return {"id": str(mensagem_id)}
+
+
+def interacao_controle_bot(d, tipo, dados, nome, opcoes, uid):
+    """Comandos de controle manual do Kyzen Bot, disponíveis apenas para Adm ou acima."""
+    if tipo != 2 or nome not in ("falar", "bot-editar", "bot-apagar"):
+        return None
+    if nivel(d.get("member") or {}) < 7:
+        return resposta(texto="Só Adm ou acima pode controlar as mensagens do Kyzen Bot.",
+                        privada=True, componentes=[])
+    canal = str(opcoes.get("canal") or d.get("channel_id") or "")
+    try:
+        if nome == "falar":
+            msg = controle_bot_enviar(canal, opcoes.get("mensagem"))
+            return resposta(texto=f"✅ Enviado pelo Kyzen Bot em <#{canal}> (`{msg.get('id')}`).",
+                            privada=True, componentes=[])
+        mensagem_id = str(opcoes.get("mensagem_id") or "")
+        if nome == "bot-editar":
+            controle_bot_editar(canal, mensagem_id, opcoes.get("mensagem"))
+            return resposta(texto=f"✅ Mensagem `{mensagem_id}` editada.", privada=True, componentes=[])
+        controle_bot_apagar(canal, mensagem_id)
+        return resposta(texto=f"✅ Mensagem `{mensagem_id}` apagada.", privada=True, componentes=[])
+    except ValueError as e:
+        return resposta(texto=f"❌ {str(e)}", privada=True, componentes=[])
+    except urllib.error.HTTPError as e:
+        return resposta(texto=f"❌ O Discord recusou a ação (HTTP {e.code}).", privada=True, componentes=[])
 
 
 # ---------------------------------------------------------------------------
@@ -4988,6 +5086,57 @@ def criar_trocas(gid, parent):
     return {"canal": canal["id"], "criado": True}
 
 
+def _resolver_canal_controle(gid, referencia):
+    """Aceita ID ou nome/parte do nome de um canal de texto e devolve o ID."""
+    ref = str(referencia or "").strip().lstrip("#")
+    if ref.isdigit():
+        return ref
+    if not ref:
+        return ""
+    alvo = slug_py(ref)
+    canais = [c for c in discord_req("GET", f"/guilds/{gid}/channels") if c.get("type") in (0, 5)]
+    exato = next((c for c in canais if slug_py(c.get("name") or "") == alvo), None)
+    parcial = next((c for c in canais if alvo in slug_py(c.get("name") or "")), None)
+    return str((exato or parcial or {}).get("id") or "")
+
+
+@app.route("/api/codex-bot", methods=["POST"])
+def codex_bot():
+    """Controle restrito das mensagens do Kyzen Bot sem expor o token do Discord."""
+    if not codex_control_ok():
+        return jsonify({"ok": False}), 404
+    gid = os.environ.get("DISCORD_GUILD_ID", "").strip()
+    corpo = request.get_json(silent=True) or {}
+    acao = str(corpo.get("acao") or "mensagem")
+    try:
+        canal = _resolver_canal_controle(gid, corpo.get("canal"))
+        if not canal:
+            return privado(jsonify({"ok": False, "erro": "canal inválido"}), 400)
+        if acao == "mensagem":
+            msg = controle_bot_enviar(canal, corpo.get("texto") or corpo.get("mensagem"))
+            return privado(jsonify({"ok": True, "canal": canal, "mensagem": msg.get("id")}))
+        if acao == "responder":
+            alvo = str(corpo.get("mensagem_id") or corpo.get("responder") or "")
+            if not alvo.isdigit():
+                return privado(jsonify({"ok": False, "erro": "mensagem_id inválido"}), 400)
+            msg = controle_bot_enviar(canal, corpo.get("texto") or corpo.get("mensagem"), alvo)
+            return privado(jsonify({"ok": True, "canal": canal, "mensagem": msg.get("id"), "respondeu": alvo}))
+        mensagem_id = str(corpo.get("mensagem_id") or "")
+        if not mensagem_id.isdigit():
+            return privado(jsonify({"ok": False, "erro": "mensagem_id inválido"}), 400)
+        if acao == "editar-mensagem":
+            msg = controle_bot_editar(canal, mensagem_id, corpo.get("texto") or corpo.get("mensagem"))
+            return privado(jsonify({"ok": True, "canal": canal, "mensagem": msg.get("id")}))
+        if acao == "apagar-mensagem":
+            controle_bot_apagar(canal, mensagem_id)
+            return privado(jsonify({"ok": True, "canal": canal, "mensagem": mensagem_id, "apagada": True}))
+        return privado(jsonify({"ok": False, "erro": "ação inválida"}), 400)
+    except ValueError as e:
+        return privado(jsonify({"ok": False, "acao": acao, "erro": str(e)}), 400)
+    except urllib.error.HTTPError as e:
+        return privado(jsonify({"ok": False, "acao": acao, "erro": f"Discord HTTP {e.code}"}), 502)
+
+
 @app.route("/api/staff-acao", methods=["POST"])
 def staff_acao():
     """Staff (DEBUG_KEY): ações de configuração do servidor, sem precisar de rota temporária."""
@@ -4996,6 +5145,29 @@ def staff_acao():
     gid = os.environ.get("DISCORD_GUILD_ID", "").strip()
     acao = request.args.get("acao", "")
     try:
+        if acao in ("mensagem", "responder", "editar-mensagem", "apagar-mensagem"):
+            corpo = request.get_json(silent=True) or {}
+            canal = _resolver_canal_controle(gid, corpo.get("canal") or request.args.get("canal"))
+            if not canal:
+                return privado(jsonify({"ok": False, "erro": "canal inválido"}), 400)
+            if acao == "mensagem":
+                msg = controle_bot_enviar(canal, corpo.get("texto") or corpo.get("mensagem"))
+                return privado(jsonify({"ok": True, "canal": canal, "mensagem": msg.get("id")}))
+            if acao == "responder":
+                alvo = str(corpo.get("mensagem_id") or corpo.get("responder") or "")
+                if not alvo.isdigit():
+                    return privado(jsonify({"ok": False, "erro": "mensagem_id inválido"}), 400)
+                msg = controle_bot_enviar(canal, corpo.get("texto") or corpo.get("mensagem"), alvo)
+                return privado(jsonify({"ok": True, "canal": canal, "mensagem": msg.get("id"),
+                                        "respondeu": alvo}))
+            mensagem_id = str(corpo.get("mensagem_id") or "")
+            if not mensagem_id.isdigit():
+                return privado(jsonify({"ok": False, "erro": "mensagem_id inválido"}), 400)
+            if acao == "editar-mensagem":
+                msg = controle_bot_editar(canal, mensagem_id, corpo.get("texto") or corpo.get("mensagem"))
+                return privado(jsonify({"ok": True, "canal": canal, "mensagem": msg.get("id")}))
+            controle_bot_apagar(canal, mensagem_id)
+            return privado(jsonify({"ok": True, "canal": canal, "mensagem": mensagem_id, "apagada": True}))
         if acao == "invites":
             return privado(jsonify({"ok": True, "invites": configurar_invites(gid)}))
         if acao == "convites":
@@ -5148,6 +5320,8 @@ def staff_acao():
             r = configurar_onboarding(gid, int(request.args.get("antes") or 5), int(request.args.get("total") or 15))
             return privado(jsonify(dict(r, ok="erro" not in r)))
         return privado(jsonify({"ok": False, "erro": "ação inválida"}))
+    except ValueError as e:
+        return privado(jsonify({"ok": False, "acao": acao, "erro": str(e)}), 400)
     except urllib.error.HTTPError as e:
         return privado(jsonify({"ok": False, "acao": acao, "erro": f"{e.code} {e.read().decode('utf-8', 'replace')[:300]}"}))
 
@@ -5653,6 +5827,8 @@ def _tratar_interacao(d, tipo, dados, nome, opcoes, uid):
         mod = interacao_raid(d, tipo, dados, nome, opcoes, uid)
         if mod is None:
             mod = interacao_subcrew(d, tipo, dados, nome, opcoes, uid)
+        if mod is None:
+            mod = interacao_controle_bot(d, tipo, dados, nome, opcoes, uid)
         if mod is None:
             mod = interacao_atendimento(d, tipo, dados, nome, opcoes, uid)
         if mod is None:
