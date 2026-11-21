@@ -4970,6 +4970,11 @@ def staff_acao():
         if acao == "subcrews":
             return privado(jsonify(dict(montar_subcrews(gid, request.args.get("postar") == "1",
                                                         request.args.get("aplicar") == "1"), ok=True)))
+        if acao == "cargos":  # leitura: ordem, cor e destaque de todos os cargos
+            return privado(jsonify({"ok": True, "cargos": [
+                f"{r['position']:>3} {r['name']} | cor {r['color']:06X} | {'separado' if r.get('hoist') else '-'}"
+                f" | {r['id']}" for r in sorted(discord_req("GET", f"/guilds/{gid}/roles"),
+                                                key=lambda r: -r["position"])]}))
         if acao == "cargo-editar":  # renomeia um cargo e coloca logo acima de outro (achado pelo nome)
             rid, nome = request.args.get("id", ""), request.args.get("nome", "")[:100]
             acima = request.args.get("acima", "").lower()
@@ -4977,8 +4982,18 @@ def staff_acao():
             cargo = next((r for r in roles if r["id"] == rid), None)
             if not cargo:
                 return privado(jsonify({"ok": False, "erro": "cargo não existe"}))
+            muda = {"hoist": True} if nome or request.args.get("destaque") == "1" else {}
             if nome:
-                discord_req("PATCH", f"/guilds/{gid}/roles/{rid}", {"name": nome, "hoist": True}, "Renomeia cargo")
+                muda["name"] = nome
+            if request.args.get("cor"):
+                muda["color"] = int(request.args["cor"], 16)
+                muda["colors"] = {"primary_color": muda["color"], "secondary_color": None}
+            if muda:
+                try:
+                    discord_req("PATCH", f"/guilds/{gid}/roles/{rid}", muda, "Edita cargo")
+                except urllib.error.HTTPError:
+                    muda.pop("colors", None)
+                    discord_req("PATCH", f"/guilds/{gid}/roles/{rid}", muda, "Edita cargo")
             ref = None
             if acima:
                 ref = next((r for r in roles if r["id"] != rid and r.get("name", "").lower().strip() == acima), None) \
