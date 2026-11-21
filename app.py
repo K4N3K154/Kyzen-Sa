@@ -4967,6 +4967,8 @@ def staff_acao():
             g = discord_req("GET", f"/guilds/{gid}")
             return privado(jsonify({"ok": True, "achados": achados, "boost": g.get("premium_tier"),
                                     "recursos": [f for f in g.get("features", []) if "ROLE" in f]}))
+        if acao == "aviso-subcrews":
+            return privado(jsonify(dict(avisar_subcrews(gid, request.args.get("ping") == "1"), ok=True)))
         if acao == "subcrews":
             return privado(jsonify(dict(montar_subcrews(gid, request.args.get("postar") == "1",
                                                         request.args.get("aplicar") == "1"), ok=True)))
@@ -5454,6 +5456,36 @@ def montar_subcrews(gid, postar=True, aplicar=True):
     if postar:
         painel = discord_req("POST", f"/channels/{CHAT_CREW}/messages", painel_subcrews(ids)).get("id")
     return {"cargos": ids, "sa": dados.count(ids[0]), "sky": dados.count(ids[1]), "painel": painel}
+
+
+
+def avisar_subcrews(gid, ping=False):
+    """Anúncio no #anúncios-crew dos cargos Kyzen SA / Kyzen Sky, já com os botões de escolha."""
+    ids = subcrews_ids(gid)
+    canal = next(c["id"] for c in discord_req("GET", f"/guilds/{gid}/channels")
+                 if c.get("name", "").endswith("anúncios-crew"))
+    for m in discord_req("GET", f"/channels/{canal}/messages?limit=30"):
+        if ids[0] in (m.get("content") or ""):
+            return {"enviou": False, "motivo": "já foi avisado", "id": m.get("id")}
+    texto = ((f"<@&{CARGO_CREW}>\n\n" if ping else "")
+             + "# ⚓ NOVIDADE: CARGOS DE KYZEN SA E KYZEN SKY!\n\n"
+             "Agora dá para ver **quem é de cada crew** direto no servidor! 🏴‍☠️\n\n"
+             f"🔵 <@&{ids[0]}>: nick **azul**\n"
+             f"🔴 <@&{ids[1]}>: nick **vermelho**\n\n"
+             "Cada crew aparece num **grupo próprio na lista de membros**, "
+             "assim todo mundo sabe quem é quem na hora de chamar para war, raid ou boss.\n\n"
+             "## 🎯 Como pegar o seu cargo\n"
+             "**1.** Clique no botão da sua crew aqui embaixo (ou no painel do <#" + CHAT_CREW + ">)\n"
+             "**2.** Pronto! O cargo, a cor e o grupo aparecem na hora ✅\n\n"
+             "🔁 **Mudou de crew?** Clique na outra que o bot troca sozinho. Cada um fica com **um cargo só**.\n"
+             "➖ Clicar de novo na sua tira o cargo.\n\n"
+             "-# Quem já respondeu no chat qual era a sua crew já ganhou o cargo. "
+             "Só quem tem o cargo de Crew consegue escolher.")
+    corpo = painel_subcrews(ids)
+    r = discord_req("POST", f"/channels/{canal}/messages", {
+        "content": texto, "components": corpo["components"],
+        "allowed_mentions": {"roles": [CARGO_CREW] if ping else []}})
+    return {"enviou": True, "id": r.get("id"), "canal": canal}
 
 
 COMANDOS += [{"name": "painel-crew", "description": "Postar aqui o painel para escolher Kyzen SA ou Kyzen Sky",
