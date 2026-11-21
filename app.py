@@ -4166,7 +4166,7 @@ def chamar(d, uid, quem):
 
 
 # ----- Formulários (igual ao Appy) -------------------------------------------
-CC_APPLY = "CC_APPLY_ID"  # 🎥・cc-apply (Registros): onde chegam os formulários de Content Creator
+CC_APPLY = "1573733819947819192"  # 🎥・cc-apply (Registros): onde chegam os formulários de Content Creator
 FORMULARIOS = {
     "crew": {"nome": "Crew Apply", "emoji": "⚔️", "canal": "1571135541049688084", "cargo": "1446301930639986840",
              "ping": [r for r in cargos_staff("", 7) if r != "1388595988159271063"], "descricao": "Entre para a crew da Kyzen no Vox Seas",
