@@ -5001,8 +5001,8 @@ def staff_acao():
                 if not ref:
                     return privado(jsonify({"ok": False, "erro": "cargo de referência não achado",
                                             "cargos": [r["name"] for r in roles]}))
-                # descendo, fica em ref+1; subindo, ocupa o lugar do ref (que desce um)
-                alvo = ref["position"] + 1 if cargo["position"] > ref["position"] else ref["position"]
+                # fica logo acima do cargo de referência
+                alvo = ref["position"] + 1  # o Discord já desconta o lugar que o cargo deixa vago
                 if cargo["position"] != alvo:
                     discord_req("PATCH", f"/guilds/{gid}/roles", [{"id": rid, "position": alvo}],
                                 "Cargo acima do de referência")
