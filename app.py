@@ -2370,7 +2370,56 @@ def ticket_link():
     return f"https://discord.com/channels/{gid}/{CANAL_TICKET}"
 
 
-def advertir(gid, staff_id, alvo_id, alvo_nome, motivo, prova="", verbal=False, nivel_staff=9, pedido_por=""):
+def conversa_warn(gid, alvo_id, prova="", canal_atual=""):
+    """Captura mensagens próximas à prova ou à última fala recente do membro no canal."""
+    referencia = re.search(
+        r"https://(?:ptb\.|canary\.)?discord(?:app)?\.com/channels/(\d{15,25})/(\d{15,25})/(\d{15,25})",
+        prova or "")
+    if referencia and referencia.group(1) != str(gid):
+        return "", ""
+    canal = referencia.group(2) if referencia else str(canal_atual or "")
+    if not re.fullmatch(r"\d{15,25}", canal):
+        return "", ""
+    try:
+        if referencia:
+            mensagem_id = referencia.group(3)
+            mensagens = discord_req("GET", f"/channels/{canal}/messages?limit=25&around={mensagem_id}")
+            ancora = next((m for m in mensagens if str(m.get("id")) == mensagem_id), None)
+        else:
+            mensagens = discord_req("GET", f"/channels/{canal}/messages?limit=30")
+            agora = time.time()
+            ancora = next((m for m in mensagens
+                           if str((m.get("author") or {}).get("id")) == str(alvo_id)
+                           and not (m.get("author") or {}).get("bot")
+                           and 0 <= agora - snowflake_ts(m["id"]) <= 15 * 60), None)
+    except (urllib.error.URLError, KeyError, TypeError, ValueError):
+        return "", ""
+    if not ancora:
+        return "", ""
+    horario = snowflake_ts(ancora["id"])
+    proximas = sorted((m for m in mensagens if (m.get("author") or {}).get("id")
+                       and not (m.get("author") or {}).get("bot")
+                       and abs(snowflake_ts(m["id"]) - horario) <= 15 * 60),
+                      key=lambda m: int(m["id"]))
+    posicao = next((i for i, m in enumerate(proximas) if m["id"] == ancora["id"]), -1)
+    if posicao < 0:
+        return "", ""
+    linhas = [f"Canal <#{canal}>:"]
+    for m in proximas[max(0, posicao - 2):posicao + 3]:
+        mensagem = " ".join((m.get("content") or "").split())
+        mensagem = mensagem or ("[anexo]" if m.get("attachments") else "[conteúdo indisponível]")
+        marca = "▶" if m["id"] == ancora["id"] else "•"
+        linhas.append(f"{marca} <@{m['author']['id']}> <t:{int(snowflake_ts(m['id']))}:t> {cortar(mensagem, 85)}")
+    link = f"https://discord.com/channels/{gid}/{canal}/{ancora['id']}"
+    return cortar("\n".join(linhas), 950), link
+
+
+def advertir(gid, staff_id, alvo_id, alvo_nome, motivo, prova="", verbal=False, nivel_staff=9, pedido_por="",
+             canal_origem="", conversa=""):
+    if not conversa:
+        conversa, link = conversa_warn(gid, alvo_id, prova, canal_origem)
+        if link and not prova:
+            prova = link
     ativos = [r for r in registros(alvo_id) if r["status"] == ST_WARN]
     n = len(ativos) + (0 if verbal else 1)
     if verbal:
@@ -2382,7 +2431,7 @@ def advertir(gid, staff_id, alvo_id, alvo_nome, motivo, prova="", verbal=False, 
     motivo_audit = f"{'Aviso verbal' if verbal else f'Warn {n}/{LIMITE_BAN}'} por {staff_id}: {motivo}"
     req = WARN_REQ[0 if verbal else min(n, LIMITE_BAN)]
     if nivel_staff < req:
-        return pedir_aprovacao(staff_id, alvo_id, motivo, prova, verbal, n, punicao, req)
+        return pedir_aprovacao(staff_id, alvo_id, motivo, prova, verbal, n, punicao, req, conversa)
 
     # 1) avisa na DM antes (depois de um ban o bot não consegue mais falar com a pessoa)
     dm_ok = True
@@ -2429,6 +2478,8 @@ def advertir(gid, staff_id, alvo_id, alvo_nome, motivo, prova="", verbal=False, 
            "timestamp": datetime.now(timezone.utc).isoformat()}
     if prova:
         log["fields"].append({"name": "📎 Prova", "value": cortar(prova, 1000), "inline": False})
+    if conversa:
+        log["fields"].append({"name": "💬 Conversa", "value": conversa, "inline": False})
     if pedido_por:
         log["fields"].append({"name": "🙋 Pedido por", "value": f"<@{pedido_por}>", "inline": True})
     try:
@@ -3594,7 +3645,7 @@ def avisar_membro(alvo, titulo, texto, cor=0xD9534F):
 
 
 # ----- Pedido de aprovação ---------------------------------------------------
-def pedir_aprovacao(staff, alvo, motivo, prova, verbal, n, punicao, req):
+def pedir_aprovacao(staff, alvo, motivo, prova, verbal, n, punicao, req, conversa=""):
     reg = canal_registro()
     discord_req("POST", f"/channels/{reg}/messages", {
         "content": f"<@&{next(rid for k, _, rid in RANKS if k == req)}>",
@@ -3606,7 +3657,8 @@ def pedir_aprovacao(staff, alvo, motivo, prova, verbal, n, punicao, req):
                                {"name": "🙋 Pedido por", "value": f"<@{staff}>", "inline": True},
                                {"name": "⚖️ Punição", "value": punicao, "inline": True},
                                {"name": "📝 Motivo", "value": cortar(motivo, 1000), "inline": False}]
-                              + ([{"name": "📎 Prova", "value": cortar(prova, 1000), "inline": False}] if prova else []),
+                              + ([{"name": "📎 Prova", "value": cortar(prova, 1000), "inline": False}] if prova else [])
+                              + ([{"name": "💬 Conversa", "value": conversa, "inline": False}] if conversa else []),
                     "footer": {"text": f"Pedido · {alvo} · {req} · {'verbal' if verbal else 'warn'} · pendente"},
                     "timestamp": datetime.now(timezone.utc).isoformat()}],
         "components": [{"type": 1, "components": [
@@ -3633,7 +3685,7 @@ def decidir_pedido(d, uid, aprovar):
     if aprovar:
         gid = str(d.get("guild_id") or os.environ.get("DISCORD_GUILD_ID", ""))
         advertir(gid, uid, alvo, alvo, campos.get("📝 Motivo", ""), campos.get("📎 Prova", ""), tipo == "verbal",
-                 nivel_staff=9, pedido_por=pedinte)
+                 nivel_staff=9, pedido_por=pedinte, conversa=campos.get("💬 Conversa", ""))
     e["color"] = 0x28A745 if aprovar else 0x6C757D
     e["footer"] = {"text": " · ".join(partes[:4] + ["aprovado" if aprovar else "recusado"])}
     e["fields"] = list(e.get("fields") or []) + [{
@@ -5293,7 +5345,7 @@ def interacao_moderacao(d, tipo, dados, nome, opcoes, uid):
             return resposta(texto="Faltou o motivo.", privada=True, componentes=[])
         verbal = slug_py(valores.get("verbal", "")).startswith("s")
         return advertir(gid, uid, alvo_id, alvo_id, valores["motivo"], valores.get("prova", ""), verbal,
-                        nivel_staff=n_staff)
+                        nivel_staff=n_staff, canal_origem=d.get("channel_id", ""))
 
     alvo_id = str(opcoes.get("membro") or "")
     alvo = (resolv.get("users") or {}).get(alvo_id)
@@ -5303,7 +5355,7 @@ def interacao_moderacao(d, tipo, dados, nome, opcoes, uid):
             return resposta(texto=erro, privada=True, componentes=[])
         return advertir(gid, uid, alvo_id, alvo.get("global_name") or alvo.get("username") or alvo_id,
                         str(opcoes.get("motivo") or ""), str(opcoes.get("prova") or ""), opcoes.get("tipo") == "verbal",
-                        nivel_staff=n_staff)
+                        nivel_staff=n_staff, canal_origem=d.get("channel_id", ""))
     if nome == "historico":
         return cmd_historico(alvo_id)
     if nome == "perdoar":
