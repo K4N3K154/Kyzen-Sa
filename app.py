@@ -2245,6 +2245,7 @@ def cmd_frota(uid):
 PERM_ADMIN, PERM_KICK, PERM_BAN = 1 << 3, 1 << 1, 1 << 2
 PERM_VER, PERM_HIST, PERM_MODERAR = 1 << 10, 1 << 16, 1 << 40
 CANAL_TICKET = "1398749616832254002"
+KANEKI_DISCORD_ID = "1021447294819762200"
 NOME_REGISTRO = "🛡️・registro-punições"
 LIMITE_BAN = 5
 PUNICOES = {1: (15 * 60, "Mute de 15 minutos"), 2: (3600, "Mute de 1 hora"),
@@ -2371,7 +2372,7 @@ def ticket_link():
 
 
 def conversa_warn(gid, alvo_id, prova="", canal_atual=""):
-    """Captura mensagens próximas à prova ou à última fala recente do membro no canal."""
+    """Captura só falas do advertido: 2 antes e 2 depois do link, ou as 5 mais recentes."""
     referencia = re.search(
         r"https://(?:ptb\.|canary\.)?discord(?:app)?\.com/channels/(\d{15,25})/(\d{15,25})/(\d{15,25})",
         prova or "")
@@ -2383,29 +2384,42 @@ def conversa_warn(gid, alvo_id, prova="", canal_atual=""):
     try:
         if referencia:
             mensagem_id = referencia.group(3)
-            mensagens = discord_req("GET", f"/channels/{canal}/messages?limit=25&around={mensagem_id}")
+            mensagens = discord_req("GET", f"/channels/{canal}/messages?limit=100&around={mensagem_id}")
             ancora = next((m for m in mensagens if str(m.get("id")) == mensagem_id), None)
         else:
-            mensagens = discord_req("GET", f"/channels/{canal}/messages?limit=30")
+            mensagens, antes = [], ""
             agora = time.time()
-            ancora = next((m for m in mensagens
-                           if str((m.get("author") or {}).get("id")) == str(alvo_id)
-                           and not (m.get("author") or {}).get("bot")
-                           and 0 <= agora - snowflake_ts(m["id"]) <= 15 * 60), None)
+            for _ in range(3):
+                lote = discord_req("GET", f"/channels/{canal}/messages?limit=100"
+                                    + (f"&before={antes}" if antes else ""))
+                mensagens.extend(m for m in lote
+                                 if str((m.get("author") or {}).get("id")) == str(alvo_id)
+                                 and not (m.get("author") or {}).get("bot")
+                                 and 0 <= agora - snowflake_ts(m["id"]) <= 15 * 60)
+                if (len(mensagens) >= 5 or len(lote) < 100
+                        or snowflake_ts(lote[-1]["id"]) < agora - 15 * 60):
+                    break
+                antes = lote[-1]["id"]
+            mensagens.sort(key=lambda m: int(m["id"]))
+            ancora = mensagens[-1] if mensagens else None
     except (urllib.error.URLError, KeyError, TypeError, ValueError):
         return "", ""
-    if not ancora:
+    if not ancora or str((ancora.get("author") or {}).get("id")) != str(alvo_id):
         return "", ""
-    horario = snowflake_ts(ancora["id"])
-    proximas = sorted((m for m in mensagens if (m.get("author") or {}).get("id")
-                       and not (m.get("author") or {}).get("bot")
-                       and abs(snowflake_ts(m["id"]) - horario) <= 15 * 60),
-                      key=lambda m: int(m["id"]))
-    posicao = next((i for i, m in enumerate(proximas) if m["id"] == ancora["id"]), -1)
-    if posicao < 0:
-        return "", ""
-    linhas = [f"Canal <#{canal}>:"]
-    for m in proximas[max(0, posicao - 2):posicao + 3]:
+    if referencia:
+        horario = snowflake_ts(ancora["id"])
+        proximas = sorted((m for m in mensagens if str((m.get("author") or {}).get("id")) == str(alvo_id)
+                           and not (m.get("author") or {}).get("bot")
+                           and abs(snowflake_ts(m["id"]) - horario) <= 15 * 60),
+                          key=lambda m: int(m["id"]))
+        posicao = next((i for i, m in enumerate(proximas) if m["id"] == ancora["id"]), -1)
+        if posicao < 0:
+            return "", ""
+        selecionadas = proximas[max(0, posicao - 2):posicao + 3]
+    else:
+        selecionadas = mensagens[-5:]
+    linhas = [f"Mensagens de <@{alvo_id}> em <#{canal}>:"]
+    for m in selecionadas:
         mensagem = " ".join((m.get("content") or "").split())
         mensagem = mensagem or ("[anexo]" if m.get("attachments") else "[conteúdo indisponível]")
         marca = "▶" if m["id"] == ancora["id"] else "•"
@@ -2576,7 +2590,8 @@ def checar_alvo(staff_id, alvo, membro_alvo, nivel_staff=9):
         return "Não dá para advertir um bot."
     if str(alvo["id"]) == staff_id:
         return "Você não pode advertir a si mesmo. 😅"
-    if membro_alvo and nivel(membro_alvo) and nivel(membro_alvo) >= nivel_staff:
+    if (str(staff_id) != KANEKI_DISCORD_ID and membro_alvo
+            and nivel(membro_alvo) and nivel(membro_alvo) >= nivel_staff):
         return "Essa pessoa tem cargo de staff igual ou maior que o seu. Fale com alguém acima."
     return ""
 
@@ -3605,9 +3620,11 @@ COMANDOS[:] = [_c for _c in COMANDOS if _c["name"] not in ("painel-ticket", "pai
 
 
 def nivel(membro):
-    """Nível de staff de alguém (0 = membro comum), pelo cargo que a pessoa tem."""
+    """Nível da staff (0 = membro comum), considerando cargos e exceções."""
     if not membro:
         return 0
+    if str((membro.get("user") or {}).get("id") or "") == KANEKI_DISCORD_ID:
+        return 9
     n = max([NIVEL_DO_CARGO.get(str(r), 0) for r in membro.get("roles") or []] + [0])
     if not n and int(membro.get("permissions") or 0) & PERM_ADMIN and not (membro.get("user") or {}).get("bot"):
         n = 9  # dono do servidor ou admin sem cargo da staff
@@ -4579,6 +4596,8 @@ def nome_de(uid):
 def nivel_uid(uid):
     acesso(uid)
     c = _acesso_cache.get(uid)
+    if str(uid) == KANEKI_DISCORD_ID and c and c[2]:
+        return 9
     cargos = c[3] if c and len(c) > 3 else []
     return max([NIVEL_DO_CARGO.get(str(r), 0) for r in cargos] + [0])
 
