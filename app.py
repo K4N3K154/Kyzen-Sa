@@ -2320,7 +2320,8 @@ GUIA_STAFF = {
         "**Jeito mais fácil:** clique com o botão direito no **membro** (ou na **mensagem** dele) → "
         "**Apps** → **Advertir membro** / **Advertir autor**. Escreva o motivo e pronto.\n"
         "No celular: segure o dedo em cima do nome ou da mensagem → **Apps**.\n\n"
-        "**Ou pelo comando:** `/advertir membro motivo` (dá pra escolher *aviso verbal* e colar a prova).\n\n"
+        "**Ou pelo comando:** `/advertir membro motivo`. Para *aviso verbal*, use **Advertir autor** "
+        "na mensagem que motivou o aviso ou cole o link dela no campo de prova.\n\n"
         "**O bot faz o resto sozinho:** conta os warns, aplica a punição certa, avisa o membro na DM "
         "e registra aqui neste canal.",
     "fields": [
@@ -2371,11 +2372,57 @@ def ticket_link():
     return f"https://discord.com/channels/{gid}/{CANAL_TICKET}"
 
 
+LINK_PROVA_WARN = re.compile(
+    r"https://(?:ptb\.|canary\.)?discord(?:app)?\.com/channels/(\d{15,25})/(\d{15,25})/(\d{15,25})")
+
+
+def formatar_conversa_warn(canal, alvo_id, mensagens, ancora_id):
+    linhas = [f"Mensagens de <@{alvo_id}> em <#{canal}>:"]
+    for m in mensagens:
+        mensagem = " ".join((m.get("content") or "").split())
+        mensagem = mensagem or ("[anexo]" if m.get("attachments") else "[conteúdo indisponível]")
+        marca = "▶" if m["id"] == ancora_id else "•"
+        linhas.append(f"{marca} <@{alvo_id}> <t:{int(snowflake_ts(m['id']))}:t> {cortar(mensagem, 85)}")
+    return cortar("\n".join(linhas), 950)
+
+
+def conversa_aviso_verbal(gid, alvo_id, prova):
+    referencia = LINK_PROVA_WARN.search(prova or "")
+    if not referencia or referencia.group(1) != str(gid):
+        raise ValueError("Use **Advertir autor** na mensagem que motivou o aviso ou cole o link dela em **Prova**.")
+    _, canal, mensagem_id = referencia.groups()
+    base = f"/channels/{canal}/messages"
+    if str(discord_req("GET", f"/channels/{canal}").get("guild_id")) != str(gid):
+        raise ValueError("A mensagem de referência precisa estar neste servidor.")
+    ancora = discord_req("GET", f"{base}/{mensagem_id}")
+    autor = ancora.get("author") or {}
+    if str(autor.get("id")) != str(alvo_id) or autor.get("bot"):
+        raise ValueError("A mensagem de referência precisa ser do membro avisado.")
+
+    contexto = [ancora]
+    for lado in ("before", "after"):
+        cursor, selecionadas = mensagem_id, []
+        for _ in range(3):
+            lote = discord_req("GET", f"{base}?limit=100&{lado}={cursor}")
+            lote.sort(key=lambda m: int(m["id"]), reverse=lado == "before")
+            selecionadas.extend(m for m in lote if str((m.get("author") or {}).get("id")) == str(alvo_id)
+                                 and not (m.get("author") or {}).get("bot"))
+            if len(selecionadas) >= 2 or len(lote) < 100:
+                break
+            cursor = lote[-1]["id"]
+
+        selecionadas = selecionadas[:2]
+        if lado == "before":
+            contexto[:0] = reversed(selecionadas)
+        else:
+            contexto.extend(selecionadas)
+    link = f"https://discord.com/channels/{gid}/{canal}/{mensagem_id}"
+    return formatar_conversa_warn(canal, alvo_id, contexto, mensagem_id), link
+
+
 def conversa_warn(gid, alvo_id, prova="", canal_atual=""):
     """Captura só falas do advertido: 2 antes e 2 depois do link, ou as 5 mais recentes."""
-    referencia = re.search(
-        r"https://(?:ptb\.|canary\.)?discord(?:app)?\.com/channels/(\d{15,25})/(\d{15,25})/(\d{15,25})",
-        prova or "")
+    referencia = LINK_PROVA_WARN.search(prova or "")
     if referencia and referencia.group(1) != str(gid):
         return "", ""
     canal = referencia.group(2) if referencia else str(canal_atual or "")
@@ -2418,19 +2465,21 @@ def conversa_warn(gid, alvo_id, prova="", canal_atual=""):
         selecionadas = proximas[max(0, posicao - 2):posicao + 3]
     else:
         selecionadas = mensagens[-5:]
-    linhas = [f"Mensagens de <@{alvo_id}> em <#{canal}>:"]
-    for m in selecionadas:
-        mensagem = " ".join((m.get("content") or "").split())
-        mensagem = mensagem or ("[anexo]" if m.get("attachments") else "[conteúdo indisponível]")
-        marca = "▶" if m["id"] == ancora["id"] else "•"
-        linhas.append(f"{marca} <@{m['author']['id']}> <t:{int(snowflake_ts(m['id']))}:t> {cortar(mensagem, 85)}")
     link = f"https://discord.com/channels/{gid}/{canal}/{ancora['id']}"
-    return cortar("\n".join(linhas), 950), link
+    return formatar_conversa_warn(canal, alvo_id, selecionadas, ancora["id"]), link
 
 
 def advertir(gid, staff_id, alvo_id, alvo_nome, motivo, prova="", verbal=False, nivel_staff=9, pedido_por="",
              canal_origem="", conversa=""):
-    if not conversa:
+    if verbal:
+        try:
+            conversa, prova = conversa_aviso_verbal(gid, alvo_id, prova)
+        except urllib.error.URLError:
+            return resposta(texto="Não consegui consultar as mensagens no Discord. Confira o link e tente de novo.",
+                            privada=True, componentes=[])
+        except ValueError as e:
+            return resposta(texto=str(e), privada=True, componentes=[])
+    elif not conversa:
         conversa, link = conversa_warn(gid, alvo_id, prova, canal_origem)
         if link and not prova:
             prova = link
@@ -3492,24 +3541,26 @@ def _mensagem_do_kyzen(canal, mensagem_id):
     return msg if str(autor.get("id") or "") == _bot_id_atual() else None
 
 
-def controle_bot_enviar(canal, texto, responder=None):
+def controle_bot_enviar(canal, texto, responder=None, mencionar_todos=False):
     texto = cortar(str(texto or "").strip(), 2000)
     if not str(canal).isdigit() or not texto:
         raise ValueError("canal ou mensagem inválidos")
-    corpo = {"content": texto, "allowed_mentions": {"parse": []}}
+    # @everyone/@here só são permitidos quando a chamada pede isso explicitamente.
+    corpo = {"content": texto, "allowed_mentions": {"parse": ["everyone"] if mencionar_todos else []}}
     if responder and str(responder).isdigit():
         corpo["message_reference"] = {"message_id": str(responder), "fail_if_not_exists": False}
     return discord_req("POST", f"/channels/{canal}/messages", corpo)
 
 
-def controle_bot_editar(canal, mensagem_id, texto):
+def controle_bot_editar(canal, mensagem_id, texto, mencionar_todos=False):
     if not _mensagem_do_kyzen(canal, mensagem_id):
         raise ValueError("essa mensagem não foi enviada pelo Kyzen Bot")
     texto = cortar(str(texto or "").strip(), 2000)
     if not texto:
         raise ValueError("mensagem vazia")
     return discord_req("PATCH", f"/channels/{canal}/messages/{mensagem_id}",
-                       {"content": texto, "allowed_mentions": {"parse": []}})
+                       {"content": texto,
+                        "allowed_mentions": {"parse": ["everyone"] if mencionar_todos else []}})
 
 
 def controle_bot_apagar(canal, mensagem_id):
@@ -5106,20 +5157,36 @@ def codex_bot():
         if not canal:
             return privado(jsonify({"ok": False, "erro": "canal inválido"}), 400)
         if acao == "mensagem":
-            msg = controle_bot_enviar(canal, corpo.get("texto") or corpo.get("mensagem"))
-            return privado(jsonify({"ok": True, "canal": canal, "mensagem": msg.get("id")}))
+            mencionar_todos = corpo.get("mencionar_todos", False)
+            if not isinstance(mencionar_todos, bool):
+                return privado(jsonify({"ok": False, "erro": "mencionar_todos precisa ser booleano"}), 400)
+            msg = controle_bot_enviar(canal, corpo.get("texto") or corpo.get("mensagem"),
+                                      mencionar_todos=mencionar_todos)
+            return privado(jsonify({"ok": True, "canal": canal, "mensagem": msg.get("id"),
+                                    "mention_everyone": bool(msg.get("mention_everyone"))}))
         if acao == "responder":
             alvo = str(corpo.get("mensagem_id") or corpo.get("responder") or "")
             if not alvo.isdigit():
                 return privado(jsonify({"ok": False, "erro": "mensagem_id inválido"}), 400)
-            msg = controle_bot_enviar(canal, corpo.get("texto") or corpo.get("mensagem"), alvo)
-            return privado(jsonify({"ok": True, "canal": canal, "mensagem": msg.get("id"), "respondeu": alvo}))
+            mencionar_todos = corpo.get("mencionar_todos", False)
+            if not isinstance(mencionar_todos, bool):
+                return privado(jsonify({"ok": False, "erro": "mencionar_todos precisa ser booleano"}), 400)
+            msg = controle_bot_enviar(canal, corpo.get("texto") or corpo.get("mensagem"), alvo,
+                                      mencionar_todos=mencionar_todos)
+            return privado(jsonify({"ok": True, "canal": canal, "mensagem": msg.get("id"),
+                                    "respondeu": alvo,
+                                    "mention_everyone": bool(msg.get("mention_everyone"))}))
         mensagem_id = str(corpo.get("mensagem_id") or "")
         if not mensagem_id.isdigit():
             return privado(jsonify({"ok": False, "erro": "mensagem_id inválido"}), 400)
         if acao == "editar-mensagem":
-            msg = controle_bot_editar(canal, mensagem_id, corpo.get("texto") or corpo.get("mensagem"))
-            return privado(jsonify({"ok": True, "canal": canal, "mensagem": msg.get("id")}))
+            mencionar_todos = corpo.get("mencionar_todos", False)
+            if not isinstance(mencionar_todos, bool):
+                return privado(jsonify({"ok": False, "erro": "mencionar_todos precisa ser booleano"}), 400)
+            msg = controle_bot_editar(canal, mensagem_id, corpo.get("texto") or corpo.get("mensagem"),
+                                      mencionar_todos=mencionar_todos)
+            return privado(jsonify({"ok": True, "canal": canal, "mensagem": msg.get("id"),
+                                    "mention_everyone": bool(msg.get("mention_everyone"))}))
         if acao == "apagar-mensagem":
             controle_bot_apagar(canal, mensagem_id)
             return privado(jsonify({"ok": True, "canal": canal, "mensagem": mensagem_id, "apagada": True}))
@@ -5144,13 +5211,21 @@ def staff_acao():
             if not canal:
                 return privado(jsonify({"ok": False, "erro": "canal inválido"}), 400)
             if acao == "mensagem":
-                msg = controle_bot_enviar(canal, corpo.get("texto") or corpo.get("mensagem"))
+                mencionar_todos = corpo.get("mencionar_todos", False)
+                if not isinstance(mencionar_todos, bool):
+                    return privado(jsonify({"ok": False, "erro": "mencionar_todos precisa ser booleano"}), 400)
+                msg = controle_bot_enviar(canal, corpo.get("texto") or corpo.get("mensagem"),
+                                          mencionar_todos=mencionar_todos)
                 return privado(jsonify({"ok": True, "canal": canal, "mensagem": msg.get("id")}))
             if acao == "responder":
                 alvo = str(corpo.get("mensagem_id") or corpo.get("responder") or "")
                 if not alvo.isdigit():
                     return privado(jsonify({"ok": False, "erro": "mensagem_id inválido"}), 400)
-                msg = controle_bot_enviar(canal, corpo.get("texto") or corpo.get("mensagem"), alvo)
+                mencionar_todos = corpo.get("mencionar_todos", False)
+                if not isinstance(mencionar_todos, bool):
+                    return privado(jsonify({"ok": False, "erro": "mencionar_todos precisa ser booleano"}), 400)
+                msg = controle_bot_enviar(canal, corpo.get("texto") or corpo.get("mensagem"), alvo,
+                                          mencionar_todos=mencionar_todos)
                 return privado(jsonify({"ok": True, "canal": canal, "mensagem": msg.get("id"),
                                         "respondeu": alvo}))
             mensagem_id = str(corpo.get("mensagem_id") or "")
