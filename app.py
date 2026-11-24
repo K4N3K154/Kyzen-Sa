@@ -2278,14 +2278,14 @@ COMANDOS += [
 ]
 
 
-def discord_req(metodo, path, dados=None, motivo=""):
+def discord_req(metodo, path, dados=None, motivo="", timeout=4):
     h = {"Authorization": f"Bot {os.environ.get('DISCORD_BOT_TOKEN', '').strip()}",
          "User-Agent": "KyzenSA-Site (1.0)", "Content-Type": "application/json"}
     if motivo:
         h["X-Audit-Log-Reason"] = urllib.parse.quote(cortar(motivo, 400))
     req = urllib.request.Request(API + path, method=metodo, headers=h,
                                  data=None if dados is None else json.dumps(dados).encode("utf-8"))
-    with urllib.request.urlopen(req, timeout=4) as r:
+    with urllib.request.urlopen(req, timeout=timeout) as r:
         corpo = r.read().decode("utf-8")
         return json.loads(corpo) if corpo else {}
 
@@ -3549,7 +3549,7 @@ def controle_bot_enviar(canal, texto, responder=None, mencionar_todos=False):
     corpo = {"content": texto, "allowed_mentions": {"parse": ["everyone"] if mencionar_todos else []}}
     if responder and str(responder).isdigit():
         corpo["message_reference"] = {"message_id": str(responder), "fail_if_not_exists": False}
-    return discord_req("POST", f"/channels/{canal}/messages", corpo)
+    return discord_req("POST", f"/channels/{canal}/messages", corpo, timeout=12)
 
 
 def controle_bot_editar(canal, mensagem_id, texto, mencionar_todos=False):
@@ -5179,6 +5179,13 @@ def codex_bot():
         mensagem_id = str(corpo.get("mensagem_id") or "")
         if not mensagem_id.isdigit():
             return privado(jsonify({"ok": False, "erro": "mensagem_id inválido"}), 400)
+        if acao == "consultar-mensagem":
+            msg = _mensagem_do_kyzen(canal, mensagem_id)
+            if not msg:
+                return privado(jsonify({"ok": False, "erro": "mensagem não pertence ao Kyzen Bot"}), 400)
+            return privado(jsonify({"ok": True, "canal": canal, "mensagem": msg.get("id"),
+                                    "mention_everyone": bool(msg.get("mention_everyone")),
+                                    "flags": msg.get("flags", 0)}))
         if acao == "editar-mensagem":
             mencionar_todos = corpo.get("mencionar_todos", False)
             if not isinstance(mencionar_todos, bool):
@@ -5195,6 +5202,9 @@ def codex_bot():
         return privado(jsonify({"ok": False, "acao": acao, "erro": str(e)}), 400)
     except urllib.error.HTTPError as e:
         return privado(jsonify({"ok": False, "acao": acao, "erro": f"Discord HTTP {e.code}"}), 502)
+    except (TimeoutError, urllib.error.URLError):
+        return privado(jsonify({"ok": False, "acao": acao,
+                                "erro": "Sem confirmação do Discord. Consulte a mensagem antes de repetir o envio."}), 504)
 
 
 @app.route("/api/staff-acao", methods=["POST"])
